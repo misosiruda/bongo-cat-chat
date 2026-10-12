@@ -1,0 +1,43 @@
+# Local research evidence, prototypes, and third-party files are not published.
+research/private/
+artifacts/
+private/
+
+# Conversation databases and diagnostics
+data/
+logs/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.log
+
+# Local configuration and build output
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+build/
+target/
+bin/
+obj/
+.vs/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Never commit installed game/Steam binaries or compiled research modules.
+*.dll
+*.exe
+*.pdb
+*.nupkg

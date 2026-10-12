@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "verified_date": "2026-10-12",
+  "timezone_for_report": "Asia/Seoul",
+  "scope": "one Windows PC, one Steam account, installed Bongo Cat with pre-existing Auto Chest patch",
+  "game_app_id": 3419430,
+  "observed_game_build": "25723683",
+  "live_receive": {
+    "duration_seconds": 55.0,
+    "lobby_events": 713,
+    "channel_counts": {
+      "2": 709,
+      "3": 1,
+      "4": 1,
+      "5": 2
+    },
+    "chat_messages_from_other_user": 1,
+    "sender_and_text_decoded": true,
+    "other_user_plaintext_persisted": false
+  },
+  "private_loopback": {
+    "passed": true,
+    "sent": 6,
+    "received": 6,
+    "exact_order": true,
+    "exact_multiplicity": true,
+    "latency_ms_min": 184.6,
+    "latency_ms_max": 235.4,
+    "scope": "same account and same probe process; peer rendering not verified by this test",
+    "cases": [
+      "ASCII",
+      "Korean",
+      "emoji transport only",
+      "quotes and backslash",
+      "same text twice"
+    ]
+  },
+  "native_wire_reference": {
+    "time_utc": "2026-10-12T08:22:30.798655+00:00",
+    "text": "인코딩 확인 가나123",
+    "bytes": 52,
+    "wire_hex": "7b224368616e6e656c223a332c224d657373616765223a22ec9db8ecbd94eb94a920ed9995ec9db820eab080eb8298313233227d",
+    "raw_sha256": "97c2802e18cdfb7581ad9ef1a160a892b65c9e24ca1999d2d63382129051d502",
+    "exact_sidecar_bytes": true,
+    "trailing_nul_bytes": 0,
+    "ascii_only": false,
+    "unicode_escape_count": 0
+  },
+  "authorized_regular_lobby_sends": {
+    "timestamp_basis": "authorized_send_attempt, immediately before the API call",
+    "single_send_time_utc": "2026-10-12T08:13:52.718530+00:00",
+    "text": "서드파티 프로그램으로 텍스트 송출 테스트 중입니다",
+    "repeat_count": 4,
+    "requested_interval_seconds": 15,
+    "repeat_times_utc": [
+      "2026-10-12T08:26:35.747976+00:00",
+      "2026-10-12T08:26:51.049415+00:00",
+      "2026-10-12T08:27:05.782037+00:00",
+      "2026-10-12T08:27:20.763664+00:00"
+    ],
+    "all_api_accepted": true,
+    "all_own_echo_exact": true,
+    "peer_display": "confirmed by user in conversation, not by recipient screenshot or automated assertion"
+  },
+  "local_game_bubble": {
+    "missing_after_sidecar_send": "user observed",
+    "send_and_display_are_separate": "static analysis of installed game assemblies",
+    "prototype_compiled": true,
+    "installed": false,
+    "runtime_verified": false,
+    "product_decision": "excluded; display own outgoing messages in companion UI"
+  },
+  "not_verified": [
+    "clean game installation without pre-existing mods",
+    "separate recipient PC capture",
+    "long-running receive and reconnection",
+    "game-closed operation",
+    "offline history recovery",
+    "nickname/avatar UI",
+    "emoji game rendering",
+    "release permission and licensing"
+  ],
+  "privacy": "No Steam user IDs, lobby IDs, room codes, third-party chat contents or game binaries included."
+}
