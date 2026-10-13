@@ -402,8 +402,7 @@
       icons();remember();
     });
     view.el('[data-search]').addEventListener('input',event=>{state.query=event.target.value;view.renderMessages();});
-    view.el('[data-input]').addEventListener('input',event=>{state.drafts[state.room]=event.target.value;view.el('[data-send]').disabled=!event.target.value.trim();});
-    view.el('[data-input]').addEventListener('change',remember);
+    view.el('[data-input]').addEventListener('input',event=>{state.drafts[state.room]=event.target.value;view.el('[data-send]').disabled=!event.target.value.trim();remember();});
     view.el('[data-input]').addEventListener('compositionstart',()=>{state.composing=true;});
     view.el('[data-input]').addEventListener('compositionend',()=>{state.composing=false;});
     view.el('[data-input]').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing&&!state.composing&&event.keyCode!==229){event.preventDefault();view.el('[data-send]').click();}});
