@@ -175,3 +175,17 @@ def test_unsaved_first_message_keeps_search_jump_and_older_page(qt_chat, monkeyp
     assert js(app, page, "document.querySelectorAll('.message-status').length") == 0
     js(app, page, "document.querySelector('#latest').click()")
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 101)
+
+
+def test_update_ready_keeps_editor_and_does_not_restart(qt_chat, monkeypatch):
+    app, controller, page = qt_chat
+    requests = []
+    monkeypatch.setattr(controller.updates, 'request', lambda: requests.append('check'))
+    js(app, page, "document.querySelector('#message-input').value='업데이트 중 초안';document.querySelector('#message-input').dispatchEvent(new Event('input'))")
+    controller.updates.report('ready', '0.2.0')
+    wait_until(app, lambda: js(app, page, "document.querySelector('#update-status').textContent.includes('다음 실행')") is True)
+    assert js(app, page, "document.querySelector('#message-input').value") == '업데이트 중 초안'
+    assert js(app, page, "document.querySelectorAll('.message-bubble').length") == 1
+    js(app, page, "document.querySelector('#check-updates').click()")
+    wait_until(app, lambda: len(requests) == 1)
+    assert controller.worker is None and not controller.closed
