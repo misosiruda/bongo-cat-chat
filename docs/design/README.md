@@ -6,6 +6,8 @@
 
 ## 기준 이미지와 구성
 
+이 디자인에서 실제 Windows 개발판의 `src/bongo_chat/ui/`를 만들었다. 제품 화면은 QWebChannel을 통해 실제 연결·기록을 사용하며 이 폴더의 예시 이름·대화·그림을 사용하지 않는다. 시안의 38개 UI 검사는 디자인 증거로 유지하고, 제품의 검사는 [별도 기록](../product-validation.md)으로 구분한다.
+
 - [라이트 시안](assets/desktop-concept.png)
 - [다크 시안](assets/desktop-concept-dark.png)
 - [원본 고양이 일러스트](assets/cat-avatars.png): 위 시안을 바탕으로 별도 생성한 4종. 실제 게임 이미지·사용자 외형이 아니다.

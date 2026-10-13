@@ -1,0 +1,207 @@
+{
+  "date": "2026-10-13",
+  "timezone": "Asia/Seoul",
+  "baseline": "db78bda",
+  "app_version": "0.1.0.dev1",
+  "environment": {
+    "os": "Windows 11 x64 10.0.26300",
+    "python": "3.13.3",
+    "game_build": "25723683",
+    "existing_auto_chest_opener_patch": true,
+    "stock_game_validated": false
+  },
+  "automated_tests": {
+    "command": ".venv/Scripts/python -m pytest -q",
+    "passed": 49,
+    "failed": 0,
+    "steam_connected": false,
+    "followup": {
+      "command": ".venv/Scripts/python -m pytest -q tests/test_desktop.py",
+      "passed": 5,
+      "failed": 0,
+      "new_cases": 1,
+      "unchanged_cases_reused": 45,
+      "unique_cases_verified": 50,
+      "steam_connected": false
+    },
+    "review_fix": {
+      "command": ".venv/Scripts/python -m pytest -q tests/test_core.py tests/test_desktop.py",
+      "passed": 50,
+      "failed": 0,
+      "ordering_regressions_failed_before_fix": 4,
+      "unchanged_callback_memory_cases_reused": 4,
+      "unique_cases_verified": 54,
+      "steam_connected": false,
+      "qt_offscreen_gpu_context_warnings": true,
+      "javascript_console_errors": 0
+    }
+  },
+  "syntax_checks": [
+    "node --check src/bongo_chat/ui/app.js",
+    ".venv/Scripts/python -m compileall -q src tools"
+  ],
+  "browser": {
+    "tool": "Playwright Chromium",
+    "browser_plugin": "not available",
+    "host": "127.0.0.1",
+    "viewports": [
+      [
+        1536,
+        1024
+      ],
+      [
+        480,
+        800
+      ]
+    ],
+    "initial_synthetic_messages": 48,
+    "added_synthetic_message": 1,
+    "checks": "passed",
+    "javascript_console_errors": 0,
+    "steam_connected": false
+  },
+  "source_qt_live_tests": [
+    {
+      "text": "Bongo Cat Chat 앱 송수신 확인입니다",
+      "ui_send_attempts": 1,
+      "api_status": "accepted",
+      "self_echo": true,
+      "peer_screen": "not_observed_by_tool",
+      "game_files_modified": false,
+      "lobby_mutations": 0,
+      "automatic_retries": 0,
+      "matching_own_rows": 1,
+      "sqlite_saved": true,
+      "same_game_process": true,
+      "same_lobby": true,
+      "renderer_console_error_count": 0,
+      "ui_own_message_visible": true,
+      "reopened_search_count": 1,
+      "game_still_running_after_shutdown": true,
+      "peer_messages_saved": 1,
+      "game_process_writes": 0
+    },
+    {
+      "text": "이 채팅이 보이면 야옹야옹 해주세요",
+      "ui_send_attempts": 1,
+      "api_status": "accepted",
+      "self_echo": true,
+      "peer_screen": "not_observed_by_tool",
+      "game_files_modified": false,
+      "lobby_mutations": 0,
+      "automatic_retries": 0,
+      "matching_own_rows": 1,
+      "sqlite_saved": true,
+      "same_game_process": true,
+      "same_lobby": true,
+      "renderer_console_error_count": 0,
+      "peer_messages_saved": 12,
+      "peer_meow_reply_count": 0,
+      "ui_peer_message_count": 12.0,
+      "ui_own_message_visible": true,
+      "reopened_search_count": 1,
+      "game_still_running_after_shutdown": true,
+      "game_process_writes": 0
+    }
+  ],
+  "game_screen_observation": {
+    "evidence_type": "user_confirmation",
+    "statement": "채팅 잘 떴어",
+    "independent_peer_screen_capture": false
+  },
+  "native_readonly_packaged": {
+    "ready": true,
+    "state": "ready",
+    "notice": "read_only",
+    "read_only": true,
+    "send_enabled": false,
+    "profile_count": 16,
+    "rendered_avatar_count": 16,
+    "avatar_stage": "ready",
+    "avatar_error": "",
+    "stored_messages": 3,
+    "console_error_count": 0,
+    "renderer_read_only": true,
+    "tested_exe_sha256": "ea486c18e74f6871ef0e07991b327952c78d7ac7e5d4bd0c49774f35dd3f1944"
+  },
+  "bundle": {
+    "command": "pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/review-fix",
+    "result": "passed",
+    "bytes": 614619784,
+    "exe_sha256": "efe5136eb238ca89f8272d0c5bf4be80e33912c7fccf73bc46aba727da764925",
+    "game_binaries_bundled": false,
+    "extracted_game_assets_bundled": false,
+    "public_distribution": false,
+    "source_ui_hashes_match": true,
+    "active_output_guard_verified": true,
+    "native_connection_retested": false
+  },
+  "boundaries": {
+    "authorized_send_count": 2,
+    "automatic_retries": 0,
+    "game_process_writes": 0,
+    "game_files_modified_by_test": false,
+    "game_or_steam_restarted": false,
+    "lobby_mutations": 0,
+    "raw_ids_or_other_users_text_in_this_file": false
+  },
+  "unverified": [
+    "stock game installation",
+    "separate clean Windows PC",
+    "actual lobby movement and rapid rejoin",
+    "game and Steam restart/start order",
+    "actual product hidden/unhidden interaction",
+    "actual Windows IME input",
+    "game name and cat visual comparison",
+    "long runtime and disk exhaustion",
+    "Start Menu shortcut",
+    "public distribution and licensing"
+  ],
+  "local_install_uninstall": {
+    "installed_exe_exit": 0,
+    "renderer": {
+      "renderer": true,
+      "console_errors": [],
+      "steam_connected": false,
+      "offline": true
+    },
+    "executable_removed": true,
+    "dependencies_removed": true,
+    "unrelated_file_preserved": true,
+    "database_preserved": true,
+    "unicode_spaced_path": true,
+    "developer_tools_in_path": false,
+    "shortcut_tested": false,
+    "separate_clean_pc": false,
+    "packaged_ui_matches_source": true
+  },
+  "implementation_bundle": {
+    "command": "pwsh -NoProfile -File packaging/build.ps1",
+    "result": "passed",
+    "bytes": 614617346,
+    "exe_sha256": "ea486c18e74f6871ef0e07991b327952c78d7ac7e5d4bd0c49774f35dd3f1944",
+    "game_binaries_bundled": false,
+    "extracted_game_assets_bundled": false,
+    "public_distribution": false
+  },
+  "pre_review_fix_bundle": {
+    "command": "pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/reviewed",
+    "result": "passed",
+    "bytes": 614619087,
+    "exe_sha256": "ed247ac17c46ee18fe99e0ab7f50dd243faf5cfe84f3ce245c8c1b70842644ba",
+    "game_binaries_bundled": false,
+    "extracted_game_assets_bundled": false,
+    "public_distribution": false,
+    "source_ui_hashes_match": true,
+    "active_output_guard_verified": true,
+    "native_connection_retested": false
+  },
+  "initial_automatic_reviews": {
+    "head": "57dd8c27d58817b3c4b763ede10600fae4b106f0",
+    "code": "completed",
+    "security": "completed",
+    "summary": "https://github.com/misosiruda/bongo-cat-chat/pull/4#issuecomment-6140698688",
+    "actionable_findings": 1,
+    "fix_verification": "local_only"
+  }
+}
