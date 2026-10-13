@@ -20,6 +20,9 @@ logs/
 # Local configuration and build output
 .env
 .env.*
+*.dpapi
+*.key
+*.pem
 !.env.example
 .venv/
 venv/
