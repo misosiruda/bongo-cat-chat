@@ -1,0 +1,10 @@
+{
+  "environment": "development PC with pre-existing Auto Chest Opener; clean install unverified",
+  "build": "25723683",
+  "sha256": {
+    "BongoCat_Data/Managed/Assembly-CSharp.dll": "daa0c573859bb42e5f9a45eabf22f9e913fe3a2fe01371579a812b3f96790d07",
+    "BongoCat_Data/Plugins/x86_64/steam_api64.dll": "e082bf5c9f881c822b1540a76b74f9d15e18019a73ebd206a559595badcb7f65",
+    "MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll": "e1b05864961ea0a17d7eed0b5e6176cff254bf56cba89ff4beaafe00f629d1e9",
+    "BongoCat_Data/Managed/Heathen.Steamworks.dll": "5ed04430a77eb0ba652938d4406cc6966fea01f5d278f60a8b394c5e9f24d9da"
+  }
+}
