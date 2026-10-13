@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "validation_date": "2026-10-13",
+  "timezone": "Asia/Seoul",
+  "game_build": "25723683",
+  "pre_existing_auto_chest_patch": true,
+  "clean_install_verified": false,
+  "names": {
+    "initial_members": 13,
+    "available": 13,
+    "local_nickname_overrides": 0,
+    "game_selection_rule_static_verified": true,
+    "screen_comparison_verified": false
+  },
+  "appearance": {
+    "hat_metadata_available": 13,
+    "skin_metadata_available": 13,
+    "distinct_equipped_items": 25,
+    "item_names_available": 25,
+    "item_icon_urls_available": 25,
+    "required_sprites": 64,
+    "found_sprites": 64,
+    "static_local_sample_created": true,
+    "live_changes": {
+      "peer_skin": 24,
+      "peer_hat": 26
+    },
+    "changed_member_count": 3,
+    "screen_comparison_verified": false
+  },
+  "hidden": {
+    "source": "external read-only PlayerDataCache static dictionary",
+    "initial_cache_entries": 12,
+    "initial_hidden_count": 0,
+    "initial_remote_members": 12,
+    "initial_lobby_member_matches": 12,
+    "observed_boolean_changes": 0,
+    "hide_and_restore_observed": false,
+    "user_manual_action_confirmation": "not_received",
+    "public_steam_api_found": false,
+    "product_filter_integration_verified": false,
+    "process_access": "PROCESS_QUERY_INFORMATION | PROCESS_VM_READ",
+    "windows_token_elevated": false
+  },
+  "observation": {
+    "last_sample_elapsed_seconds": 601.516,
+    "observer_completed": true,
+    "profile_snapshots": 38,
+    "hidden_snapshots": 1,
+    "callback_counts": {
+      "1040044": 1,
+      "4700": 1,
+      "1270009": 1,
+      "507": 3578,
+      "1040011": 1,
+      "505": 230,
+      "1102": 17,
+      "304": 2,
+      "1100062": 1
+    }
+  },
+  "lobby": {
+    "original_self_game_lookup_returned_different_app": true,
+    "observed_fallback": "single callback lobby with verified self membership",
+    "lobby_switch_verified": false
+  },
+  "boundaries": {
+    "game_file_write_calls": 0,
+    "process_memory_writes": 0,
+    "injected_modules": 0,
+    "remote_function_calls": 0,
+    "chat_messages_sent": 0,
+    "lobby_mutation_calls": 0,
+    "chat_bodies_read": 0,
+    "assembly_sha256_before": "daa0c573859bb42e5f9a45eabf22f9e913fe3a2fe01371579a812b3f96790d07",
+    "assembly_sha256_after": "daa0c573859bb42e5f9a45eabf22f9e913fe3a2fe01371579a812b3f96790d07",
+    "all_game_files_hash_compared": false
+  },
+  "source_files": [
+    "probe_profiles.py",
+    "inspect-game.ps1",
+    "inspect_runtime.py",
+    "read_process.py",
+    "inspect_cache.py",
+    "probe_hidden.py",
+    "watch_sync.py",
+    "inspect_assets.py"
+  ],
+  "official_sources": [
+    "https://partner.steamgames.com/doc/api/ISteamFriends#GetFriendPersonaName",
+    "https://partner.steamgames.com/doc/api/ISteamFriends#GetPlayerNickname",
+    "https://partner.steamgames.com/doc/api/ISteamMatchmaking#GetLobbyMemberData",
+    "https://partner.steamgames.com/doc/api/ISteamInventory#GetItemDefinitionProperty",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-readprocessmemory"
+  ],
+  "privacy": "Aggregate counts only; no user IDs, lobby IDs, account names, per-user fingerprints, memory addresses, chat contents, game binaries or images."
+}
