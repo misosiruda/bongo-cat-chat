@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-10-13",
+  "date_timezone": "Asia/Seoul",
+  "evidence_type": "read-only static analysis; not a live lobby-switch or hidden-user test",
+  "game_build": "25723683",
+  "pre_existing_auto_chest_patch": true,
+  "assembly_sha256": "daa0c573859bb42e5f9a45eabf22f9e913fe3a2fe01371579a812b3f96790d07",
+  "findings": [
+    {
+      "subject": "hidden_user_state",
+      "methods": [
+        "PlayerDataCache.GetIsHidden",
+        "PlayerDataCache.SetIsHidden",
+        "PlayerDataCache.Awake",
+        "BongoCat.Multiplayer.LobbyMemberInstance.get_IsHidden",
+        "BongoCat.Multiplayer.LobbyMemberInstance.set_IsHidden"
+      ],
+      "observed": "A static dictionary contains per-user IsHidden values. The setter updates this cache and the cat GameObject active state. Awake clears the cache.",
+      "limit": "No external export call found in the inspected hide path; this does not prove that no supported integration exists elsewhere. Persistence across lifecycle changes was not tested."
+    },
+    {
+      "subject": "game_display_policies",
+      "methods": [
+        "Vfx.CatSpeech.ShowSpeech",
+        "Vfx.CatSpeech.ShowMultiplayerSpeech",
+        "BongoCat.Multiplayer.LobbyMemberInstance.Start"
+      ],
+      "observed": "Speech display returns if the GameObject is inactive. Incoming speech checks MuteChats and ChatLanguageFilter. Member startup also considers AutoHideCats.",
+      "limit": "Rendering behavior and sidecar reception while a user is hidden were not exercised."
+    },
+    {
+      "subject": "existing_probe_limits",
+      "methods": [
+        "SteamProbe.observe",
+        "SteamProbe.read_lobby_message",
+        "SteamProbe.current_game_lobby",
+        "send_once.py"
+      ],
+      "observed": "The observation loop has no product lobby-switch state machine or game visibility-state integration. The single-send script rejects an unexpected target and rechecks the current lobby before calling the send API.",
+      "limit": "A state recheck is not an atomic transaction with a separate game's lobby change."
+    }
+  ],
+  "official_api_constraints": [
+    {
+      "field": "LobbyChatMsg_t.m_iChatID",
+      "constraint": "Only valid within the callback scope; must not be stored as a durable message identifier.",
+      "source": "https://partner.steamgames.com/doc/api/ISteamMatchmaking#LobbyChatMsg_t"
+    },
+    {
+      "function": "ISteamFriends.GetFriendGamePlayed",
+      "constraint": "Documented for friend game information; current-account use in the separate-process PoC remains an observed behavior requiring compatibility tests.",
+      "source": "https://partner.steamgames.com/doc/api/ISteamFriends#GetFriendGamePlayed"
+    }
+  ],
+  "live_lobby_switch_verified": false,
+  "live_hidden_user_reception_verified": false,
+  "game_files_modified": false,
+  "game_settings_changed": false,
+  "messages_sent": 0,
+  "privacy": "No user IDs, lobby IDs, chat contents, game binaries or decompiled method bodies included."
+}
