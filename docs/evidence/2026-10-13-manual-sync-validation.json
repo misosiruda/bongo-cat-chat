@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "validation_date": "2026-10-13",
+  "game_build": "25723683",
+  "scope": "Follow-up 600-second read-only observation requested by the user; not product UI acceptance",
+  "observation": {
+    "started_at_utc": "2026-10-13T03:24:43.054953+00:00",
+    "last_updated_at_utc": "2026-10-13T03:34:45.557005+00:00",
+    "requested_seconds": 600,
+    "elapsed_seconds": 602.5,
+    "completed": true,
+    "profile_snapshot_count": 42,
+    "hidden_snapshot_count": 3,
+    "lobby_member_count_range": [
+      12,
+      13
+    ],
+    "cache_entry_count_range": [
+      12,
+      12
+    ]
+  },
+  "user_actions": {
+    "initial_both_actions_reported_complete": true,
+    "first_hide_unhide_action_not_captured": true,
+    "retry_hidden_state_confirmed_by_user": true,
+    "retry_unhidden_state_confirmed_by_user": true
+  },
+  "hidden": {
+    "initial_hidden_count": 0,
+    "boolean_transitions": 2,
+    "distinct_changed_users": 1,
+    "same_user_hide_restore_observed": true,
+    "all_changed_users_in_current_lobby": true,
+    "timeline": [
+      {
+        "subject": "participant-1",
+        "observed_at_utc": "2026-10-13T03:27:06.558009+00:00",
+        "observed_at_kst": "2026-10-13 12:27:06.558 KST",
+        "previous": false,
+        "hidden": true,
+        "in_current_lobby": true,
+        "is_self": false
+      },
+      {
+        "subject": "participant-1",
+        "observed_at_utc": "2026-10-13T03:27:45.226037+00:00",
+        "observed_at_kst": "2026-10-13 12:27:45.226 KST",
+        "previous": true,
+        "hidden": false,
+        "in_current_lobby": true,
+        "is_self": false
+      }
+    ],
+    "product_history_search_notification_filter_verified": false
+  },
+  "self_appearance": {
+    "previous_observation_hat": 921,
+    "previous_observation_skin": 914,
+    "timeline": [
+      {
+        "observed_at_utc": "2026-10-13T03:24:45.439509+00:00",
+        "observed_at_kst": "2026-10-13 12:24:45.439 KST",
+        "hat_item_definition": 921,
+        "skin_item_definition": 1155,
+        "is_initial_sample": true
+      },
+      {
+        "observed_at_utc": "2026-10-13T03:24:48.885868+00:00",
+        "observed_at_kst": "2026-10-13 12:24:48.885 KST",
+        "hat_item_definition": 921,
+        "skin_item_definition": 914,
+        "is_initial_sample": false
+      }
+    ],
+    "first_sample_has_changed_skin": true,
+    "restore_to_previous_observation_observed": true,
+    "outbound_skin_transition_captured": false,
+    "restore_skin_transition_captured": true,
+    "image_regenerated_during_change": false,
+    "game_screen_comparison_verified": false
+  },
+  "boundaries": {
+    "game_file_write_calls": 0,
+    "process_memory_writes": 0,
+    "injected_modules": 0,
+    "chat_messages_sent": 0,
+    "lobby_mutation_calls": 0,
+    "game_settings_changed_by_assistant": false,
+    "game_settings_changed_by_user": true,
+    "assembly_sha256_after": "daa0c573859bb42e5f9a45eabf22f9e913fe3a2fe01371579a812b3f96790d07",
+    "pre_existing_auto_chest_patch": true,
+    "clean_install_verified": false
+  },
+  "timestamp_note": "Times are external observation times, not click times; exact synchronization latency was not measured.",
+  "source_file": "research/private/2026-10-13-profile-validation/manual-sync-observation-2.json",
+  "privacy": "No Steam IDs, lobby IDs, account names, persistent user fingerprints, memory addresses, chat contents or game assets. Participant aliases are scoped to this report."
+}
