@@ -1,0 +1,259 @@
+"""Qt WebEngine desktop shell with a narrow local bridge and private worker IPC."""
+import json
+import multiprocessing as mp
+from pathlib import Path
+import queue
+import sqlite3
+import time
+
+from PySide6.QtCore import QObject, QLockFile, QTimer, QUrl, Slot
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings, QWebEngineUrlRequestInterceptor
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QApplication, QMessageBox
+
+from .service import ChatService
+from .store import Store
+from .worker import run_worker, unavailable
+
+UI = Path(__file__).with_name("ui").resolve()
+
+
+class Requests(QWebEngineUrlRequestInterceptor):
+    def interceptRequest(self, info):
+        url = info.requestUrl()
+        if url.scheme() == "file":
+            allowed = Path(url.toLocalFile()).resolve() in {UI / name for name in ("index.html", "app.js", "messenger.css")}
+        else:
+            allowed = url.toString() == "qrc:///qtwebchannel/qwebchannel.js" or url.scheme() == "data"
+        info.block(not allowed)
+
+
+class Page(QWebEnginePage):
+    def __init__(self, profile, parent):
+        super().__init__(profile, parent)
+        self.console_errors = []
+
+    def acceptNavigationRequest(self, url, kind, main_frame):
+        return main_frame and url.isLocalFile() and Path(url.toLocalFile()).resolve() == UI / "index.html"
+
+    def javaScriptConsoleMessage(self, level, message, line, source):
+        if level == QWebEnginePage.JavaScriptConsoleMessageLevel.ErrorMessageLevel:
+            # Kept in process for test diagnostics, not written to disk.
+            self.console_errors.append((str(level), line, message[:300]))
+
+
+class Controller(QObject):
+    def __init__(self, data, offline=False, read_only=False, parent=None):
+        super().__init__(parent)
+        self.store = Store(data / "history.sqlite3")
+        self.service = ChatService(self.store)
+        self.worker = None
+        self.closed = False
+        self.context = mp.get_context("spawn")
+        self.commands = self.context.Queue(maxsize=64)
+        self.events = self.context.Queue(maxsize=2048)
+        self.stop = self.context.Event()
+        self.last_prune = time.monotonic()
+        self.known_accounts = set()
+        if offline:
+            self.service.update(unavailable("offline"))
+        else:
+            self.worker = self.context.Process(target=run_worker, args=(self.commands,self.events,self.stop,read_only), daemon=True)
+            self.worker.start()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.poll)
+        self.timer.start(100)
+
+    def poll(self):
+        try:
+            for _ in range(200):
+                try:
+                    event = self.events.get_nowait()
+                except queue.Empty:
+                    break
+                if event.get("type") == "state":
+                    if event.get("account"):
+                        self.known_accounts.add(event["account"])
+                    self.service.update(event)
+                elif event.get("type") == "message":
+                    self.service.receive(event)
+                elif event.get("type") == "result":
+                    self.service.result(event["id"], event["status"])
+            if self.worker and not self.worker.is_alive() and self.service.state.get("notice") != "worker_stopped":
+                self.service.update(unavailable("worker_stopped"))
+            if time.monotonic()-self.last_prune > 60:
+                self.service.write(self.store.prune)
+                self.last_prune = time.monotonic()
+        except (sqlite3.Error, OSError):
+            self.service.storage_error = True
+
+    @Slot(str, result=str)
+    def request(self, raw):
+        try:
+            if len(raw) > 32768:
+                raise ValueError("request_too_large")
+            args = json.loads(raw)
+            result = self.dispatch(args)
+            return json.dumps(result, ensure_ascii=False)
+        except (sqlite3.Error, OSError):
+            self.service.storage_error = True
+            return json.dumps({"error": "storage_failed"})
+        except (ValueError, TypeError, KeyError, queue.Full) as exc:
+            # Don't return native exception messages or paths through the renderer.
+            code = str(exc)
+            if code not in {"connection_changed", "development_limit_50", "control_character", "storage_failed_before_send"}:
+                code = "request_failed"
+            return json.dumps({"error": code})
+
+    def dispatch(self, args):
+        action = args["action"]
+        account = self.service.state.get("account", "")
+        if action == "view":
+            lobby = args.get("lobby") if args.get("account", account) == account else None
+            query = args.get("query", "")
+            before = args.get("before")
+            if not isinstance(query, str) or len(query) > 120 or before is not None and (type(before) is not int or before < 0):
+                raise ValueError("invalid_query")
+            return self.service.view(lobby, query, before)
+        if action == "send":
+            command = self.service.prepare(args["context"], args["text"])
+            command["queued"] = time.monotonic()
+            try:
+                self.commands.put_nowait(command)
+            except queue.Full:
+                self.service.result(command["id"], "failed")
+                raise
+            return {"id": command["id"]}
+        if action == "draft":
+            owner = args["account"]
+            if not owner or owner not in self.known_accounts | {account} or args["lobby"] not in {r["lobby"] for r in self.store.rooms(owner)}:
+                raise ValueError("account_changed")
+            self.store.draft(owner, args["lobby"], args["text"])
+        elif action == "setting":
+            key, value = args["key"], args["value"]
+            if not (key == "theme" and value in ("light", "dark", "system") or key == "collapsed" and type(value) is bool):
+                raise ValueError("invalid_setting")
+            self.store.setting(key, value)
+        elif action == "delete":
+            if not account or args["account"] != account:
+                raise ValueError("account_changed")
+            self.service.forget(account, args.get("lobby"))
+        elif action == "refresh":
+            try:
+                self.service.recover_storage()
+            except (sqlite3.Error, OSError):
+                self.service.storage_error = True
+            if self.worker and self.worker.is_alive():
+                self.commands.put_nowait({"type": "refresh"})
+        else:
+            raise ValueError("unknown_action")
+        return {"ok": True}
+
+    def close(self):
+        if self.closed:
+            return
+        self.closed = True
+        self.timer.stop()
+        self.stop.set()
+        if self.worker:
+            self.worker.join(3)
+            if self.worker.is_alive():
+                self.worker.terminate()  # Only this app's own child, never the game.
+                self.worker.join(2)
+        self.poll()
+        self.service.end("app_closed")
+        self.store.close()
+        for pipe in (self.commands, self.events):
+            pipe.cancel_join_thread()
+            pipe.close()
+
+
+def window(controller):
+    view = QWebEngineView()
+    profile = QWebEngineProfile(view)  # Off-the-record: renderer never persists chat/cache.
+    interceptor = Requests(profile)
+    profile.setUrlRequestInterceptor(interceptor)
+    profile.downloadRequested.connect(lambda download: download.cancel())
+    page = Page(profile, view)
+    view.setPage(page)
+    page.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False)
+    page.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, False)
+    page.settings().setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, False)
+    page.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, False)
+    page.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, False)
+    channel = QWebChannel(page)
+    channel.registerObject("bridge", controller)
+    page.setWebChannel(channel)
+    view.setWindowTitle("Bongo Cat Chat · 개발판")
+    view.resize(1240, 840)
+    view.setMinimumSize(400, 500)
+    view.load(QUrl.fromLocalFile(str(UI / "index.html")))
+    view._resources = (profile, interceptor, page, channel)
+    return view
+
+
+def run(data, offline=False, read_only=False, smoke_report=None, connection_report=None):
+    app = QApplication.instance() or QApplication([])
+    data.mkdir(parents=True, exist_ok=True)
+    lock = QLockFile(str(data / "app.lock"))
+    lock.setStaleLockTime(0)
+    if not lock.tryLock(0):
+        QMessageBox.information(None, "Bongo Cat Chat", "이미 실행 중인 앱이 있습니다.")
+        return 1
+    try:
+        controller = Controller(data, offline, read_only)
+    except (sqlite3.Error, OSError, RuntimeError):
+        QMessageBox.critical(None, "Bongo Cat Chat", "기록 저장소를 열 수 없습니다. 기존 파일은 보존했습니다.")
+        return 1
+    view = window(controller)
+    app.aboutToQuit.connect(controller.close)
+    view.show()
+    if smoke_report:
+        def finish():
+            def report(result):
+                payload = {"renderer": result, "console_errors": view.page().console_errors,
+                           "steam_connected": False, "offline": True}
+                smoke_report.parent.mkdir(parents=True, exist_ok=True)
+                smoke_report.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+                app.exit(0 if result and not view.page().console_errors else 2)
+            view.page().runJavaScript("document.querySelector('#connection-notice')?.textContent.includes('오프라인') && document.querySelector('#send-button')?.disabled", report)
+        QTimer.singleShot(4000, finish)
+    if connection_report:
+        started, ready_since = time.monotonic(), [None]
+        diagnostic = QTimer(view)
+
+        def inspect_connection():
+            state = controller.service.state
+            ready = state.get("state") == "ready" and controller.service.fresh()
+            if ready and ready_since[0] is None:
+                ready_since[0] = time.monotonic()
+            if not ready:
+                ready_since[0] = None
+            avatar_count = sum(bool(p.get("avatar")) for p in state.get("profiles", {}).values())
+            duration = time.monotonic()-ready_since[0] if ready_since[0] is not None else 0
+            observing = ready_since[0] is None or duration < 15 or (duration < 45 and not avatar_count and not state.get("avatar_error"))
+            if time.monotonic() - started < 180 and observing:
+                return
+            diagnostic.stop()
+            payload = {"ready": ready, "state": state.get("state"), "notice": state.get("notice"),
+                       "read_only": read_only, "send_enabled": controller.service.can_send(),
+                       "profile_count": len(state.get("profiles", {})),
+                       "rendered_avatar_count": avatar_count,
+                       "avatar_stage": state.get("avatar_stage"), "avatar_error": state.get("avatar_error"),
+                       "stored_messages": controller.store.db.execute("SELECT count(*) FROM messages").fetchone()[0],
+                       "console_error_count": len(view.page().console_errors)}
+
+            def report(result):
+                payload["renderer_read_only"] = bool(result)
+                connection_report.parent.mkdir(parents=True, exist_ok=True)
+                connection_report.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+                app.exit(0 if ready and result and not payload["send_enabled"] and not payload["console_error_count"] else 2)
+
+            view.page().runJavaScript("document.querySelector('#connection-notice')?.textContent.includes('읽기 전용') && document.querySelector('#send-button')?.disabled", report)
+
+        diagnostic.timeout.connect(inspect_connection)
+        diagnostic.start(500)
+    result = app.exec()
+    lock.unlock()
+    return result

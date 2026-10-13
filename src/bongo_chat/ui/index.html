@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ko" data-theme="light" data-presentation="true">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' qrc:; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Bongo Cat Chat · 개발판</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="messenger.css">
+  <script src="qrc:///qtwebchannel/qwebchannel.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-cat" viewBox="0 0 32 32"><path d="M6 12 5 4l8 5h6l8-5-1 8c2 2 3 5 2 8-1 6-7 8-12 8S5 26 4 20c-1-3 0-6 2-8Z"/><path d="m1 18 6 1m-5 4 5-1m18-3 6-1m-6 4 5 1"/><path d="M11 17h.01M21 17h.01" stroke-width="2.7"/><path d="m14 21 2 1 2-1"/></symbol>
+    <symbol id="i-collapse" viewBox="0 0 24 24"><path d="M5 4v16m14-15-7 7 7 7"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M5 4v16m7-15 7 7-7 7"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.7" cy="10.7" r="7.3"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 4v6h-6M3 20v-6h6M4.7 8a8 8 0 0 1 13-3L21 8M3 16l3.3 3a8 8 0 0 0 13-3"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="m4 3 17 9L4 21l3-9-3-9Zm3 9h14"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="m9 3-.6 3-2 .9-2.8-1-2 3.4 2.3 2.1v2.3l-2.3 2.1 2 3.4 2.8-1 2 .9.6 3h4l.6-3 2-.9 2.8 1 2-3.4-2.3-2.1v-2.3l2.3-2.1-2-3.4-2.8 1-2-.9-.6-3Z" transform="translate(1 -1) scale(.96)"/><circle cx="12" cy="12" r="3.2"/></symbol>
+    <symbol id="i-storage" viewBox="0 0 24 24"><path d="m6 3-3 8v9h18v-9l-3-8H6Zm-3 8h18M9 7h6M8 15h8"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.7 14.2A9 9 0 0 1 9.8 3.3a9 9 0 1 0 10.9 10.9Z"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M12 16v5m-4 0h8"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></symbol>
+  </svg>
+
+  <div class="app" id="app">
+    <button class="drawer-backdrop" id="drawer-backdrop" aria-label="사이드바 닫기" hidden></button>
+    <aside class="sidebar" id="sidebar" aria-label="대화 사이드바">
+      <div class="brand-row">
+        <span class="brand"><svg class="brand-mark" aria-hidden="true"><use href="#i-cat"/></svg><span>Bongo Cat Chat</span></span>
+        <button class="icon-button sidebar-toggle" id="sidebar-toggle" type="button" aria-label="사이드바 접기" aria-expanded="true" aria-controls="sidebar"><svg aria-hidden="true"><use href="#i-collapse"/></svg></button>
+      </div>
+      <div class="sidebar-search" id="sidebar-search">
+        <button class="search-icon-button" id="sidebar-search-button" aria-label="현재 대화 검색"><svg aria-hidden="true"><use href="#i-search"/></svg></button>
+        <input id="message-search" type="search" placeholder="대화 검색" aria-label="현재 대화 검색" autocomplete="off" maxlength="120">
+        <kbd>Ctrl K</kbd>
+      </div>
+      <nav class="room-navigation" aria-label="로비 대화">
+        <section class="room-section"><h2 class="section-label">현재 로비</h2><div id="live-rooms"></div></section>
+        <section class="room-section archived-section"><h2 class="section-label">보관한 대화</h2><div id="archived-rooms"></div></section>
+      </nav>
+      <div class="account-row">
+        <span class="avatar account-avatar" role="img" aria-label="고양이 외형 확인 중"></span>
+        <div class="account-copy"><strong>계정 확인 중</strong><span><i class="status-dot" aria-hidden="true"></i><span id="account-status">연결 확인 중</span></span></div>
+        <button type="button" class="icon-button" id="settings-button" aria-label="설정"><svg aria-hidden="true"><use href="#i-settings"/></svg></button>
+      </div>
+    </aside>
+
+    <main class="conversation" aria-label="로비 채팅">
+      <header class="conversation-header">
+        <button type="button" class="icon-button mobile-menu" id="mobile-menu" aria-label="대화 사이드바 열기" aria-expanded="false" aria-controls="sidebar"><svg aria-hidden="true"><use href="#i-menu"/></svg></button>
+        <div class="conversation-heading"><h1 id="room-title">게임 로비</h1><p id="connection-label"><i class="status-dot" aria-hidden="true"></i><span>연결 확인 중</span></p></div>
+        <div class="header-actions">
+          <button type="button" class="participants-button" id="participants-button" aria-label="참여자 참여자 보기"><span class="avatar-stack" aria-hidden="true"><span class="avatar"></span><span class="avatar"></span><span class="avatar"></span></span><span id="member-count">참여자</span></button>
+          <span class="action-divider" aria-hidden="true"></span>
+          <button type="button" class="icon-button" id="header-search" aria-label="대화 검색 열기"><svg aria-hidden="true"><use href="#i-search"/></svg></button>
+          <button type="button" class="icon-button" id="refresh-button" aria-label="연결 상태 새로고침"><svg aria-hidden="true"><use href="#i-refresh"/></svg></button>
+        </div>
+      </header>
+
+      <div class="connection-notice" id="connection-notice" role="status" hidden></div>
+      <div class="search-status" id="search-status" hidden><span id="search-summary" role="status"></span><button id="clear-search" type="button">검색 지우기 <svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <div class="message-scroll" id="message-scroll" tabindex="0" aria-label="대화 내용">
+        <button id="older" class="page-button" hidden>이전 기록 100개</button><button id="latest" class="page-button" hidden>최근 대화로</button>
+        <div class="message-list" id="message-list" role="list" aria-label="메시지 목록"></div>
+        <div class="empty-state" id="empty-state" hidden><svg aria-hidden="true"><use href="#i-cat"/></svg><h2 id="empty-title"></h2><p id="empty-description"></p></div>
+      </div>
+      <button id="new-messages" class="page-button" hidden>새 메시지 보기</button>
+      <div class="composer-region">
+        <form class="composer" id="message-form">
+          <label class="sr-only" for="message-input">메시지</label>
+          <textarea id="message-input" rows="1" maxlength="4000" placeholder="게임 로비에 메시지 보내기" enterkeyhint="send"></textarea>
+          <button class="send-button" id="send-button" type="submit" aria-label="보내기" disabled><svg aria-hidden="true"><use href="#i-send"/></svg></button>
+        </form>
+        <div class="composer-help"><span id="composer-help">Enter로 전송 · Shift + Enter로 줄바꿈</span><span class="storage-hint"><svg aria-hidden="true"><use href="#i-storage"/></svg><span id="storage-label">이 기기에 30일 보관</span></span></div>
+      </div>
+    </main>
+  </div>
+
+  <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
+    <div class="dialog-heading"><h2 id="settings-title">설정</h2><form method="dialog"><button class="icon-button" aria-label="설정 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></form></div>
+    <fieldset class="appearance-field"><legend>화면 테마</legend><p>편안하게 읽을 수 있는 밝기를 선택하세요.</p><div class="appearance-options">
+      <label><input type="radio" name="appearance" value="light"><span><svg aria-hidden="true"><use href="#i-sun"/></svg>라이트</span></label>
+      <label><input type="radio" name="appearance" value="dark"><span><svg aria-hidden="true"><use href="#i-moon"/></svg>다크</span></label>
+      <label><input type="radio" name="appearance" value="system"><span><svg aria-hidden="true"><use href="#i-monitor"/></svg>시스템</span></label>
+    </div></fieldset>
+    <p class="settings-note" id="theme-note">시스템의 밝기 설정을 따릅니다.</p>
+    <p class="settings-note">받은 대화와 초안을 이 기기에 30일 보관합니다. 게임에서 숨긴 동안에는 새 대화를 저장하지 않습니다. 숨김 상태를 확인할 수 없으면 상대 대화 표시와 송신을 중단합니다.</p><button id="delete-room" class="page-button">선택한 로비 기록 삭제</button><button id="delete-all" class="page-button">현재 계정 기록 전체 삭제</button><p id="delete-confirm" hidden>삭제한 기록은 되돌릴 수 없습니다. <button id="confirm-delete" class="page-button">기록 삭제 확인</button></p><p class="settings-footnote">테마와 사이드바 설정은 이 기기에 저장돼요.</p>
+  </dialog>
+  <dialog class="participants-dialog" id="participants-dialog" aria-labelledby="participants-title">
+    <div class="dialog-heading"><h2 id="participants-title">함께 있는 고양이</h2><form method="dialog"><button class="icon-button" aria-label="참여자 목록 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></form></div>
+    <p class="participant-description" id="participants-description"></p><ul class="participant-list" id="participant-list"></ul>
+  </dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
