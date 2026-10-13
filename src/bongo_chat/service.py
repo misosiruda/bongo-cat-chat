@@ -34,6 +34,19 @@ class ChatService:
             self.store.session(self.session, self.state['account'], self.state['lobby'], self.state.get('name') or '게임 로비')
         self.storage_error = False
 
+    def save_message(self, row, receipt=None):
+        try:
+            sequence = self.store.add(row, receipt)
+        except (sqlite3.Error, OSError):
+            self.storage_error = True
+            return False
+        # Bound each unsaved run to the first later committed message. This
+        # preserves arrival order without trusting wall-clock timestamps or
+        # keeping an unbounded map of every received message.
+        for unsaved in self.volatile.values():
+            unsaved.setdefault('_before_seq', sequence)
+        return True
+
     def forget(self, account, lobby=None):
         self.store.delete(account, lobby)
         def selected(row):
@@ -88,7 +101,7 @@ class ChatService:
         row = dict(id=str(uuid4()), session=self.session, account=account, lobby=context["lobby"],
                    sender=account, name=self.state.get("profiles", {}).get(account, {}).get("name", "나"),
                    body=text, received=time.time(), own=1, status="pending", echo=0)
-        self.write(self.store.add, row)
+        self.save_message(row)
         if self.storage_error:
             row["status"] = "failed"
             self.volatile[row["id"]] = row
@@ -146,7 +159,7 @@ class ChatService:
             candidates[0]["echo_row"] = row
             self.write(self.store.echo, candidates[0]["id"], receipt)
         else:
-            saved = self.write(self.store.add, row, receipt)
+            saved = self.save_message(row, receipt)
             if not saved:
                 self.volatile[receipt] = row
                 while len(self.volatile) > 200:
@@ -170,10 +183,14 @@ class ChatService:
         volatile = [dict(r, unsaved=True) for r in self.volatile.values() if r["account"] == account
                     and r["lobby"] == lobby and r["sender"] in allowed | {account}
                     and query.lower() in r["body"].lower() and before is None]
+        messages = sorted(rows + volatile, key=lambda r: (
+            r.get('seq', r.get('_before_seq', float('inf'))), not r.get('unsaved', False)))
+        for message in messages:
+            message.pop('_before_seq', None)
         profiles = {uid: p for uid, p in self.state.get("profiles", {}).items() if uid in allowed | {account}}
         return {"context": self.context(), "state": self.state.get("state"), "notice": self.state.get("notice", ""),
                 "hidden_ok": self.fresh(), "can_send": self.can_send() and lobby == self.state.get("lobby"),
-                "rooms": rooms, "messages": rows + volatile, "profiles": profiles, "draft": draft,
+                "rooms": rooms, "messages": messages, "profiles": profiles, "draft": draft,
                 "storage_error": self.storage_error, "revision": self.revision,
                 "theme": theme, "collapsed": collapsed,
                 "lobby": lobby, "has_more": len(rows) == 100}

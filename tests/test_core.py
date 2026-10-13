@@ -190,16 +190,51 @@ def test_storage_error_does_not_send_or_claim_saved(service,monkeypatch):
     assert view["storage_error"] and not view["can_send"] and any(r["unsaved"] for r in view["messages"])
 
 
-def test_recovered_write_is_not_also_shown_as_unsaved(service, monkeypatch):
+@pytest.mark.parametrize('clock_step', [0, -1, 1])
+def test_recovered_write_preserves_receive_order(service, monkeypatch, clock_step):
+    timestamp = time.time()
+    def incoming(text):
+        nonlocal timestamp
+        service.receive(dict(id=str(uuid4()), text=text, sender='fixture-peer',
+                             context=service.context(), received=timestamp))
+        timestamp += clock_step
+
+    original = service.store.add
+    incoming('저장 전')
+    monkeypatch.setattr(service.store, 'add', lambda *args: (_ for _ in ()).throw(sqlite3.OperationalError('disk full')))
+    incoming('미저장 첫째')
+    incoming('미저장 둘째')
+    monkeypatch.setattr(service.store, 'add', original)
+    incoming('저장 복구')
+    monkeypatch.setattr(service.store, 'add', lambda *args: (_ for _ in ()).throw(sqlite3.OperationalError('disk full')))
+    incoming('미저장 셋째')
+    monkeypatch.setattr(service.store, 'add', original)
+    incoming('저장 마지막')
+    rows = service.view()['messages']
+    assert [r['body'] for r in rows] == [
+        '저장 전', '미저장 첫째', '미저장 둘째', '저장 복구', '미저장 셋째', '저장 마지막']
+    assert [r.get('unsaved', False) for r in rows] == [False, True, True, False, True, False]
+    assert [r['body'] for r in service.view(query='저장')['messages']] == [r['body'] for r in rows]
+    assert service.storage_error  # User refresh still checks recovery before sending.
+
+
+def test_unsaved_order_survives_filtered_anchor_and_keeps_paging(service, monkeypatch):
+    for i in range(105):
+        received(service, f'이전 기록 {i}')
     original = service.store.add
     monkeypatch.setattr(service.store, 'add', lambda *args: (_ for _ in ()).throw(sqlite3.OperationalError('disk full')))
-    received(service, '미저장')
+    received(service, '검색 미저장')
     monkeypatch.setattr(service.store, 'add', original)
-    received(service, '저장 복구')
-    rows = service.view()['messages']
-    assert len(rows) == 2
-    assert sum(r['body'] == '저장 복구' for r in rows) == 1
-    assert service.storage_error  # User refresh still checks recovery before sending.
+    received(service, '검색에 포함되지 않는 기준', sender='fixture-self')
+    received(service, '검색 복구')
+    assert [r['body'] for r in service.view(query='검색 ')['messages']] == ['검색 미저장', '검색 복구']
+    page = service.view()
+    assert page['has_more'] and len(page['messages']) == 101
+    oldest_seq = next(r['seq'] for r in page['messages'] if 'seq' in r)
+    older = service.view(before=oldest_seq)['messages']
+    assert len(older) == 7 and all(not r.get('unsaved') and r['seq'] < oldest_seq for r in older)
+    service.update(state(hidden={'fixture-peer': True}))
+    assert [r['body'] for r in service.view()['messages']] == ['검색에 포함되지 않는 기준']
 
 
 def test_storage_recovery_recreates_session_that_failed_to_save(store, monkeypatch):

@@ -23,6 +23,17 @@
       "unchanged_cases_reused": 45,
       "unique_cases_verified": 50,
       "steam_connected": false
+    },
+    "review_fix": {
+      "command": ".venv/Scripts/python -m pytest -q tests/test_core.py tests/test_desktop.py",
+      "passed": 50,
+      "failed": 0,
+      "ordering_regressions_failed_before_fix": 4,
+      "unchanged_callback_memory_cases_reused": 4,
+      "unique_cases_verified": 54,
+      "steam_connected": false,
+      "qt_offscreen_gpu_context_warnings": true,
+      "javascript_console_errors": 0
     }
   },
   "syntax_checks": [
@@ -114,10 +125,10 @@
     "tested_exe_sha256": "ea486c18e74f6871ef0e07991b327952c78d7ac7e5d4bd0c49774f35dd3f1944"
   },
   "bundle": {
-    "command": "pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/reviewed",
+    "command": "pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/review-fix",
     "result": "passed",
-    "bytes": 614619087,
-    "exe_sha256": "ed247ac17c46ee18fe99e0ab7f50dd243faf5cfe84f3ce245c8c1b70842644ba",
+    "bytes": 614619784,
+    "exe_sha256": "efe5136eb238ca89f8272d0c5bf4be80e33912c7fccf73bc46aba727da764925",
     "game_binaries_bundled": false,
     "extracted_game_assets_bundled": false,
     "public_distribution": false,
@@ -172,5 +183,25 @@
     "game_binaries_bundled": false,
     "extracted_game_assets_bundled": false,
     "public_distribution": false
+  },
+  "pre_review_fix_bundle": {
+    "command": "pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/reviewed",
+    "result": "passed",
+    "bytes": 614619087,
+    "exe_sha256": "ed247ac17c46ee18fe99e0ab7f50dd243faf5cfe84f3ce245c8c1b70842644ba",
+    "game_binaries_bundled": false,
+    "extracted_game_assets_bundled": false,
+    "public_distribution": false,
+    "source_ui_hashes_match": true,
+    "active_output_guard_verified": true,
+    "native_connection_retested": false
+  },
+  "initial_automatic_reviews": {
+    "head": "57dd8c27d58817b3c4b763ede10600fae4b106f0",
+    "code": "completed",
+    "security": "completed",
+    "summary": "https://github.com/misosiruda/bongo-cat-chat/pull/4#issuecomment-6140698688",
+    "actionable_findings": 1,
+    "fix_verification": "local_only"
   }
 }

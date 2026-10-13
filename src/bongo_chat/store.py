@@ -57,14 +57,18 @@ class Store:
                             (time.time(), reason, session))
 
     def _insert(self, row):
-        self.db.execute(f"INSERT OR IGNORE INTO messages({MESSAGE_COLUMNS}) VALUES({','.join('?' for _ in MESSAGE_COLUMNS.split(','))})",
-                        tuple(row[k] for k in MESSAGE_COLUMNS.split(',')))
+        cursor = self.db.execute(f"INSERT OR IGNORE INTO messages({MESSAGE_COLUMNS}) VALUES({','.join('?' for _ in MESSAGE_COLUMNS.split(','))})",
+                                 tuple(row[k] for k in MESSAGE_COLUMNS.split(',')))
+        if cursor.rowcount:
+            return cursor.lastrowid
+        return self.db.execute("SELECT seq FROM messages WHERE id=?", (row['id'],)).fetchone()[0]
 
     def add(self, row, receipt=None):
         with self.db:
-            self._insert(row)
+            sequence = self._insert(row)
             if receipt:
                 self.db.execute("INSERT OR IGNORE INTO receipts VALUES(?,?)", (receipt, row['id']))
+        return sequence
 
     def seen(self, receipt):
         return self.db.execute("SELECT 1 FROM receipts WHERE id=?", (receipt,)).fetchone() is not None

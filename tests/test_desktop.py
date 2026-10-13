@@ -150,3 +150,28 @@ def test_view_failure_clears_stale_peer_display(qt_chat, monkeypatch):
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 0)
     assert js(app, page, "document.querySelector('#send-button').disabled") is True
     assert js(app, page, "document.querySelectorAll('#participant-list li').length") == 0
+
+
+def test_unsaved_first_message_keeps_search_jump_and_older_page(qt_chat, monkeypatch):
+    app, controller, page = qt_chat
+    for i in range(5):
+        received(controller.service, f'이전 기록 {i}')
+    original = controller.store.add
+    monkeypatch.setattr(controller.store, 'add', lambda *args: (_ for _ in ()).throw(sqlite3.OperationalError('disk full')))
+    received(controller.service, '미저장 검색 대상')
+    monkeypatch.setattr(controller.store, 'add', original)
+    for i in range(100):
+        received(controller.service, f'복구 뒤 기록 {i}')
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 101)
+    assert js(app, page, "document.querySelector('.message-bubble').textContent") == '미저장 검색 대상'
+    assert js(app, page, "document.querySelector('.message-status').textContent") == '이 기록은 저장되지 않았어요'
+    js(app, page, "document.querySelector('#message-search').value='미저장';document.querySelector('#message-search').dispatchEvent(new Event('input'))")
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 1)
+    js(app, page, "document.querySelector('.message-content .page-button').click()")
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 101)
+    js(app, page, "document.querySelector('#older').click()")
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 6)
+    assert js(app, page, "document.querySelector('.message-bubble').textContent") == '보존할 기록'
+    assert js(app, page, "document.querySelectorAll('.message-status').length") == 0
+    js(app, page, "document.querySelector('#latest').click()")
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 101)

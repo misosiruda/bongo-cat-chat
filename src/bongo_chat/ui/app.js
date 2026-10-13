@@ -147,7 +147,7 @@
       if (statuses[message.status] || message.unsaved) content.append(node('span','message-status',message.unsaved ? '이 기록은 저장되지 않았어요' : statuses[message.status]));
       if (query) {
         const jump = node('button','page-button','대화에서 보기');
-        jump.addEventListener('click',async () => { query=''; $('message-search').value=''; before=message.seq+1; signature=''; requestVersion++; await refresh(true); document.getElementById(row.id)?.scrollIntoView({block:'center'}); });
+        jump.addEventListener('click',async () => { query=''; $('message-search').value=''; before=Number.isInteger(message.seq)?message.seq+1:null; signature=''; requestVersion++; await refresh(true); document.getElementById(row.id)?.scrollIntoView({block:'center'}); });
         content.append(jump);
       }
       row.append(content); $('message-list').append(row);
@@ -239,7 +239,7 @@
     $('message-input').addEventListener('input',()=>{draftVersion++; updateSend(); clearTimeout(draftTimer); const text=$('message-input').value,room=selected,owner=account; draftTimer=setTimeout(()=>saveDraft(text,room,owner).catch(showError),150);});
     $('message-search').addEventListener('input',()=>{query=$('message-search').value;before=null;requestVersion++;refresh(true);});
     $('clear-search').addEventListener('click',()=>{query='';$('message-search').value='';before=null;requestVersion++;refresh(true);});
-    $('older').addEventListener('click',()=>{before=model.messages[0]?.seq;signature='';requestVersion++;refresh(true);});
+    $('older').addEventListener('click',()=>{before=model.messages.find(message=>Number.isInteger(message.seq))?.seq;signature='';requestVersion++;refresh(true);});
     $('latest').addEventListener('click',()=>{before=null;signature='';requestVersion++;refresh(true);});
     $('new-messages').addEventListener('click',()=>{$('message-scroll').scrollTop=$('message-scroll').scrollHeight;newVisibleIds.clear();$('new-messages').hidden=true;});
     $('sidebar-toggle').addEventListener('click',()=>{if(narrow.matches)drawer(false);else{collapsed=!collapsed;applySidebar();rpc('setting',{key:'collapsed',value:collapsed}).catch(showError);}});
