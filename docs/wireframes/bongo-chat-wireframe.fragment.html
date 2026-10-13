@@ -1,0 +1,437 @@
+<style>
+  #bongo-chat-wireframe { width: 100%; }
+  #bongo-chat-wireframe .bc-window {
+    --bc-paper: light-dark(#ffffff, #202122);
+    --bc-side: light-dark(#f6f6f5, #262728);
+    --bc-ink: light-dark(#262626, #eeefee);
+    --bc-subtle: light-dark(#6a6b68, #b2b4b0);
+    --bc-line: light-dark(#dedfdb, #454744);
+    --bc-active: light-dark(#e8e9e5, #3c3f3a);
+    --bc-own: light-dark(#e4e6df, #41463d);
+    --bc-strong: light-dark(#353832, #e0e4d9);
+    --bc-on-strong: light-dark(#ffffff, #262a23);
+    --bc-shadow: light-dark(#00000012, #00000035);
+    color: var(--bc-ink); background: var(--bc-paper);
+    font: 400 14px/1.5 'Segoe UI', 'Malgun Gothic', sans-serif;
+    border: 1px solid var(--bc-line); border-radius: 12px;
+    width: 100%; overflow: hidden; box-sizing: border-box;
+  }
+  #bongo-chat-wireframe .bc-window *, #bongo-chat-wireframe .bc-window *::before,
+  #bongo-chat-wireframe .bc-window *::after { box-sizing: border-box; }
+  #bongo-chat-wireframe .bc-window [hidden] { display: none !important; }
+  #bongo-chat-wireframe .bc-window button,
+  #bongo-chat-wireframe .bc-window input,
+  #bongo-chat-wireframe .bc-window textarea {
+    font: inherit; color: inherit; margin: 0;
+  }
+  #bongo-chat-wireframe .bc-window button:disabled { opacity: .5; cursor: not-allowed; }
+  #bongo-chat-wireframe .bc-topbar {
+    min-height: 48px; display: flex; align-items: center; gap: 10px;
+    padding: 10px 112px 10px 18px; border-bottom: 1px solid var(--bc-line);
+  }
+  #bongo-chat-wireframe .bc-brand { font-weight: 500; white-space: nowrap; }
+  #bongo-chat-wireframe .bc-sample { color: var(--bc-subtle); font-size: 12px; white-space: nowrap; }
+  #bongo-chat-wireframe .bc-logo { display: flex; }
+  #bongo-chat-wireframe .bc-layout { display: grid; grid-template-columns: 188px minmax(0, 1fr); min-height: 690px; }
+  #bongo-chat-wireframe .bc-is-collapsed .bc-layout { grid-template-columns: 64px minmax(0, 1fr); }
+  #bongo-chat-wireframe .bc-sidebar {
+    background: var(--bc-side); border-right: 1px solid var(--bc-line);
+    padding: 20px 12px 14px; display: flex; flex-direction: column; gap: 24px; min-width: 0;
+  }
+  #bongo-chat-wireframe .bc-section-label { color: var(--bc-subtle); font-size: 12px; margin: 0 8px 9px; }
+  #bongo-chat-wireframe .bc-room {
+    width: 100%; border: 1px solid transparent; background: transparent; border-radius: 8px;
+    display: flex; gap: 10px; padding: 12px 9px; text-align: left; align-items: flex-start;
+  }
+  #bongo-chat-wireframe .bc-room:hover { background: var(--bc-active); }
+  #bongo-chat-wireframe .bc-room.is-viewed { background: var(--bc-active); border-color: var(--bc-line); }
+  #bongo-chat-wireframe .bc-room-icon { display: flex; padding-top: 3px; color: var(--bc-subtle); }
+  #bongo-chat-wireframe .bc-is-collapsed .bc-sidebar { padding-left: 8px; padding-right: 8px; }
+  #bongo-chat-wireframe .bc-is-collapsed .bc-section-label,
+  #bongo-chat-wireframe .bc-is-collapsed .bc-room-info,
+  #bongo-chat-wireframe .bc-is-collapsed .bc-account-info { display: none; }
+  #bongo-chat-wireframe .bc-is-collapsed .bc-room { min-height: 44px; padding: 10px 0; justify-content: center; }
+  #bongo-chat-wireframe .bc-is-collapsed .bc-room-icon { padding: 0; }
+  #bongo-chat-wireframe .bc-is-collapsed .bc-account { justify-content: center; padding-left: 0; padding-right: 0; }
+  #bongo-chat-wireframe .bc-room-name { font-weight: 500; display: block; overflow-wrap: anywhere; }
+  #bongo-chat-wireframe .bc-room-detail { color: var(--bc-subtle); font-size: 12px; display: block; margin-top: 3px; }
+  #bongo-chat-wireframe .bc-account {
+    margin-top: auto; padding: 13px 4px 0; border-top: 1px solid var(--bc-line);
+    display: flex; gap: 9px; align-items: center;
+  }
+  #bongo-chat-wireframe .bc-avatar {
+    height: 40px; width: 40px; min-width: 40px; border-radius: 12px; position: relative;
+    background: var(--bc-active); border: 1px solid var(--bc-line);
+    display: grid; place-items: center; font-size: 12px; font-weight: 500;
+  }
+  #bongo-chat-wireframe .bc-avatar.bc-cat-cream { background: light-dark(#f5eddf, #443b2d); color: light-dark(#896640, #e7cba3); }
+  #bongo-chat-wireframe .bc-avatar.bc-cat-silver { background: light-dark(#e9edf1, #303a43); color: light-dark(#576774, #bacbd8); }
+  #bongo-chat-wireframe .bc-avatar.bc-cat-night { background: light-dark(#e8e6ee, #393342); color: light-dark(#625475, #d1c5df); }
+  #bongo-chat-wireframe .bc-avatar.bc-cat-white { background: light-dark(#f1f1ec, #3d4035); color: light-dark(#6d7358, #d7dcc4); }
+  #bongo-chat-wireframe .bc-avatar > svg { width: 27px; height: 27px; }
+  #bongo-chat-wireframe .bc-cat-accessory { position: absolute; top: -5px; right: -4px; border-radius: 5px; background: var(--bc-paper); color: var(--bc-ink); display: flex; padding: 1px; }
+  #bongo-chat-wireframe .bc-cat-accessory svg { width: 13px; height: 13px; }
+  #bongo-chat-wireframe .bc-account-info { min-width: 0; }
+  #bongo-chat-wireframe .bc-account-name { font-weight: 500; }
+  #bongo-chat-wireframe .bc-self { color: var(--bc-subtle); font-size: 11px; }
+  #bongo-chat-wireframe .bc-subtext { color: var(--bc-subtle); font-size: 12px; }
+  #bongo-chat-wireframe .bc-main { position: relative; min-width: 0; display: flex; flex-direction: column; }
+  #bongo-chat-wireframe .bc-room-header {
+    padding: 17px 22px 13px; border-bottom: 1px solid var(--bc-line);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  }
+  #bongo-chat-wireframe .bc-room-title { margin: 0; font-size: 16px; font-weight: 500; }
+  #bongo-chat-wireframe .bc-room-heading { flex: 1; min-width: 150px; }
+  #bongo-chat-wireframe .bc-room-subtitle { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 12px; color: var(--bc-subtle); margin-top: 4px; }
+  #bongo-chat-wireframe .bc-status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  #bongo-chat-wireframe .bc-tool {
+    background: transparent; border: 1px solid var(--bc-line); border-radius: 6px;
+    min-height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 8px;
+    font-size: 12px !important;
+  }
+  #bongo-chat-wireframe .bc-tool:hover { background: var(--bc-side); }
+  #bongo-chat-wireframe .bc-tool[aria-expanded='true'] { background: var(--bc-active); }
+  #bongo-chat-wireframe .bc-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  #bongo-chat-wireframe .bc-search {
+    display: flex; align-items: center; gap: 7px; padding: 7px 10px;
+    background: var(--bc-side); border: 1px solid var(--bc-line); border-radius: 6px;
+  }
+  #bongo-chat-wireframe .bc-search input { width: 145px; min-width: 0; background: transparent; border: none; padding: 0; font-size: 12px; }
+  #bongo-chat-wireframe .bc-search input:focus-visible { outline: 2px solid var(--bc-ink); outline-offset: 3px; }
+  #bongo-chat-wireframe .bc-banner {
+    padding: 10px 22px; background: var(--bc-side); border-bottom: 1px solid var(--bc-line);
+    display: flex; align-items: flex-start; gap: 9px; font-size: 12px;
+  }
+  #bongo-chat-wireframe .bc-banner svg { flex: none; margin-top: 2px; }
+  #bongo-chat-wireframe .bc-banner strong { font-weight: 500; display: block; }
+  #bongo-chat-wireframe .bc-banner span { color: var(--bc-subtle); display: block; margin-top: 2px; }
+  #bongo-chat-wireframe .bc-history {
+    padding: 15px 22px 20px; flex: 1; min-height: 368px; display: flex; flex-direction: column;
+  }
+  #bongo-chat-wireframe .bc-date {
+    display: flex; align-items: center; gap: 12px; justify-content: center;
+    color: var(--bc-subtle); font-size: 12px; margin: 0 0 19px;
+  }
+  #bongo-chat-wireframe .bc-date::before, #bongo-chat-wireframe .bc-date::after { content: ''; height: 1px; flex: 1; background: var(--bc-line); }
+  #bongo-chat-wireframe .bc-messages { display: flex; flex-direction: column; gap: 12px; }
+  #bongo-chat-wireframe .bc-message { display: flex; gap: 9px; max-width: 90%; align-self: flex-start; }
+  #bongo-chat-wireframe .bc-message-body { min-width: 0; }
+  #bongo-chat-wireframe .bc-message-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 12px; }
+  #bongo-chat-wireframe .bc-author { font-weight: 500; }
+  #bongo-chat-wireframe .bc-time { color: var(--bc-subtle); font-size: 11px; font-variant-numeric: tabular-nums; }
+  #bongo-chat-wireframe .bc-message-text {
+    padding: 7px 11px; border: 1px solid var(--bc-line); border-radius: 0 10px 10px 10px;
+    background: var(--bc-paper); overflow-wrap: anywhere; white-space: pre-wrap;
+  }
+  #bongo-chat-wireframe .bc-message.is-own { align-self: flex-end; flex-direction: row-reverse; }
+  #bongo-chat-wireframe .bc-message.is-own .bc-message-meta { justify-content: flex-end; }
+  #bongo-chat-wireframe .bc-message.is-own .bc-message-text { background: var(--bc-own); border-radius: 10px 0 10px 10px; }
+  #bongo-chat-wireframe .bc-message-state { margin-top: 4px; text-align: right; font-size: 11px; color: var(--bc-subtle); }
+  #bongo-chat-wireframe .bc-empty { margin: auto; padding: 42px 10px; text-align: center; color: var(--bc-subtle); }
+  #bongo-chat-wireframe .bc-search-count { color: var(--bc-subtle); font-size: 12px; margin-bottom: 13px; }
+  #bongo-chat-wireframe .bc-compose { padding: 0 22px 17px; }
+  #bongo-chat-wireframe .bc-input-box { border: 1px solid var(--bc-line); border-radius: 9px; padding: 11px 12px 9px; background: var(--bc-paper); }
+  #bongo-chat-wireframe .bc-input-box.is-disabled { background: var(--bc-side); }
+  #bongo-chat-wireframe .bc-input-box textarea { width: 100%; border: 0; resize: vertical; min-height: 40px; max-height: 140px; background: transparent; padding: 0; }
+  #bongo-chat-wireframe .bc-input-box textarea::placeholder { color: var(--bc-subtle); }
+  #bongo-chat-wireframe .bc-compose-bottom { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-top: 8px; }
+  #bongo-chat-wireframe .bc-input-hint { color: var(--bc-subtle); font-size: 11px; }
+  #bongo-chat-wireframe .bc-send { background: var(--bc-strong); color: var(--bc-on-strong) !important; border: 0; border-radius: 6px; padding: 7px 12px; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+  #bongo-chat-wireframe .bc-footer { display: flex; gap: 14px; flex-wrap: wrap; justify-content: space-between; border-top: 1px solid var(--bc-line); padding: 7px 15px; color: var(--bc-subtle); font-size: 11px; }
+  #bongo-chat-wireframe .bc-discord .bc-sidebar { padding-top: 20px; }
+  #bongo-chat-wireframe .bc-discord .bc-room { padding-top: 9px; padding-bottom: 9px; border: 0; }
+  #bongo-chat-wireframe .bc-discord .bc-room-detail { display: none; }
+  #bongo-chat-wireframe .bc-discord .bc-message,
+  #bongo-chat-wireframe .bc-discord .bc-message.is-own { align-self: stretch; flex-direction: row; max-width: 100%; }
+  #bongo-chat-wireframe .bc-discord .bc-message.is-own .bc-avatar { display: grid; }
+  #bongo-chat-wireframe .bc-discord .bc-message.is-own .bc-message-meta { justify-content: flex-start; }
+  #bongo-chat-wireframe .bc-discord .bc-message-text,
+  #bongo-chat-wireframe .bc-discord .bc-message.is-own .bc-message-text { background: transparent; border: 0; border-radius: 0; padding: 0; }
+  #bongo-chat-wireframe .bc-discord .bc-message-state { text-align: left; }
+  #bongo-chat-wireframe .bc-discord .bc-messages { gap: 21px; }
+  #bongo-chat-wireframe .bc-condensed .bc-messages { gap: 10px; }
+  #bongo-chat-wireframe .bc-condensed .bc-message-text { padding-top: 6px; padding-bottom: 6px; }
+  #bongo-chat-wireframe .bc-discord.bc-condensed .bc-message-text { padding: 0; }
+  @media (max-width: 780px) {
+    #bongo-chat-wireframe .bc-layout { grid-template-columns: 161px minmax(0, 1fr); }
+    #bongo-chat-wireframe .bc-room-header { padding: 14px 16px; }
+    #bongo-chat-wireframe .bc-toolbar { width: 100%; }
+    #bongo-chat-wireframe .bc-search { flex: 1; }
+    #bongo-chat-wireframe .bc-search input { width: 100%; }
+    #bongo-chat-wireframe .bc-history { padding-left: 16px; padding-right: 16px; }
+    #bongo-chat-wireframe .bc-compose { padding-left: 16px; padding-right: 16px; }
+  }
+  @media (max-width: 540px) {
+    #bongo-chat-wireframe .bc-topbar { flex-wrap: wrap; gap: 6px; padding-left: 12px; }
+    #bongo-chat-wireframe .bc-sample { flex-basis: 100%; padding-left: 0; }
+    #bongo-chat-wireframe .bc-layout { display: block; }
+    #bongo-chat-wireframe .bc-sidebar { padding: 10px; border-right: 0; border-bottom: 1px solid var(--bc-line); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    #bongo-chat-wireframe .bc-is-collapsed .bc-sidebar { display: none; }
+    #bongo-chat-wireframe .bc-section-label { margin: 0 5px 5px; }
+    #bongo-chat-wireframe .bc-room { padding: 8px 6px; gap: 6px; }
+    #bongo-chat-wireframe .bc-room-icon { display: none; }
+    #bongo-chat-wireframe .bc-room-detail { display: none; }
+    #bongo-chat-wireframe .bc-account { display: none; }
+    #bongo-chat-wireframe .bc-main { min-height: 680px; }
+    #bongo-chat-wireframe .bc-room-header { padding: 13px 12px; }
+    #bongo-chat-wireframe .bc-search { width: 100%; min-width: 0; }
+    #bongo-chat-wireframe .bc-tool { min-height: 35px; }
+    #bongo-chat-wireframe .bc-history { padding-left: 12px; padding-right: 12px; }
+    #bongo-chat-wireframe .bc-message { max-width: 96%; }
+    #bongo-chat-wireframe .bc-message-text { padding: 8px 10px; }
+    #bongo-chat-wireframe .bc-compose { padding-left: 12px; padding-right: 12px; }
+    #bongo-chat-wireframe .bc-compose-bottom { align-items: flex-end; gap: 6px; }
+    #bongo-chat-wireframe .bc-input-hint { max-width: 145px; }
+    #bongo-chat-wireframe .bc-banner { padding: 10px 12px; }
+  }
+  @media (pointer: coarse) {
+    #bongo-chat-wireframe .bc-tool, #bongo-chat-wireframe .bc-send, #bongo-chat-wireframe .bc-room { min-height: 44px; }
+    #bongo-chat-wireframe .bc-window input, #bongo-chat-wireframe .bc-window textarea { font-size: 16px; }
+  }
+</style>
+
+<div id="bongo-chat-wireframe" aria-label="Bongo Cat Chat 화면 와이어프레임">
+  <div class="viz-carousel" aria-label="채팅 화면과 주요 상태" data-previous-label="이전 화면" data-next-label="다음 화면">
+    <section data-variant="메신저형" aria-label="메신저형 대화 화면"><div class="bc-window" data-layout="messenger" data-scene="connected" data-key="messenger" aria-label="메신저형 화면 옵션"></div></section>
+    <section data-variant="디스코드형" aria-label="디스코드형 대화 화면" hidden><div class="bc-window bc-discord" data-layout="discord" data-scene="connected" data-key="discord" aria-label="디스코드형 화면 옵션"></div></section>
+    <section data-variant="로비 전환" aria-label="로비를 변경하는 중의 화면" hidden><div class="bc-window" data-layout="messenger" data-scene="switching" data-key="switching" aria-label="로비 전환 화면 옵션"></div></section>
+    <section data-variant="게임 숨김 반영" aria-label="Bongo Cat에서 숨긴 사용자가 제외된 예시 화면" hidden><div class="bc-window" data-layout="messenger" data-scene="game-hidden" data-key="hidden" aria-label="게임 숨김 반영 화면 옵션"></div></section>
+  </div>
+
+  <template id="bongo-chat-window-template">
+    <header class="bc-topbar">
+      <button type="button" class="bc-tool cursor-interaction" aria-label="사이드바 접기" aria-expanded="true" data-sidebar-toggle data-tooltip="사이드바 접기"><i data-lucide="panel-left-close" aria-hidden="true"></i></button>
+      <span class="bc-logo"><i data-lucide="cat" aria-hidden="true"></i></span>
+      <span class="bc-brand">Bongo Cat Chat</span>
+      <span class="bc-sample">설계안 · 이름·고양이 예시</span>
+    </header>
+    <div class="bc-layout">
+      <nav class="bc-sidebar" aria-label="로비와 저장된 대화">
+        <div><div class="bc-section-label">현재 참여 중</div><div data-current-rooms></div></div>
+        <div><div class="bc-section-label">보관한 대화</div><div data-saved-rooms></div></div>
+        <div class="bc-account"><span data-account-avatar></span><div class="bc-account-info"><div class="bc-account-name"><span data-account-name></span> <span class="bc-self">나</span></div><div class="bc-subtext">게임과 같은 프로필</div></div></div>
+      </nav>
+      <main class="bc-main" aria-label="대화 내용">
+        <header class="bc-room-header">
+          <div class="bc-room-heading"><h2 class="bc-room-title" data-room-title>고양이 쉼터</h2><div class="bc-room-subtitle"><span class="bc-status-dot"></span><span data-status>연결됨 · 8명</span></div></div>
+          <div class="bc-toolbar">
+            <label class="bc-search"><i data-lucide="search" aria-hidden="true"></i><input type="search" placeholder="이 대화 검색" aria-label="이 대화 검색" data-search></label>
+            <button type="button" class="bc-tool cursor-interaction" aria-label="연결 상태 새로고침" data-refresh><i data-lucide="refresh-cw" aria-hidden="true"></i></button>
+          </div>
+        </header>
+        <div class="bc-banner" data-banner hidden role="status"><i data-lucide="info" aria-hidden="true"></i><div><strong data-banner-title></strong><span data-banner-detail></span></div></div>
+        <div class="bc-history">
+          <div class="bc-date" data-date>오늘 · 오전 10:10</div>
+          <div class="bc-search-count" data-search-count hidden></div>
+          <div class="bc-messages" data-messages></div>
+          <div class="bc-empty" data-empty hidden>일치하는 대화가 없어요.</div>
+        </div>
+        <form class="bc-compose" aria-label="메시지 작성">
+          <div class="bc-input-box" data-input-box>
+            <textarea rows="2" placeholder="고양이 쉼터에 메시지 보내기" aria-label="메시지 입력" data-input></textarea>
+            <div class="bc-compose-bottom"><span class="bc-input-hint" data-input-hint>Enter 전송 · Shift+Enter 줄바꿈</span><button type="button" class="bc-send cursor-interaction" data-send><span>보내기</span><i data-lucide="arrow-up" aria-hidden="true"></i></button></div>
+          </div>
+        </form>
+      </main>
+    </div>
+    <footer class="bc-footer"><span data-recording>수신한 대화 · 이 PC에 보관</span><span data-footer-state>현재 로비의 대화</span></footer>
+  </template>
+</div>
+
+<script>
+(() => {
+  const root = document.getElementById('bongo-chat-wireframe');
+  const template = document.getElementById('bongo-chat-window-template');
+  const scenes = ['connected', 'switching', 'moved', 'game-hidden', 'offline'];
+  function gameHiddenSampleUsers(state) { return state.scene==='game-hidden'?['night']:[]; }
+  const people = {
+    momo: {name:'모모', cat:'cream', accessory:'crown', appearance:'크림색 고양이 · 왕관'},
+    cloud: {name:'구름', cat:'silver', accessory:'', appearance:'회색 고양이'},
+    night: {name:'밤고양이', cat:'night', accessory:'glasses', appearance:'짙은색 고양이 · 안경'},
+    me: {name:'토리', cat:'white', accessory:'', appearance:'밝은색 고양이'}
+  };
+  const rooms = {
+    lounge: {name:'고양이 쉼터', date:'오늘 · 오전 10:10', detail:'함께 작업하는 중', count:'8명', messages:[
+      {id:'l1',from:'momo',time:'10:10',text:'오늘도 같이 작업해요!'},
+      {id:'l2',from:'night',time:'10:11',text:'저는 디자인 마무리 중이에요.'},
+      {id:'l3',from:'me',time:'10:11',text:'저도요. 오늘 목표는 문서 정리예요.'},
+      {id:'l4',from:'cloud',time:'10:13',text:'아까 공유한 단축키가 뭐였죠?'},
+      {id:'l5',from:'me',time:'10:14',text:'Ctrl + Shift + S였어요.'}
+    ]},
+    yesterday: {name:'어제의 작업방', date:'어제 · 오후 9:20', detail:'어제 저장한 대화', count:'기록', messages:[
+      {id:'y1',from:'momo',time:'21:20',text:'오늘 작업은 여기까지 할게요.'},
+      {id:'y2',from:'me',time:'21:21',text:'수고하셨어요. 내일 또 봐요!'},
+      {id:'y3',from:'night',time:'21:23',text:'모두 편안한 밤 보내세요.'}
+    ]},
+    studio: {name:'느긋한 작업방', date:'오늘 · 오전 10:16', detail:'새로 연결한 로비', count:'5명', messages:[
+      {id:'s1',from:'cloud',time:'10:16',text:'어서 오세요. 편하게 쉬다 가세요.'},
+      {id:'s2',from:'momo',time:'10:17',text:'저는 책 읽으면서 켜 뒀어요.'}
+    ]}
+  };
+  const views = [];
+  function snapshotData(value) { return value?.privateContent?.bongoWireframe ?? {}; }
+  function validSnapshot(value) { return value && typeof value === 'object' ? value : {}; }
+  let saved = validSnapshot(snapshotData(window.openai?.widgetState));
+  let lastSavedSnapshot = '';
+  function icons() { if (globalThis.lucide?.createIcons) globalThis.lucide.createIcons({attrs:{width:16,height:16}}); }
+  function remember() {
+    if (!window.openai?.setWidgetState) return;
+    const data = {}; const models = {};
+    for (const view of views) {
+      data[view.key] = {scene:view.state.scene, compact:view.state.compact, collapsed:view.state.collapsed, room:view.state.room, drafts:Object.fromEntries(Object.entries(view.state.drafts).map(([key,value])=>[key,value.slice(0,160)]))};
+      models[view.key] = {screen:view.state.scene, layout:view.layout, sidebarCollapsed:view.state.collapsed, gameHiddenSampleUsers:gameHiddenSampleUsers(view.state).map(id=>people[id].name)};
+    }
+    lastSavedSnapshot = JSON.stringify(data);
+    Promise.resolve(window.openai.setWidgetState({modelContent:{wireframe:'Bongo Cat Chat',screens:models},privateContent:{bongoWireframe:data}})).catch(()=>{});
+  }
+  function makeRoomButton(view, id, current) {
+    const room = rooms[id]; const button = document.createElement('button');
+    button.type = 'button'; button.className = 'bc-room cursor-interaction' + (view.state.room === id ? ' is-viewed' : '');
+    button.setAttribute('aria-label', (current ? '현재 로비: ' : '저장된 대화: ') + room.name);
+    button.dataset.tooltip = (current ? '현재 로비: ' : '저장된 대화: ') + room.name;
+    button.dataset.tooltipPlacement = 'right';
+    if (view.state.room === id) button.setAttribute('aria-current','page');
+    const icon = document.createElement('span'); icon.className = 'bc-room-icon';
+    icon.innerHTML = '<i data-lucide="' + (view.layout === 'discord' ? 'hash' : current ? 'message-circle' : 'archive') + '" aria-hidden="true"></i>';
+    const info = document.createElement('span'); info.className='bc-room-info'; const name = document.createElement('span'); name.className='bc-room-name'; name.textContent = room.name;
+    const detail = document.createElement('span'); detail.className = 'bc-room-detail'; detail.textContent = view.state.drafts[id] ? '작성 중인 초안' : room.detail;
+    info.append(name,detail); button.append(icon,info);
+    button.addEventListener('click',()=>{view.state.room=id;view.state.query='';view.el('[data-search]').value='';view.render();remember();});
+    return button;
+  }
+  function avatarNode(id) {
+    const person=people[id];
+    const avatar=document.createElement('span');
+    avatar.className='bc-avatar bc-cat-'+person.cat;
+    avatar.setAttribute('role','img');
+    avatar.setAttribute('aria-label',person.name+'의 게임 고양이 예시: '+person.appearance);
+    avatar.dataset.tooltip=person.name+' · '+person.appearance+' (예시)';
+    avatar.innerHTML='<i data-lucide="cat" aria-hidden="true"></i>';
+    if(person.accessory){
+      const accessory=document.createElement('span');accessory.className='bc-cat-accessory';
+      accessory.innerHTML='<i data-lucide="'+person.accessory+'" aria-hidden="true"></i>';
+      avatar.append(accessory);
+    }
+    return avatar;
+  }
+  function messageNode(message) {
+    const row = document.createElement('article'); row.className='bc-message'+(message.from==='me'?' is-own':''); row.dataset.messageId=message.id;
+    const person=people[message.from]; const avatar=avatarNode(message.from);
+    const body=document.createElement('div');body.className='bc-message-body';
+    const meta=document.createElement('div');meta.className='bc-message-meta';
+    const name=document.createElement('span');name.className='bc-author';name.textContent=person.name;
+    const time=document.createElement('span');time.className='bc-time';time.textContent=message.time;
+    const text=document.createElement('div');text.className='bc-message-text';text.textContent=message.text;
+    meta.append(name);
+    if(message.from==='me'){const own=document.createElement('span');own.className='bc-self';own.textContent='나';meta.append(own);}
+    meta.append(time);body.append(meta,text);
+    if(message.from==='me'){const status=document.createElement('div');status.className='bc-message-state';status.textContent=message.sample?'예시 메시지':'전송됨';body.append(status);}
+    row.append(avatar,body);return row;
+  }
+  function load(view, data) {
+    data=validSnapshot(data);
+    if(scenes.includes(data.scene))view.state.scene=data.scene;
+    else if(data.scene==='hidden')view.state.scene='game-hidden';
+    view.state.compact=Boolean(data.compact);
+    if(typeof data.collapsed==='boolean')view.state.collapsed=data.collapsed;
+    if(Object.hasOwn(rooms,data.room))view.state.room=data.room;
+    if(data.drafts&&typeof data.drafts==='object')for(const id of Object.keys(rooms))if(typeof data.drafts[id]==='string')view.state.drafts[id]=data.drafts[id].slice(0,160);
+  }
+  for (const app of root.querySelectorAll('.bc-window')) {
+    app.append(template.content.cloneNode(true));
+    const state={scene:app.dataset.scene,compact:false,collapsed:false,room:'lounge',drafts:{lounge:app.dataset.scene==='switching'?'조금 뒤에 다시 올게요.':'',yesterday:'',studio:''},query:'',extra:[],composing:false};
+    const view={app,state,key:app.dataset.key,layout:app.dataset.layout,el:(selector)=>app.querySelector(selector),lastScene:state.scene};
+    view.el('.bc-sidebar').id='bc-sidebar-'+view.key;
+    view.el('[data-sidebar-toggle]').setAttribute('aria-controls','bc-sidebar-'+view.key);
+    view.el('[data-account-name]').textContent=people.me.name;
+    view.el('[data-account-avatar]').replaceChildren(avatarNode('me'));
+    view.renderSidebar=()=>{
+      app.classList.toggle('bc-is-collapsed',state.collapsed);
+      const toggle=view.el('[data-sidebar-toggle]');
+      const label=state.collapsed?'사이드바 펼치기':'사이드바 접기';
+      toggle.setAttribute('aria-expanded',String(!state.collapsed));
+      toggle.setAttribute('aria-label',label);toggle.dataset.tooltip=label;
+      toggle.innerHTML='<i data-lucide="'+(state.collapsed?'panel-left-open':'panel-left-close')+'" aria-hidden="true"></i>';
+    };
+    view.renderMessages=()=>{
+      const query=state.query.trim().toLocaleLowerCase();
+      const hiddenByGame=gameHiddenSampleUsers(state);
+      const messages=[...rooms[state.room].messages,...state.extra.filter(message=>message.room===state.room)].filter(message=>!hiddenByGame.includes(message.from));
+      const filtered=messages.filter(message=>!query||(message.text+' '+people[message.from].name).toLocaleLowerCase().includes(query));
+      view.el('[data-messages]').replaceChildren(...filtered.map(messageNode));
+      view.el('[data-empty]').hidden=filtered.length>0;
+      view.el('[data-empty]').textContent=query?'일치하는 대화가 없어요.':'표시할 대화가 없어요.';
+      view.el('[data-search-count]').hidden=!query;
+      view.el('[data-search-count]').textContent='검색 결과 '+filtered.length+'건';
+      icons();
+    };
+    view.render=()=>{
+      const current=state.scene==='moved'?'studio':'lounge';
+      const archived=state.room!==current; const switching=state.scene==='switching';const offline=state.scene==='offline';
+      const canSend=!archived&&!switching&&!offline;
+      app.classList.toggle('bc-condensed',state.compact);
+      view.renderSidebar();
+      view.el('[data-current-rooms]').replaceChildren(makeRoomButton(view,current,true));
+      view.el('[data-saved-rooms]').replaceChildren(...(current==='studio'?['lounge','yesterday']:['yesterday']).map(id=>makeRoomButton(view,id,false)));
+      view.el('[data-room-title]').textContent=(view.layout==='discord'?'# ':'')+rooms[state.room].name;
+      view.el('[data-status]').textContent=archived?'저장된 기록 · 보내기 불가':switching?'로비 변경 감지 · 확인 중':offline?'Steam 연결 끊김':'연결됨 · '+rooms[current].count;
+      view.el('[data-date]').textContent=rooms[state.room].date;
+      let headline='';let detail='';
+      if(archived){headline='이전에 저장한 대화예요.';detail='현재 참여한 로비에서만 메시지를 보낼 수 있어요.';}
+      else if(switching){headline='로비가 바뀌어 새 연결을 확인하고 있어요.';detail='이 방의 초안은 보관됩니다. 연결 확인 전에는 보낼 수 없어요.';}
+      else if(offline){headline='Steam 연결을 확인해 주세요.';detail='받지 못한 구간의 대화는 기록에 남지 않아요.';}
+      else if(state.scene==='game-hidden'){headline='Bongo Cat의 숨김 설정 반영 · 예시';detail='게임에서 숨긴 사용자의 대화는 목록과 검색에서 제외됩니다. 숨김·해제는 Bongo Cat에서 합니다.';}
+      else if(state.scene==='moved'){headline='느긋한 작업방에 연결했어요.';detail='고양이 쉼터의 대화와 초안은 이전 방에 남아 있어요.';}
+      view.el('[data-banner]').hidden=!headline;view.el('[data-banner-title]').textContent=headline;view.el('[data-banner-detail]').textContent=detail;
+      const input=view.el('[data-input]');input.disabled=!canSend;input.value=state.drafts[state.room]||'';
+      input.placeholder=archived?'저장된 기록에서는 보낼 수 없어요':switching?'새 로비를 확인하는 중이에요':offline?'연결이 복구되면 보낼 수 있어요':rooms[state.room].name+'에 메시지 보내기';
+      view.el('[data-input-box]').classList.toggle('is-disabled',!canSend);
+      view.el('[data-send]').disabled=!canSend||!input.value.trim();
+      view.el('[data-input-hint]').textContent=archived?'왼쪽에서 현재 로비를 선택하세요':switching?'이전 방의 초안을 보관 중':'Enter 전송 · Shift+Enter 줄바꿈';
+      view.el('[data-recording]').textContent=offline?'연결 끊김 · 기록 수신 중단':'수신한 대화 · 이 PC에 보관';
+      view.el('[data-footer-state]').textContent=archived?'보관한 대화':switching?'연결 확인 중':state.scene==='game-hidden'?'게임 숨김 설정 기준 · 예시':'현재 로비의 대화';
+      view.renderMessages();
+    };
+    view.onSceneChange=()=>{
+      if(state.scene!==view.lastScene){state.room=state.scene==='moved'?'studio':'lounge';state.query='';view.el('[data-search]').value='';if(state.scene==='switching'&&!state.drafts.lounge)state.drafts.lounge='조금 뒤에 다시 올게요.';view.lastScene=state.scene;}
+      view.render();remember();
+    };
+    view.el('[data-sidebar-toggle]').addEventListener('click',()=>{
+      const collapsed=!state.collapsed;
+      for(const other of views){other.state.collapsed=collapsed;other.renderSidebar();}
+      icons();remember();
+    });
+    view.el('[data-search]').addEventListener('input',event=>{state.query=event.target.value;view.renderMessages();});
+    view.el('[data-input]').addEventListener('input',event=>{state.drafts[state.room]=event.target.value;view.el('[data-send]').disabled=!event.target.value.trim();});
+    view.el('[data-input]').addEventListener('change',remember);
+    view.el('[data-input]').addEventListener('compositionstart',()=>{state.composing=true;});
+    view.el('[data-input]').addEventListener('compositionend',()=>{state.composing=false;});
+    view.el('[data-input]').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing&&!state.composing&&event.keyCode!==229){event.preventDefault();view.el('[data-send]').click();}});
+    view.el('form').addEventListener('submit',event=>event.preventDefault());
+    view.el('[data-send]').addEventListener('click',()=>{
+      const current=state.scene==='moved'?'studio':'lounge';
+      const text=(state.drafts[state.room]||'').trim();
+      if(!text||state.room!==current||['switching','offline'].includes(state.scene)||state.composing)return;
+      state.extra.push({id:'demo-'+view.key+'-'+state.extra.length,from:'me',time:'지금',text,room:state.room,sample:true});state.drafts[state.room]='';state.query='';view.el('[data-search]').value='';view.render();view.el('[data-input]').focus();remember();
+    });
+    view.el('[data-refresh]').addEventListener('click',()=>{
+      if(state.scene==='switching'||state.scene==='offline'){state.scene=state.scene==='switching'?'moved':'connected';view.onSceneChange();}
+      else{const status=view.el('[data-status]');const before=status.textContent;status.textContent='연결 상태 확인됨';setTimeout(()=>{if(status.isConnected&&status.textContent==='연결 상태 확인됨')status.textContent=before;},1100);}
+    });
+    load(view,saved[view.key]);view.lastScene=state.scene;
+    views.push(view);view.render();
+    if(globalThis.Tweak){
+      const tweak=new Tweak({container:app,onChange:view.onSceneChange});
+      tweak.addSelect(state,'scene',{label:'화면 상태 예시',options:[{label:'대화 중',value:'connected'},{label:'로비 변경 중',value:'switching'},{label:'새 로비 연결',value:'moved'},{label:'게임에서 숨김 적용됨',value:'game-hidden'},{label:'연결 끊김',value:'offline'}]});
+      tweak.addToggle(state,'compact',{label:'대화 간격 좁게'});
+    }
+  }
+  window.addEventListener('openai:set_globals',event=>{
+    if(!event.detail?.globals||!Object.hasOwn(event.detail.globals,'widgetState'))return;
+    const incoming=validSnapshot(snapshotData(event.detail.globals.widgetState));
+    if(JSON.stringify(incoming)===lastSavedSnapshot)return;
+    saved=incoming;
+    for(const view of views){load(view,saved[view.key]);view.lastScene=view.state.scene;view.render();}
+  });
+})();
+</script>
