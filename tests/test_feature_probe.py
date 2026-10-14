@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
@@ -17,8 +18,8 @@ def run(args):
 @pytest.fixture(scope='module')
 def fixture_tools(tmp_path_factory):
     directory = tmp_path_factory.mktemp('feature-assemblies')
-    prepared = run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ROOT / 'tools/prepare-compatibility.ps1'])
-    assert prepared.returncode == 0, prepared.stdout.decode(errors='replace')
+    prepared = run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ROOT / 'tools/prepare-compatibility.ps1', '-Python', sys.executable])
+    assert prepared.returncode == 0, (prepared.stdout + prepared.stderr).decode(errors='replace')
     compiler = Path(os.environ['SystemRoot']) / 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
     helper = ROOT / 'artifacts/compatibility'
     generator = helper / 'FixtureAssembly.exe'

@@ -4,6 +4,10 @@ Unicode true
 !include "LogicLib.nsh"
 !include "x64.nsh"
 !include "WinVer.nsh"
+!include "nsDialogs.nsh"
+!include "FileFunc.nsh"
+Var UpdateCheckbox
+Var UpdatePermission
 !ifndef APP_ID
   !define APP_ID "BongoCatChat"
 !endif
@@ -36,11 +40,16 @@ VIAddVersionKey /LANG=1042 "LegalCopyright" ""
 !define MUI_WELCOMEPAGE_TEXT "Bongo Cat의 로비 채팅을 별도 창에서 읽고 입력하는 메신저입니다.$\r$\n$\r$\n현재 Windows 사용자에게 설치합니다. Python이나 개발 도구를 따로 준비할 필요가 없습니다.$\r$\n$\r$\n실행 중인 Bongo Cat Chat을 닫은 뒤 계속하세요. 기존 대화 기록과 설정은 유지됩니다.$\r$\n$\r$\n버전 ${APP_VERSION} · 개발판"
 !define MUI_DIRECTORYPAGE_TEXT_TOP "설치할 폴더를 선택하세요. 기존 버전이 있으면 같은 폴더에 설치합니다."
 !insertmacro MUI_PAGE_WELCOME
+!define MUI_LICENSEPAGE_TEXT_TOP "로컬 기록, Steam 채팅 및 GitHub 업데이트 통신 안내입니다."
+!define MUI_LICENSEPAGE_TEXT_BOTTOM "다음 페이지에서 GitHub 업데이트 통신 사용 여부를 선택할 수 있습니다."
+!define MUI_LICENSEPAGE_BUTTON "다음 >"
+!insertmacro MUI_PAGE_LICENSE "${PRIVACY_FILE}"
+Page custom UpdateOptions UpdateOptionsLeave
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE DirectoryLeave
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_TITLE "설치가 완료되었습니다"
-!define MUI_FINISHPAGE_TEXT "시작 메뉴에서 ${APP_NAME}을 실행하세요.$\r$\n$\r$\nSteam과 Bongo Cat을 실행하고 게임 로비에 참여하면 앱에서 연결 상태를 확인할 수 있습니다.$\r$\n$\r$\n새로 게시된 버전은 자동으로 내려받아 다음 앱 실행 때 적용합니다."
+!define MUI_FINISHPAGE_TEXT "시작 메뉴에서 ${APP_NAME}을 실행하세요.$\r$\n$\r$\nSteam과 Bongo Cat을 실행하고 게임 로비에 참여하면 앱에서 연결 상태를 확인할 수 있습니다.$\r$\n$\r$\n업데이트 통신과 개인정보 안내는 앱 설정에서 다시 확인할 수 있습니다."
 !insertmacro MUI_PAGE_FINISH
 !define MUI_UNCONFIRMPAGE_TEXT_TOP "앱을 제거합니다. 대화 기록과 설정은 이 PC에 남습니다.$\r$\n$\r$\n기록도 지우려면 제거 전에 앱의 기록 삭제 기능을 사용하세요."
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -53,6 +62,22 @@ VIAddVersionKey /LANG=1042 "LegalCopyright" ""
 Function .onInit
   SetShellVarContext current
   SetRegView 64
+  ClearErrors
+  ReadRegDWORD $UpdatePermission HKCU "Software\${APP_ID}" "AllowUpdateChecks"
+  ${If} ${Errors}
+    StrCpy $UpdatePermission 1
+  ${EndIf}
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/UPDATECHECKS=" $1
+  ${IfNot} ${Errors}
+    ${If} $1 != "0"
+    ${AndIf} $1 != "1"
+      SetErrorLevel 10
+      Quit
+    ${EndIf}
+    StrCpy $UpdatePermission $1
+  ${EndIf}
   ${IfNot} ${RunningX64}
   ${OrIfNot} ${AtLeastWin10}
     MessageBox MB_OK|MB_ICONSTOP "Windows 10 이상, 64비트 PC가 필요합니다." /SD IDOK
@@ -63,6 +88,29 @@ Function .onInit
   ${If} $0 != ""
     StrCpy $INSTDIR $0
   ${EndIf}
+FunctionEnd
+
+Function UpdateOptions
+  !insertmacro MUI_HEADER_TEXT "개인정보와 업데이트" "GitHub 통신 사용 여부를 선택하세요."
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 65u "채팅과 초안은 이 PC에 평문으로 30일 보관합니다. 직접 보낸 채팅은 Steam 로비 참여자에게 전달됩니다.$\r$\n$\r$\n업데이트를 허용하면 GitHub에 연결하여 새 버전을 확인하고 내려받습니다. GitHub는 IP 주소 등 연결 정보를 처리할 수 있습니다. 대화와 게임 식별정보는 보내지 않습니다."
+  Pop $0
+  ${NSD_CreateCheckbox} 0 75u 100% 20u "GitHub 업데이트 확인 및 다운로드 허용"
+  Pop $UpdateCheckbox
+  ${If} $UpdatePermission == 1
+    ${NSD_Check} $UpdateCheckbox
+  ${EndIf}
+  ${NSD_CreateLabel} 0 103u 100% 45u "해제해도 Steam 채팅은 사용할 수 있습니다. 자동·수동 업데이트 확인이 모두 중지되며, 앱 설정에서 다시 켤 수 있습니다.$\r$\n현재 사용자용 앱 파일, 시작 메뉴와 Windows 제거 항목을 설치합니다. 제거 시 대화와 설정은 남습니다."
+  Pop $0
+  nsDialogs::Show
+FunctionEnd
+
+Function UpdateOptionsLeave
+  ${NSD_GetState} $UpdateCheckbox $UpdatePermission
 FunctionEnd
 
 Function DirectoryLeave
@@ -102,6 +150,13 @@ Section "설치"
     Abort
   ${EndIf}
   SetOutPath "$INSTDIR"
+  ClearErrors
+  WriteRegDWORD HKCU "Software\${APP_ID}" "AllowUpdateChecks" $UpdatePermission
+  ${If} ${Errors}
+    MessageBox MB_OK|MB_ICONSTOP "업데이트 통신 선택을 저장하지 못했습니다. 앱을 실행하기 전에 설치 프로그램을 다시 실행하세요." /SD IDOK
+    SetErrorLevel 41
+    Abort
+  ${EndIf}
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"

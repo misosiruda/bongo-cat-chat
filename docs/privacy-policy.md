@@ -1,6 +1,6 @@
 # Privacy policy / 개인정보 처리 안내
 
-기준: 2026-10-14, `0.1.0.dev6` 소스와 이번 서명 준비 변경. 독립 개발자가 유지하는 비공식 Bongo Cat 보조 프로그램이다. 문의는 [프로젝트 이슈](https://github.com/misosiruda/bongo-cat-chat/issues)를 사용한다. 공개 이슈에 대화 원문, 계정·로비 식별정보를 올리지 않는다.
+기준: 2026-10-14, `0.1.0.dev7` 기반의 이번 서명 준비 변경. 독립 개발자가 유지하는 비공식 Bongo Cat 보조 프로그램이다. 문의는 [프로젝트 이슈](https://github.com/misosiruda/bongo-cat-chat/issues)를 사용한다. 공개 이슈에 대화 원문, 계정·로비 식별정보를 올리지 않는다.
 
 ## 로컬 기록과 게임 연동
 
@@ -18,7 +18,11 @@
 
 연결 대상은 `api.github.com`, `github.com`과 업데이트 자산 다운로드에 사용하는 GitHub 호스트다. 대화 원문, Steam 계정 ID, 로비 ID, 로컬 DB를 업데이트 서버에 보내지 않는다. 일반 HTTPS 요청으로 GitHub가 IP 주소, 요청 시각, User-Agent 등 연결 정보를 처리할 수 있다. [GitHub 개인정보 정책](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement)을 참고한다.
 
-현재 설치 UI에는 자동 업데이트 통신만 끄는 선택지가 없다. `--offline` 실행은 업데이트와 실제 게임 연결을 함께 사용하지 않는 개발·검증 모드다. 독립적인 업데이트 거부 선택지로 안내하지 않는다. SignPath 신청 전 설치 중 개인정보 고지와 업데이트 통신 선택권에 대한 조건을 확인하고 필요한 UI를 반영해야 한다.
+설치 마법사에서 이 안내를 확인한 다음 **GitHub 업데이트 확인 및 다운로드 허용**을 해제할 수 있다. 앱 설정에서도 언제든 변경할 수 있다. 끄면 주기적 확인, 게임 호환성 오류 시 확인, 수동 확인이 모두 중지되며 Steam 채팅은 계속 사용할 수 있다. 진행 중인 요청은 취소를 요청하지만 이미 전송된 접속 정보는 회수할 수 없다. 이미 검증·준비된 업데이트는 다음 실행에 로컬 적용될 수 있다.
+
+선택은 현재 Windows 사용자의 `HKEY_CURRENT_USER\Software\BongoCatChat` 아래 `AllowUpdateChecks`에 저장되며 재설치와 제거 후에도 유지된다. 처음 설치하거나 이전 버전에 선택 기록이 없으면 기본적으로 허용한다. 무인 설치는 `/S /UPDATECHECKS=0`으로 끄거나 `/UPDATECHECKS=1`로 켤 수 있으며, 생략하면 기존 선택을 유지한다. 앱 설정에서 개인정보·오픈소스 고지와 대응 소스 안내를 네트워크 연결 없이 열 수 있다.
+
+설치 프로그램은 현재 사용자용 앱 폴더, 시작 메뉴 바로가기, Windows 제거 목록과 위 업데이트 선택을 만든다. 자동 실행 등록이나 관리자 권한을 요구하지 않는다.
 
 ## 그 밖의 전송
 
@@ -28,4 +32,4 @@
 
 Bongo Cat Chat stores received lobby messages, drafts, display names, Steam account/lobby identifiers and settings in a local, unencrypted SQLite database. Messages and drafts are retained for 30 days, with cleanup while the application is running. Users can delete the selected lobby's history or all history for the current account. Uninstallation preserves local data.
 
-User-authored chat is sent through Steam lobby chat. The application reads local game state and installed resources without patching game files or writing to game memory. Installed copies automatically contact GitHub for update metadata and downloads; chat content and game identifiers are not included in these requests. GitHub may process ordinary connection metadata such as IP addresses. There is no developer-operated chat collection, telemetry or cloud-sync service. A dedicated installer option to disable update requests is not implemented yet; this limitation is disclosed for the SignPath review.
+User-authored chat is sent through Steam lobby chat. The application reads local game state and installed resources without patching game files or writing to game memory. When update checks are enabled, installed copies contact GitHub for update metadata and downloads; chat content and game identifiers are not included in these requests. GitHub may process ordinary connection metadata such as IP addresses. There is no developer-operated chat collection, telemetry or cloud-sync service. This policy is displayed during installation. Users can disable all automatic and manual GitHub update requests in the installer or app settings without disabling Steam chat. The Windows-user preference persists through reinstall/uninstall. The default for a first install or an older installation with no saved choice is enabled. Silent installers support /UPDATECHECKS=0. Cancellation cannot retract a request already sent; an already staged update may still be applied locally on the next launch.

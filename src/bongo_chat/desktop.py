@@ -10,7 +10,7 @@ from PySide6.QtCore import QObject, QLockFile, QTimer, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings, QWebEngineUrlRequestInterceptor
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox, QDialog, QVBoxLayout, QTextBrowser
 
 from .service import ChatService
 from .store import Store
@@ -18,8 +18,10 @@ from .worker import run_worker, unavailable
 from . import __version__
 from .exit_codes import PROFILE_IN_USE
 from .updates import UpdateManager
+from .privacy import update_checks_allowed, set_update_checks_allowed
 
 UI = Path(__file__).with_name("ui").resolve()
+LEGAL = Path(__file__).with_name('legal')
 
 
 class Requests(QWebEngineUrlRequestInterceptor):
@@ -51,7 +53,8 @@ class Controller(QObject):
         super().__init__(parent)
         self.store = Store(data / "history.sqlite3")
         self.service = ChatService(self.store)
-        self.updates = UpdateManager(install_root, __version__, offline)
+        self.updates = UpdateManager(install_root, __version__, offline, allowed=update_checks_allowed())
+        self.legal_dialogs = []
         self.worker = None
         self.closed = False
         self.context = mp.get_context("spawn")
@@ -161,6 +164,32 @@ class Controller(QObject):
                 self.commands.put_nowait({"type": "refresh"})
         elif action == 'check_updates':
             self.updates.request()
+        elif action == 'update_permission':
+            set_update_checks_allowed(args['allowed'])
+            self.updates.set_allowed(args['allowed'])
+        elif action == 'legal':
+            names = {'privacy': 'PRIVACY.md', 'licenses': 'THIRD-PARTY-NOTICES.txt',
+                     'chromium': 'CHROMIUM-LICENSES.html', 'sources': 'SOURCES.md'}
+            name = names.get(args.get('document'))
+            if name is None:
+                raise ValueError('invalid_document')
+            path = LEGAL / name
+            text = path.read_text(encoding='utf-8')
+            dialog = QDialog()
+            dialog.setWindowTitle('개인정보 및 오픈소스 안내')
+            dialog.resize(760, 620)
+            layout = QVBoxLayout(dialog)
+            viewer = QTextBrowser(dialog)
+            viewer.setOpenLinks(False)
+            viewer.setOpenExternalLinks(False)
+            if name.endswith('.html'):
+                viewer.setHtml(text)
+            else:
+                viewer.setPlainText(text)
+            layout.addWidget(viewer)
+            self.legal_dialogs.append(dialog)
+            dialog.finished.connect(lambda: self.legal_dialogs.remove(dialog))
+            dialog.show()
         else:
             raise ValueError("unknown_action")
         return {"ok": True}
@@ -169,6 +198,8 @@ class Controller(QObject):
         if self.closed:
             return
         self.closed = True
+        for dialog in list(self.legal_dialogs):
+            dialog.close()
         self.timer.stop()
         self.updates.close()
         self.stop.set()

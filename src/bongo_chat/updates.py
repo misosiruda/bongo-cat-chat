@@ -242,6 +242,8 @@ class Transport:
         self.opener = urllib.request.build_opener(GitHubRedirect())
 
     def download(self, url, target, limit):
+        if self.cancelled.is_set():
+            raise UpdateError('cancelled')
         request = urllib.request.Request(trusted_url(url), headers={
             'Accept': 'application/vnd.github+json' if url.startswith('https://api.github.com/') else 'application/octet-stream',
             'User-Agent': 'BongoCatChat-Updater', 'X-GitHub-Api-Version': '2026-03-10'})
@@ -320,13 +322,16 @@ def check_and_stage(root, current, settings, transport, report):
 
 class UpdateManager:
     """The background thread uses only the update cache, never SQLite or Qt."""
-    def __init__(self, root, current, offline=False, settings=None, transport=None):
+    def __init__(self, root, current, offline=False, settings=None, transport=None, allowed=True):
         self.root, self.current = root, current
         self.settings = settings if settings is not None else config()
         self.cancelled = threading.Event()
-        self.transport = transport or Transport(self.cancelled)
+        self.transport = transport
         self.lock, self.thread = threading.Lock(), None
-        self.enabled = bool(root and not offline)
+        self.available = bool(root and not offline)
+        self.inactive_state = 'offline' if offline else 'development'
+        self.allowed, self.closed = allowed, False
+        self.enabled = self.available and allowed
         self.state = {'state': 'idle' if self.enabled else 'offline' if offline else 'development', 'version': current, 'current': current}
         if self.enabled:
             try:
@@ -337,6 +342,20 @@ class UpdateManager:
             except (OSError, ValueError, AttributeError):
                 pass
         self.next_check = time.monotonic() + 15
+        if not allowed:
+            self.report('disabled')
+
+    def set_allowed(self, allowed):
+        self.allowed = allowed
+        self.enabled = self.available and allowed and not self.closed
+        if not allowed:
+            self.cancelled.set()
+            self.report('disabled')
+        elif self.enabled:
+            self.report('idle')
+            self.next_check = time.monotonic() + 15
+        elif not self.closed:
+            self.report(self.inactive_state)
 
     def report(self, state, value=''):
         with self.lock:
@@ -344,28 +363,38 @@ class UpdateManager:
 
     def snapshot(self):
         with self.lock:
-            return dict(self.state)
+            return {**self.state, 'allowed': self.allowed}
 
     def poll(self):
         if self.enabled and time.monotonic() >= self.next_check:
             self.request()
 
     def request(self):
-        if not self.enabled or self.cancelled.is_set() or self.thread and self.thread.is_alive():
+        if not self.enabled or self.closed or self.thread and self.thread.is_alive():
             return
+        self.cancelled = threading.Event()
+        cancelled = self.cancelled
+        transport = self.transport or Transport(cancelled)
+        def report(state, value=''):
+            # A cancelled request cannot overwrite the user's disabled state.
+            with self.lock:
+                if not cancelled.is_set():
+                    self.state = {'state': state, 'version': value, 'current': self.current}
         self.next_check = time.monotonic() + CHECK_INTERVAL
         self.report('checking')
         def work():
             try:
-                check_and_stage(self.root, self.current, self.settings, self.transport, self.report)
+                check_and_stage(self.root, self.current, self.settings, transport, report)
             except urllib.error.HTTPError as exc:
-                self.report('unavailable' if exc.code == 404 else 'network_error')
+                report('unavailable' if exc.code == 404 else 'network_error')
             except (OSError, urllib.error.URLError, TimeoutError):
-                self.report('network_error')
+                report('network_error')
             except (ValueError, KeyError, TypeError, zipfile.BadZipFile):
-                self.report('verification_failed')
+                report('verification_failed')
         self.thread = threading.Thread(target=work, daemon=True, name='release-check')
         self.thread.start()
 
     def close(self):
+        self.closed = True
+        self.enabled = False
         self.cancelled.set()

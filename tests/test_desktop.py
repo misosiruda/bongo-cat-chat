@@ -14,6 +14,7 @@ from PySide6.QtWebEngineCore import QWebEngineScript
 from bongo_chat.desktop import Controller, run, window
 from bongo_chat.exit_codes import PROFILE_IN_USE
 from bongo_chat.worker import unavailable
+from bongo_chat import desktop
 from test_core import received, state
 
 
@@ -318,3 +319,27 @@ def test_game_change_checks_updates_once_and_keeps_privacy_gate(qt_chat, monkeyp
     wait_until(app, lambda: js(app, page, "document.querySelector('#connection-notice').textContent.includes('다시 실행')"))
     assert not controller.service.can_send() and not controller.closed
     assert controller.store.db.execute('SELECT count(*) FROM messages').fetchone()[0] == 1
+
+
+def test_update_permission_and_local_legal_dialogs(qt_chat, monkeypatch, tmp_path):
+    app, controller, page = qt_chat
+    saved = []
+    monkeypatch.setattr(desktop, 'set_update_checks_allowed', lambda value: saved.append(value))
+    monkeypatch.setattr(desktop, 'LEGAL', tmp_path)
+    (tmp_path / 'PRIVACY.md').write_text('개인정보 안내: 로컬 30일 보관', encoding='utf-8')
+    js(app, page, "document.querySelector('#settings-button').click();document.querySelector('#allow-update-checks').click()")
+    wait_until(app, lambda: saved == [False])
+    wait_until(app, lambda: js(app, page, "document.querySelector('#update-status').textContent.includes('껐습니다')"))
+    assert js(app, page, "document.querySelector('#check-updates').disabled")
+    assert controller.worker is None
+    js(app, page, "document.querySelector('[data-legal=privacy]').click()")
+    wait_until(app, lambda: len(controller.legal_dialogs) == 1)
+    viewer = controller.legal_dialogs[0].findChild(desktop.QTextBrowser)
+    assert '로컬 30일' in viewer.toPlainText()
+    assert not viewer.openLinks() and not viewer.openExternalLinks()
+    controller.legal_dialogs[0].close()
+    assert not controller.legal_dialogs
+    js(app, page, "document.querySelector('#allow-update-checks').click()")
+    wait_until(app, lambda: saved == [False, True])
+    assert not controller.updates.enabled  # Offline mode remains offline.
+    assert not page.console_errors
