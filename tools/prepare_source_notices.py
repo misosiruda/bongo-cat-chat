@@ -45,7 +45,7 @@ def fetch(row, cache):
                 raise ValueError('Archive checksum mismatch: ' + row['file'])
             temporary.replace(path)
             return path
-        except OSError:
+        except (OSError, ValueError):
             if url == urls[-1]:
                 raise
         finally:

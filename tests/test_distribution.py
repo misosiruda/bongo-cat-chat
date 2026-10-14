@@ -1,4 +1,6 @@
 import importlib.util
+import hashlib
+import io
 from pathlib import Path
 import subprocess
 import sys
@@ -91,3 +93,41 @@ def test_notice_collection_keeps_licences_and_excludes_unused_fmod(tmp_path):
     assert (tmp_path / 'SOURCES.md').is_file()
     chromium = (tmp_path / 'CHROMIUM-LICENSES.html').read_text(encoding='utf-8')
     assert 'Chromium' in chromium and 'Copyright' in chromium and 'ffmpeg' in chromium
+
+
+@pytest.mark.parametrize('mirror_payload', [b'', b'<html>bad mirror</html>', b'x' * 64, OSError('offline')])
+def test_source_download_uses_official_url_after_bad_mirror(tmp_path, monkeypatch, mirror_payload):
+    module = tool('prepare_source_notices')
+    payload = b'verified fixture source'
+    row = {'file': 'fixture.tar.xz', 'url': 'https://download.qt.io/fixture.tar.xz',
+           'bytes': len(payload), 'sha256': hashlib.sha256(payload).hexdigest()}
+    calls = []
+    def download(url, **kwargs):
+        calls.append(url)
+        if len(calls) == 1:
+            if isinstance(mirror_payload, OSError):
+                raise mirror_payload
+            return io.BytesIO(mirror_payload)
+        return io.BytesIO(payload)
+    monkeypatch.setattr(module.urllib.request, 'urlopen', download)
+    path = module.fetch(row, tmp_path)
+    assert calls == ['https://qt.mirror.constant.com/fixture.tar.xz', row['url']]
+    assert path.read_bytes() == payload
+    assert not list(tmp_path.glob('*.partial'))
+
+
+def test_source_download_rejects_both_bad_endpoints(tmp_path, monkeypatch):
+    module = tool('prepare_source_notices')
+    payload = b'verified'
+    row = {'file': 'fixture.tar.xz', 'url': 'https://download.qt.io/fixture.tar.xz',
+           'bytes': len(payload), 'sha256': hashlib.sha256(payload).hexdigest()}
+    calls = []
+    def download(url, **kwargs):
+        calls.append(url)
+        return io.BytesIO(b'corrupt!')  # Correct size, wrong hash on both endpoints.
+    monkeypatch.setattr(module.urllib.request, 'urlopen', download)
+    with pytest.raises(ValueError, match='checksum mismatch'):
+        module.fetch(row, tmp_path)
+    assert len(calls) == 2
+    assert not (tmp_path / row['file']).exists()
+    assert not list(tmp_path.glob('*.partial'))
