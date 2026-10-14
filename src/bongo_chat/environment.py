@@ -4,10 +4,14 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import os
+import subprocess
+import sys
+import time
 
 import psutil
 
-SUPPORT_PATH = Path(__file__).with_name("supported-build.json")
+SUPPORT_PATH = Path(__file__).with_name("feature-contract.json")
 BUILD_FILES = (
     "BongoCat_Data/Managed/Assembly-CSharp.dll",
     "BongoCat_Data/Plugins/x86_64/steam_api64.dll",
@@ -37,21 +41,84 @@ def installed_build(root):
         return ""
 
 
-def supported_builds():
+def compatibility_contract():
     try:
         catalog = json.loads(SUPPORT_PATH.read_text(encoding="utf-8"))
-        builds = catalog["builds"]
-        valid = catalog["schema"] == 1 and isinstance(builds, list) and 0 < len(builds) <= 64
-        valid = valid and all(
-            isinstance(row, dict) and re.fullmatch(r"[0-9]{1,12}", row["build"])
-            and set(row["sha256"]) == set(BUILD_FILES)
-            and all(re.fullmatch(r"[0-9a-f]{64}", value) for value in row["sha256"].values())
-            for row in builds)
+        profiles = catalog["profiles"]
+        features = {"privacy", "lobby", "chat", "profiles"}
+        valid = (catalog["schema"] == 1 and set(catalog["features"]) == features
+                 and catalog["assemblies"] == ["Assembly-CSharp.dll", "Heathen.Steamworks.dll"]
+                 and isinstance(profiles, list) and 0 < len(profiles) <= 64
+                 and set(catalog["native"]) == {BUILD_FILES[1], BUILD_FILES[2]})
+        valid = valid and all(isinstance(row, dict) and set(row) == features
+                            and all(re.fullmatch(r"[0-9a-f]{64}", v) for v in row.values()) for row in profiles)
+        valid = valid and all(isinstance(values, list) and 0 < len(values) <= 16
+                            and all(re.fullmatch(r"[0-9a-f]{64}", v) for v in values)
+                            for values in catalog["native"].values())
         if not valid:
             raise ValueError
-        return builds
+        return catalog
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
-        raise RuntimeError("unsupported_build_catalog") from exc
+        raise RuntimeError("unsupported_feature_contract") from exc
+
+
+def file_stamps(root):
+    """Detect an update during verification or an active connection; no IDs/logs."""
+    result = []
+    for name in BUILD_FILES:
+        stat = (root / name).stat()
+        result.append((stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns))
+    return tuple(result)
+
+
+@dataclass(frozen=True)
+class Compatibility:
+    root: Path
+    stamps: tuple
+    build: str
+
+    def check(self):
+        try:
+            if self.stamps == file_stamps(self.root):
+                return
+        except OSError:
+            pass
+        raise RuntimeError("game_files_changed")
+
+
+def probe_features(root, stop=None):
+    helper = (Path(__file__).with_name("compatibility") if getattr(sys, "frozen", False)
+              else Path(__file__).resolve().parents[2] / "artifacts/compatibility") / "FeatureProbe.exe"
+    if not helper.is_file():
+        raise RuntimeError("compatibility_tool_missing")
+    # Invoke only the shipped metadata reader, with arguments (never shell text).
+    # It does not execute the game, load it through reflection, or write to it.
+    process = subprocess.Popen([str(helper), str(root / "BongoCat_Data/Managed"), str(SUPPORT_PATH)],
+                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                               creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    started = time.monotonic()
+    try:
+        while True:
+            if stop and stop.is_set():
+                raise RuntimeError("compatibility_cancelled")
+            if time.monotonic() - started > 20:
+                raise RuntimeError("compatibility_timeout")
+            try:
+                output, _ = process.communicate(timeout=0.1)
+                break
+            except subprocess.TimeoutExpired:
+                continue
+        if process.returncode != 0 or len(output) > 4096:
+            raise ValueError("feature_probe_failed")
+        features = json.loads(output)
+        if (not isinstance(features, dict) or set(features) != {"privacy", "lobby", "chat", "profiles"}
+                or not all(isinstance(v, str) and re.fullmatch(r"[0-9a-f]{64}", v) for v in features.values())):
+            raise ValueError("feature_probe_failed")
+        return features
+    finally:
+        if process.poll() is None:
+            process.kill()  # Our helper only, never the game/Steam.
+        process.communicate()
 
 
 @dataclass(frozen=True)
@@ -79,19 +146,33 @@ def running_game():
     return games[0]
 
 
-def verify_build(root):
-    builds = supported_builds()
+def verify_compatibility(root, stop=None):
+    catalog = compatibility_contract()
     observed = {}
-    for relative in BUILD_FILES:
+    try:
+        before = file_stamps(root)
+    except OSError:
+        before = None
+    for relative in catalog["native"]:
         try:
             with (root / relative).open("rb") as stream:
                 observed[relative] = hashlib.file_digest(stream, "sha256").hexdigest()
         except OSError:
             observed[relative] = "unavailable"
-    # A complete tuple must match one validated environment. Never mix hashes
-    # from different builds, or trust the editable Steam build number alone.
-    matches = [row for row in builds if row["sha256"] == observed]
-    if len(matches) != 1:
+    native_ok = all(observed[name] in hashes for name, hashes in catalog["native"].items())
+    if native_ok and before is not None:
+        try:
+            observed["features"] = probe_features(root, stop)
+        except (ValueError, OSError, subprocess.SubprocessError):
+            observed["features"] = "unavailable"
+    if not native_ok or observed.get("features") not in catalog["profiles"]:
         fingerprint = hashlib.sha256(json.dumps(observed, sort_keys=True).encode("ascii")).hexdigest()
         raise UnsupportedGameBuild(installed_build(root), fingerprint)
-    return matches[0]["build"]
+    result = Compatibility(root, before, installed_build(root))
+    result.check()
+    return result
+
+
+def verify_build(root):
+    """Legacy diagnostic entry point; a build number never authorizes support."""
+    return verify_compatibility(root).build
