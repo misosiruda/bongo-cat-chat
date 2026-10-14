@@ -2,6 +2,10 @@ name: Windows SignPath preflight
 
 on:
   workflow_dispatch:
+  push:
+    branches: [build/windows-code-signing]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -9,7 +13,10 @@ permissions:
 jobs:
   build:
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 60
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -24,24 +31,64 @@ jobs:
           python -m venv .venv
           ./.venv/Scripts/python.exe -m pip install -r requirements-lock.txt
           if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+      - name: Prepare pinned NSIS and compatibility compiler
+        shell: pwsh
+        run: |
+          $nsis = ./tools/prepare-nsis.ps1
+          "BONGO_TEST_NSIS_PATH=$nsis" >> $env:GITHUB_ENV
+          ./tools/prepare-compatibility.ps1
+      - name: Verify corresponding source archives
+        shell: pwsh
+        run: |
+          ./.venv/Scripts/python.exe tools/prepare_source_notices.py --cache dist/signpath-sources --download
+          if ($LASTEXITCODE -ne 0) { throw 'Corresponding source verification failed' }
       - name: Test distribution and update guards
         shell: pwsh
         run: |
-          ./.venv/Scripts/python.exe -m pytest -q tests/test_distribution.py tests/test_windows_signing.py tests/test_packaging.py tests/test_updates.py
+          ./.venv/Scripts/python.exe -m pytest -q --junitxml=dist/test-results.xml
           if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
       - name: Build unsigned review candidate
         shell: pwsh
         run: ./packaging/build.ps1 -OutputRoot dist/signpath-preflight -AllowUnsigned
+      - name: Verify packaged notices and frozen offline renderer
+        shell: pwsh
+        run: |
+          ./.venv/Scripts/python.exe tools/verify_review_bundle.py --bundle dist/signpath-preflight/BongoCatChat --evidence dist/signpath-preflight/evidence
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged verification failed' }
+      - name: Compile installer with privacy choices
+        shell: pwsh
+        run: ./packaging/build-setup.ps1 -Bundle dist/signpath-preflight/BongoCatChat -NsisPath $env:BONGO_TEST_NSIS_PATH -OutputRoot dist/signpath-setup -AllowUnsigned
       - name: Upload candidate and dependency evidence
         id: unsigned
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: signpath-preflight-${{ github.sha }}
-          path: dist/signpath-preflight/
+          path: |
+            dist/signpath-preflight/
+            dist/signpath-setup/
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
+      - name: Upload corresponding sources
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: corresponding-sources-${{ github.sha }}
+          path: |
+            dist/signpath-sources/
+            packaging/licenses/sources.lock.json
+            docs/licensing/SOURCES.md
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-results-${{ github.sha }}
+          path: dist/test-results.xml
+          if-no-files-found: ignore
+          retention-days: 7
 
 # Intentionally no SignPath request and no GitHub Release publication.
-# Enable signing only after the application, notices/source review and
+# Enable signing only after the application and
 # SignPath project/policy setup described in docs/signpath-application.md.
