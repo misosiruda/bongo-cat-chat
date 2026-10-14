@@ -174,13 +174,16 @@ class ChatService:
                     self.volatile.popitem(last=False)
         self.revision += 1
 
-    def view(self, lobby=None, query="", before=None):
+    def view(self, lobby=None, query="", before=None, start=None, seen=None, limit=100):
         account = self.state.get("account", "")
         lobby = lobby or self.state.get("lobby", "")
         allowed = self.allowed()
         theme, collapsed = 'system', False
+        page = dict(messages=[], has_more=False, has_newer=False, latest_seq=0, unseen=False)
         try:
-            rows = self.store.messages(account, lobby, allowed, query, before) if account and lobby else []
+            if account and lobby:
+                page = self.store.message_page(account, lobby, allowed, query, before, limit, start, seen)
+            rows = page['messages']
             rooms = self.store.rooms(account) if account else []
             draft = self.store.draft(account, lobby) if account and lobby else ""
             theme = self.store.setting('theme', default='system')
@@ -188,10 +191,15 @@ class ChatService:
         except (sqlite3.Error, OSError):
             self.storage_error = True
             rows, rooms, draft = [], [], ""
+            page = dict(has_more=False, has_newer=False, latest_seq=0, unseen=False)
+        visible_volatile = [r for r in self.volatile.values() if r["account"] == account
+                            and r["lobby"] == lobby and r["sender"] in allowed | {account} and not is_meow_message(r["body"])]
         volatile = [dict(r, unsaved=True) for r in self.volatile.values() if r["account"] == account
                     and r["lobby"] == lobby and r["sender"] in allowed | {account}
                     and not is_meow_message(r["body"])
-                    and query.lower() in r["body"].lower() and before is None]
+                    and query.lower() in r["body"].lower() and before is None
+                    and (start is None or r.get('_before_seq', float('inf')) >= start)
+                    and (not page['has_newer'] or rows and r.get('_before_seq', float('inf')) <= rows[-1]['seq'])]
         messages = sorted(rows + volatile, key=lambda r: (
             r.get('seq', r.get('_before_seq', float('inf'))), not r.get('unsaved', False)))
         for message in messages:
@@ -206,4 +214,6 @@ class ChatService:
                 "rooms": rooms, "messages": messages, "profiles": profiles, "draft": draft,
                 "storage_error": self.storage_error, "revision": self.revision,
                 "theme": theme, "collapsed": collapsed,
-                "lobby": lobby, "has_more": len(rows) == 100}
+                "lobby": lobby, "has_more": page['has_more'], "has_newer": page['has_newer'],
+                "latest_seq": page['latest_seq'], "unseen": page['unseen'],
+                "volatile_peer_ids": [r['id'] for r in visible_volatile if not r['own']]}

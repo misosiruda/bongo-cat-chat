@@ -105,16 +105,35 @@ class Store:
             finally:
                 self.db.execute("DELETE FROM visible_users")
 
-    def messages(self, account, lobby, allowed, query="", before=None, limit=100):
-        limit = max(1, min(200, int(limit)))
+    def message_page(self, account, lobby, allowed, query="", before=None, limit=100, start=None, seen=None):
+        """A bounded, freshly filtered window plus navigation and unread metadata."""
+        limit = max(1, min(1000, int(limit)))
+        cutoff = time.time() - RETENTION_SECONDS
+        scope = "account=? AND lobby=? AND sender IN (SELECT id FROM visible_users) AND received>=? AND is_meow_message(body)=0"
+        matching = scope + " AND (?='' OR instr(lower(body),lower(?))>0)"
+        params = (account, lobby, cutoff, query, query)
         with self.visible(account, allowed):
-            rows = self.db.execute("""SELECT * FROM messages WHERE account=? AND lobby=?
-                AND sender IN (SELECT id FROM visible_users)
-                AND is_meow_message(body)=0
-                AND received>=? AND (? IS NULL OR seq<?) AND (?='' OR instr(lower(body),lower(?))>0)
-                ORDER BY seq DESC LIMIT ?""", (account, lobby, time.time()-RETENTION_SECONDS,
-                    before, before, query, query, limit)).fetchall()
-        return [dict(r) for r in reversed(rows)]
+            bounds = " AND (? IS NULL OR seq<?) AND (? IS NULL OR seq>=?)"
+            order = "ASC" if start is not None else "DESC"
+            fetched = self.db.execute(f"SELECT * FROM messages WHERE {matching}{bounds} ORDER BY seq {order} LIMIT ?",
+                                     (*params, before, before, start, start, limit + 1)).fetchall()
+            rows = fetched[:limit] if start is not None else list(reversed(fetched[:limit]))
+            first = rows[0]['seq'] if rows else start
+            last = rows[-1]['seq'] if rows else before
+            has_more = first is not None and self.db.execute(
+                f"SELECT EXISTS(SELECT 1 FROM messages WHERE {matching} AND seq<?)", (*params, first)).fetchone()[0]
+            has_newer = last is not None and self.db.execute(
+                f"SELECT EXISTS(SELECT 1 FROM messages WHERE {matching} AND seq>?)", (*params, last)).fetchone()[0]
+            latest_seq = self.db.execute(f"SELECT coalesce(max(seq),0) FROM messages WHERE {scope}",
+                                         (account, lobby, cutoff)).fetchone()[0]
+            unseen = seen is not None and self.db.execute(
+                f"SELECT EXISTS(SELECT 1 FROM messages WHERE {scope} AND sender<>? AND seq>?)",
+                (account, lobby, cutoff, account, seen)).fetchone()[0]
+        return dict(messages=[dict(r) for r in rows], has_more=bool(has_more), has_newer=bool(has_newer),
+                    latest_seq=latest_seq, unseen=bool(unseen))
+
+    def messages(self, account, lobby, allowed, query="", before=None, limit=100):
+        return self.message_page(account, lobby, allowed, query, before, limit)['messages']
 
     def rooms(self, account):
         return [dict(r) for r in self.db.execute("""SELECT lobby,max(started) started,
