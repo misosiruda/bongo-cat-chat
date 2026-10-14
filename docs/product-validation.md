@@ -4,6 +4,39 @@
 
 PR #3의 `db78bda`에서 시작해 실제 저장소·원본 PoC·프로필 관찰 자료를 확인했다. 이 문서는 디자인 시안의 38개 UI 검사와 별개다. 게임·Steam 재시작, 로비 변경, 게임 파일 수정, DLL 주입·패치, 게임 메모리 쓰기는 하지 않았다. 순정 환경 인수나 일반 배포 승인을 의미하지 않는다.
 
+## 2026-10-14: 이슈 #9 설정창 스크롤·깜빡임 대응
+
+[이슈 #9](https://github.com/misosiruda/bongo-cat-chat/issues/9)의 영상에서 설정 내용 아래쪽으로 스크롤하면 제목과 닫기 버튼이 보이지 않는 상태를 확인했다. 수정 전 실제 Qt WebEngine에서도 삭제 확인을 화면에 넣으면 제목·닫기 버튼의 표시 영역 검사가 실패했다. 설정 전체를 스크롤하던 구조를 고정 헤더와 내부 스크롤 영역으로 나누고, 다시 열 때 스크롤·삭제 확인을 초기화했다.
+
+- `tests/test_desktop.py`: 실제 Qt WebEngine·QWebChannel·임시 SQLite에서 1,240×840, 960×540, 최소 창 400×500과 라이트·다크를 조합한 회귀 검사 6개를 추가했다. 제목·닫기·삭제 확인의 실제 좌표와 hit test, 재진입 위치·초점, 초안·기록 보존을 확인했다. 기존 Qt 검사를 포함해 **16개 통과**.
+- `tests/browser_check.py`: 로컬 Chrome/Playwright와 합성 대화로 같은 6개 경우를 검사했다. 휠 스크롤 뒤 닫기 버튼의 고정 좌표를 실제 클릭해 닫기, 재진입 후 Esc 닫기·설정 버튼으로 초점 복귀, 검색·초안·대화 스크롤 보존을 확인했다. 기존 1,536×1,024·480×800 검사도 통과했으며 **JavaScript 콘솔 오류 0개**. 화면 캡처는 Git 외부에 보관했다.
+- `node --check src/bongo_chat/ui/app.js`, `git diff --check` 통과.
+
+검증 명령은 아래와 같다. 공유 개발 환경의 Python만 재사용하고 `PYTHONPATH`와 작업 디렉터리는 이슈 전용 워크트리로 지정했다. Browser 플러그인이 없는 환경에서 기존 Playwright 검사 경로를 사용했다.
+
+```powershell
+$env:PYTHONPATH = Join-Path (Get-Location) 'src'
+$env:QTWEBENGINE_CHROMIUM_FLAGS = '--disable-gpu'
+C:/Project/bongo-cat-chat/.venv/Scripts/python.exe -m pytest -q tests/test_desktop.py
+C:/Project/bongo-cat-chat/.venv/Scripts/python.exe tests/browser_check.py --browser 'C:/Program Files/Google/Chrome/Application/chrome.exe' --output <저장소-외부-캡처-폴더>
+node --check src/bongo_chat/ui/app.js
+git diff --check
+```
+
+게임·Steam 작업자는 시작하지 않았다. 실제 게임 송신·사용자 대화 삭제·업데이트 다운로드·설치판 재빌드·배포는 이 검증에 포함하지 않는다. Qt 오프스크린 실행의 GPU 초기화 경고는 위 JavaScript 오류 검사와 구분한다. 이번 결과는 소스의 UI 회귀 검사이며 공개 dev6 설치 파일이 교체됐다는 의미가 아니다.
+
+### 추가 확인: 닫혔다 열리는 것처럼 보이는 모달
+
+위 레이아웃 검사만으로 영상의 모달 깜빡임까지 해결됐다고 판단할 수 없다. 소스에는 모달을 주기적으로 닫고 다시 여는 처리가 없으며 화면 상태는 600ms마다 갱신한다. 배경 흐림을 제거하기 전 오프스크린 Qt에서 합성 대화를 갱신하며 12.06초 동안 69회 관찰했을 때 `open` 속성 변경·닫힘 표본은 모두 0개였다. 이 결과는 DOM 상태 관찰이며 영상 제보자의 환경을 직접 관찰한 결과가 아니다.
+
+Windows Qt WebEngine에서 `backdrop-filter: blur()`를 사용하는 화면이 깜빡이고 녹화 중 악화됐다는 [별도 앱 개발자의 재현 보고](https://github.com/ankitects/anki/issues/4470)가 있다. 제품의 `dialog::backdrop`에도 같은 효과가 있어 유력한 원인 후보로 보고 제거했다. 설정·참여자 모달은 배경을 반투명 단색으로 어둡게 처리한다. 제품의 GPU 가속 설정은 변경하지 않았으며, 외부 보고만으로 이슈 #9의 원인을 확정하지 않는다.
+
+- `tests/test_desktop.py`: 설정·참여자 모달을 각각 연 채 합성 발언·프로필·업데이트 상태를 6회씩 변경한다. 모달 상태·제목 hit test·초점 유지와 계산된 배경 필터가 `none`인지 확인했다. 앞선 16개를 포함해 **18개 통과**.
+- `tests/browser_check.py`: 두 모달에서 합성 발언·프로필 갱신 **12개 표본** 동안 `open` 속성 변경 0개, 헤더 캡처 해시 동일, Esc 닫기를 확인했다. 기존 창 크기·테마 검사도 다시 통과했으며 JavaScript 콘솔 오류 0개다.
+- GPU 가속을 끄지 않은 오프스크린 Qt 프레임 캡처는 D3D/Skia context 오류와 검은 프레임으로 실패했다. 그 프레임의 동일 해시는 시각 검증에 사용할 수 없다. 위 Qt 회귀 검사는 `--disable-gpu` 환경의 기능 검사이며, Chrome 캡처 역시 제보 PC의 Qt GPU 깜빡임 해소를 입증하지 않는다.
+
+현재 완료 범위는 의심되는 합성 효과 제거와 기능 회귀 검사다. 설치판 재빌드·배포, 제보 PC의 실제 Qt 창에서 녹화·상태 갱신 중 깜빡임이 사라졌는지 확인하는 인수는 남아 있다.
+
 ## 구현과 증거
 
 | 영역 | 이번에 확인한 것 | 증거 수준·한계 |
