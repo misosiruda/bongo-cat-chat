@@ -16,6 +16,7 @@ from .service import ChatService
 from .store import Store
 from .worker import run_worker, unavailable
 from . import __version__
+from .exit_codes import PROFILE_IN_USE
 from .updates import UpdateManager
 
 UI = Path(__file__).with_name("ui").resolve()
@@ -208,8 +209,13 @@ def run(data, offline=False, read_only=False, smoke_report=None, connection_repo
     lock = QLockFile(str(data / "app.lock"))
     lock.setStaleLockTime(0)
     if not lock.tryLock(0):
-        QMessageBox.information(None, "Bongo Cat Chat", "이미 실행 중인 앱이 있습니다.")
-        return 1
+        if smoke_report:
+            smoke_report.parent.mkdir(parents=True, exist_ok=True)
+            smoke_report.write_text(json.dumps({"startup_error": "profile_in_use", "version": __version__,
+                                                "offline": offline}), encoding="utf-8")
+        else:
+            QMessageBox.information(None, "Bongo Cat Chat", "이미 실행 중인 앱이 있습니다.")
+        return PROFILE_IN_USE
     try:
         controller = Controller(data, offline, read_only, install_root=install_root)
     except (sqlite3.Error, OSError, RuntimeError):

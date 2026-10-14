@@ -13,6 +13,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from bongo_chat import bootstrap
+from bongo_chat.exit_codes import PROFILE_IN_USE
 from bongo_chat.updates import (ARCHIVE, MANIFEST, SIGNATURE, MARKER, GitHubRedirect,
     UpdateError, UpdateManager, atomic_json, check_and_stage, extract_archive,
     installation, staged_manifest, trusted_url, verify_manifest, version)
@@ -257,6 +258,25 @@ def test_early_new_app_failure_rolls_selection_back(installed, signing, monkeypa
     assert bootstrap.run_app(installed, installed.parent / 'data', offline=True) == 2
     assert installation(installed)['active'] == '0.1.0'
     assert json.loads((installed / '.updates/result.json').read_text())['state'] == 'rolled_back'
+
+
+def test_busy_data_profile_keeps_new_version_and_can_launch_again(installed, signing, monkeypatch):
+    pending(installed, package(signing))
+    bootstrap.apply_pending(installed, signing[1], lambda *x: None)
+    paths = [installed / MARKER, installed / '.updates/attempted.json', installed / '.updates/result.json']
+    before = [(path.read_bytes(), path.stat().st_mtime_ns) for path in paths]
+    results = iter([PROFILE_IN_USE, 0])
+    launches = []
+    def launch(command, **kwargs):
+        launches.append(command[0])
+        return next(results)
+    monkeypatch.setattr(bootstrap.subprocess, 'call', launch)
+    assert bootstrap.run_app(installed, installed.parent / 'data', offline=True) == PROFILE_IN_USE
+    assert [(path.read_bytes(), path.stat().st_mtime_ns) for path in paths] == before
+    assert bootstrap.run_app(installed, installed.parent / 'data', offline=True) == 0
+    assert launches == [str(installed / 'versions/0.2.0' / bootstrap.APP)] * 2
+    assert installation(installed) == {'schema': 2, 'active': '0.2.0', 'previous': '0.1.0'}
+    assert (installed.parent / 'history.sqlite3').read_bytes() == b'fixture history never opened'
 
 
 @pytest.mark.parametrize('error', [FileNotFoundError, PermissionError])

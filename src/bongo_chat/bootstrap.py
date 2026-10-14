@@ -14,6 +14,7 @@ import zipfile
 
 import psutil
 
+from .exit_codes import PROFILE_IN_USE
 from .updates import (ARCHIVE, MARKER, UpdateError, atomic_bytes, atomic_json, child,
                       config, extract_archive, installation, load_json, no_links,
                       remove_owned, staged_manifest, version)
@@ -170,7 +171,7 @@ def run_app(root, data, offline=False, read_only=False, smoke_report=None, conne
         # The candidate may disappear or become inaccessible after its probe,
         # for example when an antivirus quarantines the executable.
         code = 1
-    if code and time.monotonic() - started < 45 and marker.get('previous'):
+    if code not in (0, PROFILE_IN_USE) and time.monotonic() - started < 45 and marker.get('previous'):
         slot = child(root, 'versions', marker['active'])
         recorded = load_json(child(slot, VERSION_MARKER).read_bytes())
         atomic_json(child(root, '.updates', 'attempted.json'), {'sha256': recorded.get('sha256'), 'version': marker['active']})
