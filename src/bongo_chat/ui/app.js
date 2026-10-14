@@ -271,7 +271,10 @@
     $('mobile-menu').addEventListener('click',()=>drawer(true)); $('drawer-backdrop').addEventListener('click',()=>drawer(false));
     ['header-search','sidebar-search-button'].forEach(id=>$(id).addEventListener('click',focusSearch));
     document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();focusSearch();}});
-    $('settings-button').addEventListener('click',()=>{$('delete-confirm').hidden=true;$('settings-dialog').showModal();});
+    $('settings-button').addEventListener('click',()=>{
+      deleteScope=null; $('delete-confirm').hidden=true;
+      $('settings-dialog').showModal(); $('settings-content').scrollTop=0;
+    });
     $('participants-button').addEventListener('click',()=>$('participants-dialog').showModal());
     $('refresh-button').addEventListener('click',()=>rpc('refresh').then(()=>refresh()).catch(showError));
     $('check-updates').addEventListener('click',()=>rpc('check_updates').then(()=>refresh(true)).catch(showError));

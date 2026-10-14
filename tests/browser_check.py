@@ -5,6 +5,7 @@ No Steam initialization. Screenshots only contain synthetic messages.
 """
 import argparse
 from contextlib import ExitStack
+import hashlib
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -15,6 +16,78 @@ from playwright.sync_api import expect, sync_playwright
 
 from bongo_chat.service import ChatService
 from bongo_chat.store import Store
+
+
+def check_settings_layout(page, output):
+    draft=page.locator('#message-input').input_value()
+    query=page.locator('#message-search').input_value()
+    conversation_top=page.locator('#message-scroll').evaluate('(el)=>el.scrollTop')
+    for width,height in [(1240,840),(960,540),(400,500)]:
+        page.set_viewport_size({'width':width,'height':height})
+        if width<=760:page.locator('#mobile-menu').click()
+        for theme in ['light','dark']:
+            page.locator('#settings-button').click()
+            page.locator(f'[value={theme}]').check()
+            expect(page.locator('html')).to_have_attribute('data-theme',theme)
+            page.locator('#delete-room').click()
+            page.locator('#confirm-delete').scroll_into_view_if_needed()
+            close=page.locator('[aria-label="설정 닫기"]')
+            heading=page.locator('#settings-title')
+            expect(close).to_be_in_viewport(ratio=1)
+            expect(heading).to_be_in_viewport(ratio=1)
+            bounds=close.bounding_box()
+            page.locator('#settings-content').hover()
+            page.mouse.wheel(0,1000)
+            page.wait_for_function("document.querySelector('#settings-content').scrollTop > 0")
+            assert close.bounding_box()==bounds
+            assert page.locator('#settings-content').evaluate('(el)=>el.scrollWidth<=el.clientWidth')
+            assert page.locator('#settings-dialog').evaluate('(el)=>el.scrollHeight<=el.clientHeight')
+            page.screenshot(path=str(output/f'settings-{theme}-{width}x{height}.png'))
+            # A real pointer click at the unchanged header position must close
+            # the dialog without Playwright scrolling a hidden close button.
+            page.mouse.click(bounds['x']+bounds['width']/2,bounds['y']+bounds['height']/2)
+            expect(page.locator('#settings-dialog')).not_to_be_visible()
+            page.locator('#settings-button').click()
+            assert page.locator('#settings-content').evaluate('(el)=>el.scrollTop')==0
+            expect(page.locator('#delete-confirm')).not_to_be_visible()
+            expect(close).to_be_focused()
+            page.keyboard.press('Escape')
+            expect(page.locator('#settings-dialog')).not_to_be_visible()
+            expect(page.locator('#settings-button')).to_be_focused()
+            assert page.locator('#message-input').input_value()==draft
+            assert page.locator('#message-search').input_value()==query
+        if width<=760:page.locator('#drawer-backdrop').click(position={'x':350,'y':250})
+    page.set_viewport_size({'width':1536,'height':1024})
+    assert page.locator('#message-scroll').evaluate('(el)=>el.scrollTop')==conversation_top
+
+
+def check_modal_refresh(page, service, state, output):
+    page.set_viewport_size({'width':1240,'height':840})
+    for dialog_id,opener in [('settings-dialog','settings-button'),('participants-dialog','participants-button')]:
+        page.locator(f'#{opener}').click()
+        dialog=page.locator(f'#{dialog_id}')
+        heading=dialog.locator('.dialog-heading')
+        region=heading.bounding_box()
+        before=hashlib.sha256(page.screenshot(clip=region)).hexdigest()
+        page.evaluate("""id=>{
+          window.modalOpenChanges=0;
+          new MutationObserver(records=>window.modalOpenChanges+=records.length)
+            .observe(document.getElementById(id),{attributes:true,attributeFilter:['open']});
+        }""",dialog_id)
+        for index in range(6):
+            count=page.locator('.message-bubble').count()
+            profiles={**state['profiles'],'fixture-peer':{'name':f'갱신 고양이 {index}'}}
+            service.update(dict(state,profiles=profiles))
+            service.receive(dict(id=f'fixture-{dialog_id}-{index}',sender='fixture-peer',text=f'모달 갱신 시험 {index}',context=service.context()))
+            expect(page.locator('.message-bubble')).to_have_count(count+1)
+            assert dialog.evaluate("el=>el.open && el.matches(':modal') && el.contains(document.activeElement)")
+            assert page.evaluate('window.modalOpenChanges')==0
+            assert dialog.evaluate("el=>getComputedStyle(el,'::backdrop').backdropFilter")=='none'
+            expect(heading).to_be_in_viewport(ratio=1)
+            assert hashlib.sha256(page.screenshot(clip=region)).hexdigest()==before
+        page.screenshot(path=str(output/f'{dialog_id}-after-refresh.png'))
+        page.keyboard.press('Escape')
+        expect(dialog).not_to_be_visible()
 
 
 def main():
@@ -86,6 +159,8 @@ def main():
         expect(page.locator('html')).to_have_attribute('data-theme','dark')
         assert page.locator('#message-search').input_value()=='한글 입력'
         assert page.locator('#message-input').input_value()=='작성 중인 한글'
+        check_settings_layout(page,args.output)
+        assert store.db.execute('SELECT count(*) FROM messages').fetchone()[0]==48
         page.locator('#clear-search').click();page.wait_for_timeout(800)
         page.locator('#message-input').dispatch_event('compositionstart')
         page.locator('#message-input').dispatch_event('keydown',{'key':'Enter','isComposing':True,'keyCode':229})
@@ -107,8 +182,9 @@ def main():
         assert page.locator('#mobile-menu').is_visible()
         page.locator('#mobile-menu').click();assert page.locator('#message-search').is_visible()
         page.locator('#drawer-backdrop').click(position={'x':400,'y':400})
+        check_modal_refresh(page,service,state,args.output)
         assert not errors,errors
-        print(json.dumps({'url':url,'viewports':['1536x1024','480x800'],'checks':'passed','console_errors':errors,'steam_connected':False}))
+        print(json.dumps({'url':url,'viewports':['1536x1024','480x800','1240x840','960x540','400x500'],'checks':'passed','settings_layout_cases':6,'modal_refresh_samples':12,'console_errors':errors,'steam_connected':False}))
 
 
 if __name__=='__main__':main()

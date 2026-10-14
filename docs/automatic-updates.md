@@ -1,6 +1,6 @@
 # 자동 업데이트
 
-2026-10-13 사용자 결정: **새 버전 자동 다운로드, 다음 앱 실행 때 적용**. `misosiruda/bongo-cat-chat` 저장소는 2026-10-14 공개 전환했다. 첫 릴리스 게시·일반 배포 조건 검토는 구현과 구분한다.
+2026-10-13 사용자 결정: **새 버전 자동 다운로드, 다음 앱 실행 때 적용**. `misosiruda/bongo-cat-chat` 저장소는 2026-10-14 공개 전환했다. 같은 날 사용자 요청으로 [첫 공개 개발판 v0.1.0.dev6](https://github.com/misosiruda/bongo-cat-chat/releases/tag/v0.1.0.dev6)을 게시하고 실제 익명 다운로드·다음 실행 적용을 확인했다. 일반 배포 조건 검토와 다른 PC 인수는 별도로 남아 있다.
 
 ## 이용자 동작
 
@@ -61,7 +61,7 @@ Windows 게시자 인증은 아래 Ed25519 서명과 별개다. 배포용 묶음
 .venv/Scripts/python tools/release.py keygen --private-key research/private/update-signing-key.dpapi
 ```
 
-`src/bongo_chat/__init__.py`와 `pyproject.toml`의 버전을 맞춘다. 정식 배포는 `0.1.0`, 검증용 빌드는 `.devN` 형식을 사용한다.
+`src/bongo_chat/__init__.py`와 `pyproject.toml`의 버전을 맞춘다. 안정판은 `0.1.0`, 개발판은 `.devN` 형식을 사용한다. 첫 공개판은 검증된 `0.1.0.dev6`을 유지하고 기존 업데이트가 받을 수 있는 일반 GitHub Release(`draft=false`, `prerelease=false`, 최신 릴리스)로 게시했다. GitHub의 배포 채널 선택이 안정판 인수 완료를 뜻하지 않으며 제목·설명에 개발판을 명시한다.
 
 ```powershell
 pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/automatic-updates -AllowUnsigned
@@ -70,7 +70,7 @@ pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/automatic-updates -Al
 
 생성 자산은 `bongo-cat-chat-windows-x64.zip`, `update-manifest.json`, `update-manifest.sig`다. 도구는 로컬 파일만 만들며 GitHub에 게시하지 않는다. 첫 설치에는 실행기·버전 폴더·설치 스크립트를 갖춘 전체 설치 묶음이 필요하다. 위 ZIP은 기존 실행기가 받는 업데이트 페이로드다.
 
-공개 전환·배포 조건과 후보 검수를 마친 뒤 작성자가 `v<version>` 정식 Release에 세 자산을 함께 게시한다. 공개 리소스는 [인증 없이 조회](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)할 수 있다. 소스 공개 방향이 라이선스 선택이나 게임 개발사의 승인을 뜻하지 않는다.
+사용자가 승인한 게시 범위와 후보 검수에 따라 작성자가 `v<version>` 일반 Release에 세 자산을 함께 게시한다. 공개 리소스는 [인증 없이 조회](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)할 수 있다. 첫 공개 개발판의 게시 결정은 D-020에 기록했으며, 일반 배포 조건·소스 라이선스·게임 개발사의 승인은 별도로 관리한다.
 
 ## 검증
 

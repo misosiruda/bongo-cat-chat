@@ -8,7 +8,7 @@ Bongo Cat의 기존 로비 채팅을 메신저처럼 읽고 입력하며, 수신
 
 ## 만들려는 것
 
-[Windows 설치 안내](docs/installation.md): `BongoCatChat-<버전>-windows-x64-Setup.exe`를 더블클릭해 한국어 안내에 따라 설치한다. 개발 도구나 명령어 입력은 필요하지 않다. 첫 개발판은 GitHub Releases에 게시됐으며 다른 PC 인수는 아직 남아 있다.
+[Windows 설치 안내](docs/installation.md): [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받아 더블클릭한다. 개발 도구나 명령어 입력은 필요하지 않다. 첫 공개 개발판은 **0.1.0.dev6**이며 다른 PC 인수와 Windows 코드 서명은 남아 있다.
 
 [자동 업데이트](docs/automatic-updates.md)는 새 정식 GitHub Release를 내려받고 다음 앱 실행에 적용한다. 서명·해시와 후보 화면을 확인하며 대화 기록은 유지한다. 저장소는 2026-10-14 공개 전환을 완료했다.
 
