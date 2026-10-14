@@ -24,6 +24,14 @@
     offline: '오프라인으로 실행 중입니다. 실제 게임과 연결하지 않습니다.',
   };
   const statuses = {pending: '전송 중', accepted: '전송됨 · Steam 접수', failed: '전송 실패', unknown: '전송 결과 확인 불가 · 자동 재전송 안 함'};
+  const updateStatuses = {idle:'업데이트를 자동으로 확인합니다.', checking:'새 버전을 확인하고 있어요.',
+    downloading:'새 버전을 내려받고 있어요. 채팅을 계속 이용할 수 있습니다.', ready:'업데이트 준비 완료 · 다음 실행 때 적용합니다.',
+    current:'최신 버전을 사용하고 있어요.', unavailable:'아직 받을 수 있는 정식 릴리스가 없습니다.',
+    applied:'새 버전이 적용됐어요.', rolled_back:'새 버전이 시작되지 않아 이전 버전으로 돌아왔습니다.',
+    apply_failed:'업데이트를 적용하지 못해 기존 버전을 유지했습니다.',
+    network_error:'업데이트 서버에 연결하지 못했어요. 다음 확인 때 다시 시도합니다.',
+    verification_failed:'업데이트를 확인하지 못했어요. 현재 버전을 유지합니다.',
+    offline:'오프라인 실행 중에는 업데이트를 확인하지 않습니다.', development:'설치된 앱에서 자동 업데이트를 사용할 수 있습니다.'};
   function node(tag, cls, text) {
     const el = document.createElement(tag);
     if (cls) el.className = cls;
@@ -160,6 +168,10 @@
   }
   function render(data, resetDraft) {
     model = data;
+    const update = data.update || {state:'development',current:''};
+    $('app-version').textContent = update.current ? `v${update.current}` : '';
+    $('update-status').textContent = updateStatuses[update.state] || updateStatuses.verification_failed;
+    $('check-updates').disabled = ['checking','downloading','offline','development'].includes(update.state);
     theme = data.theme; collapsed = data.collapsed; applyTheme(); applySidebar();
     $('live-rooms').replaceChildren(); $('archived-rooms').replaceChildren();
     for (const room of data.rooms) (room.lobby === data.context.lobby ? $('live-rooms') : $('archived-rooms')).append(roomButton(room,room.lobby === data.context.lobby));
@@ -249,6 +261,7 @@
     $('settings-button').addEventListener('click',()=>{$('delete-confirm').hidden=true;$('settings-dialog').showModal();});
     $('participants-button').addEventListener('click',()=>$('participants-dialog').showModal());
     $('refresh-button').addEventListener('click',()=>rpc('refresh').then(()=>refresh()).catch(showError));
+    $('check-updates').addEventListener('click',()=>rpc('check_updates').then(()=>refresh(true)).catch(showError));
     document.querySelectorAll('[name=appearance]').forEach(el=>el.addEventListener('change',()=>{theme=el.value;applyTheme();rpc('setting',{key:'theme',value:theme}).catch(showError);}));
     media.addEventListener('change',applyTheme); narrow.addEventListener('change',applySidebar);
     ['delete-room','delete-all'].forEach(id=>$(id).addEventListener('click',()=>{deleteScope={account,lobby:id==='delete-room'?selected:null};$('delete-confirm').hidden=false;}));

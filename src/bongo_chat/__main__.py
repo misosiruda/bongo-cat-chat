@@ -10,6 +10,7 @@ def main():
     parser.add_argument("--offline", action="store_true", help="Do not initialize Steam or read the game")
     parser.add_argument("--read-only", action="store_true", help="Connect but reject all outgoing messages")
     parser.add_argument("--data-dir", type=Path, default=Path(os.environ.get("LOCALAPPDATA", ".")) / "BongoCatChat")
+    parser.add_argument("--install-root", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--smoke-report", type=Path, help="Offline-only renderer smoke report, then exit")
     parser.add_argument("--connection-report", type=Path, help="Read-only native/renderer report, then exit")
     args = parser.parse_args()
@@ -18,7 +19,17 @@ def main():
     if args.connection_report and (not args.read_only or args.offline or args.smoke_report):
         parser.error("--connection-report requires --read-only and an actual connection")
     from .desktop import run
-    return run(args.data_dir.resolve(), args.offline, args.read_only, args.smoke_report, args.connection_report)
+    install_root = None
+    if args.install_root:
+        from . import __version__
+        from .updates import child, installation, no_links
+        install_root = no_links(args.install_root)
+        marker = installation(install_root)
+        expected = child(install_root, 'versions', __version__, 'BongoCatChatApp', 'BongoCatChatApp.exe')
+        import sys
+        if marker['active'] != __version__ or no_links(sys.executable) != expected or args.data_dir.resolve().is_relative_to(install_root):
+            parser.error('invalid installation or data directory')
+    return run(args.data_dir.resolve(), args.offline, args.read_only, args.smoke_report, args.connection_report, install_root)
 
 
 if __name__ == "__main__":

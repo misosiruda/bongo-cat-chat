@@ -15,6 +15,9 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from .service import ChatService
 from .store import Store
 from .worker import run_worker, unavailable
+from . import __version__
+from .exit_codes import PROFILE_IN_USE
+from .updates import UpdateManager
 
 UI = Path(__file__).with_name("ui").resolve()
 
@@ -44,10 +47,11 @@ class Page(QWebEnginePage):
 
 
 class Controller(QObject):
-    def __init__(self, data, offline=False, read_only=False, parent=None):
+    def __init__(self, data, offline=False, read_only=False, parent=None, install_root=None):
         super().__init__(parent)
         self.store = Store(data / "history.sqlite3")
         self.service = ChatService(self.store)
+        self.updates = UpdateManager(install_root, __version__, offline)
         self.worker = None
         self.closed = False
         self.context = mp.get_context("spawn")
@@ -67,6 +71,7 @@ class Controller(QObject):
 
     def poll(self):
         try:
+            self.updates.poll()
             for _ in range(200):
                 try:
                     event = self.events.get_nowait()
@@ -115,7 +120,9 @@ class Controller(QObject):
             before = args.get("before")
             if not isinstance(query, str) or len(query) > 120 or before is not None and (type(before) is not int or before < 0):
                 raise ValueError("invalid_query")
-            return self.service.view(lobby, query, before)
+            result = self.service.view(lobby, query, before)
+            result['update'] = self.updates.snapshot()
+            return result
         if action == "send":
             command = self.service.prepare(args["context"], args["text"])
             command["queued"] = time.monotonic()
@@ -146,6 +153,8 @@ class Controller(QObject):
                 self.service.storage_error = True
             if self.worker and self.worker.is_alive():
                 self.commands.put_nowait({"type": "refresh"})
+        elif action == 'check_updates':
+            self.updates.request()
         else:
             raise ValueError("unknown_action")
         return {"ok": True}
@@ -155,6 +164,7 @@ class Controller(QObject):
             return
         self.closed = True
         self.timer.stop()
+        self.updates.close()
         self.stop.set()
         if self.worker:
             self.worker.join(3)
@@ -193,16 +203,21 @@ def window(controller):
     return view
 
 
-def run(data, offline=False, read_only=False, smoke_report=None, connection_report=None):
+def run(data, offline=False, read_only=False, smoke_report=None, connection_report=None, install_root=None):
     app = QApplication.instance() or QApplication([])
     data.mkdir(parents=True, exist_ok=True)
     lock = QLockFile(str(data / "app.lock"))
     lock.setStaleLockTime(0)
     if not lock.tryLock(0):
-        QMessageBox.information(None, "Bongo Cat Chat", "이미 실행 중인 앱이 있습니다.")
-        return 1
+        if smoke_report:
+            smoke_report.parent.mkdir(parents=True, exist_ok=True)
+            smoke_report.write_text(json.dumps({"startup_error": "profile_in_use", "version": __version__,
+                                                "offline": offline}), encoding="utf-8")
+        else:
+            QMessageBox.information(None, "Bongo Cat Chat", "이미 실행 중인 앱이 있습니다.")
+        return PROFILE_IN_USE
     try:
-        controller = Controller(data, offline, read_only)
+        controller = Controller(data, offline, read_only, install_root=install_root)
     except (sqlite3.Error, OSError, RuntimeError):
         QMessageBox.critical(None, "Bongo Cat Chat", "기록 저장소를 열 수 없습니다. 기존 파일은 보존했습니다.")
         return 1
@@ -213,7 +228,7 @@ def run(data, offline=False, read_only=False, smoke_report=None, connection_repo
         def finish():
             def report(result):
                 payload = {"renderer": result, "console_errors": view.page().console_errors,
-                           "steam_connected": False, "offline": True}
+                           "steam_connected": False, "offline": True, "version": __version__}
                 smoke_report.parent.mkdir(parents=True, exist_ok=True)
                 smoke_report.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
                 app.exit(0 if result and not view.page().console_errors else 2)

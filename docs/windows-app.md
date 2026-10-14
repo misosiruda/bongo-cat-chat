@@ -8,7 +8,7 @@
 - PySide6 / Qt WebEngine / QWebChannel: Windows 창과 한국어 입력을 제공하면서 PR #3의 HTML·CSS 디자인을 이어간다. 정적 시안이 프레임워크를 결정한 것은 아니다. WPF는 FFI·UI 재작성이 크고, WebView2 기반 Python 셸은 별도 런타임 조합 검증이 필요해 이 개발판에서는 선택하지 않았다.
 - Steam·메모리 조회는 별도 `multiprocessing` 작업자에 격리한다. 상속된 로컬 큐만 쓰며 제품은 HTTP 서버나 외부 수신 포트를 열지 않는다. 큐 상한을 넘기면 연결을 중단한다.
 - SQLite: 계정·로비·연결 구간, 앱 UUID, 수신 순번, UTC 수신 시각, 송신 상태를 보관한다. 100개 단위 페이지 조회와 본문 부분 문자열 검색을 제공한다. 별도 검색 인덱스의 복제 원문은 만들지 않는다.
-- PyInstaller `onedir`: Python과 Qt를 포함한다. 개발판은 크기가 크며 서명·자동 업데이트·공개 배포용 설치 마법사는 포함하지 않는다.
+- PyInstaller `onedir` 앱과 `onefile` 실행기: Python·Qt를 포함하며 버전 폴더를 전환해 [자동 업데이트](automatic-updates.md)를 적용한다. 업데이트 manifest 서명은 구현했지만 Windows Authenticode 서명과 공개 배포용 설치 마법사는 포함하지 않는다.
 
 이미지 추출용 UnityPy는 texture 모듈을 열 때 오디오 변환 모듈도 import한다. 그래서 개발 묶음에는 PyPI의 `fmod_toolkit`에 포함된 네이티브 의존성도 들어간다. 게임 설치에서 복사한 DLL이 아니며 앱은 오디오 기능을 제공하거나 실행하지 않는다. 이 간접 의존성까지 포함한 일반 배포 이용 조건·고지는 별도 확인 대상이다. 패키징은 `archspec` CPU 데이터도 포함하며 다른 도구의 DLL이 섞이지 않도록 빌드 PATH를 제한한다.
 
