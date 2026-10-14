@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-14",
+  "application_version": "0.1.0.dev6",
+  "scope": "managed feature compatibility, local Windows development build",
+  "synthetic_assembly_tests": {
+    "game_binaries_used_as_fixtures": false,
+    "accepted": ["unrelated method changes", "metadata token and RVA changes", "MVID changes", "other chat channel changes"],
+    "rejected": ["hidden helper semantics", "hidden field type", "new hidden field writer", "send channel", "receive channel code or routing", "packet shape", "missing field", "invalid binary"]
+  },
+  "final_full_suite": {"passed": 154, "seconds": 78.27},
+  "source_read_only_probe": {
+    "contract_stage": "before final expansion of privacy writers and visibility methods",
+    "game_build": "25902419",
+    "environment": "user-confirmed pre-existing Auto Chest Opener patch",
+    "discovery_seconds": 51.69,
+    "observe_seconds": 15,
+    "states": ["ready"],
+    "profiles": 25,
+    "hidden_entries": 28,
+    "decoded_messages": 0,
+    "sends": 0,
+    "lobby_mutations": 0,
+    "game_writes": 0,
+    "plaintext_saved": false,
+    "game_survived_app_shutdown": true
+  },
+  "final_frozen_sequential_check": {
+    "offline_exit_code": 0,
+    "readonly_exit_code": 0,
+    "ready": true,
+    "profiles": 24,
+    "rendered_avatars": 23,
+    "stored_messages": 0,
+    "javascript_console_errors": 0,
+    "send_enabled": false,
+    "bundled_metadata_probe": true,
+    "developer_tools_excluded_from_path": true,
+    "offscreen_qt": true
+  },
+  "concurrent_ui_failure": {
+    "count": 1,
+    "exit_code": "0x80000003",
+    "gpu_context_errors": true,
+    "connection_report_created": false,
+    "same_candidate_sequential_retry_passed": true,
+    "root_cause_confirmed": false,
+    "orphaned_test_worker_cleaned": true
+  },
+  "installation": {
+    "existing_user_selected_location": true,
+    "version": "0.1.0.dev6",
+    "previous_retained": "0.1.0.dev5",
+    "actual_history_hashes_unchanged": true,
+    "installed_files_match_candidate": true,
+    "installed_launcher_offline_smoke_passed": true,
+    "setup_bytes": 251537106,
+    "setup_sha256": "a5619c34927c4ec5bba874d4f18ddde6a97df672030d6c0921a8a305172531fc"
+  },
+  "not_verified": ["clean game installation", "another PC", "future unknown native Mono or Steam ABI", "actual send on this candidate", "hide/unhide and lobby transitions on this candidate", "normal GUI long-run GPU stability", "public release update delivery"],
+  "published_release": false
+}

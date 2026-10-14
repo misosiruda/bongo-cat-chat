@@ -37,7 +37,7 @@ Steam 초기화·게임 메모리 접근 없이 창만 실행하려면:
 .venv/Scripts/python -m bongo_chat --offline
 ```
 
-실행 중인 `BongoCat.exe`의 경로에서 설치 파일을 찾는다. 현재 개발판은 `supported-build.json`의 빌드별 네 파일 SHA-256 조합 하나와 완전히 일치하는 설치만 허용한다. 이 목록은 Auto Chest Opener 패치가 있던 개발 PC의 `25723683`·`25902419` 기준이며, 순정 환경 지원 목록이 아니다. 다른 빌드는 미지원으로 표시하고 설치판의 앱 업데이트를 즉시 확인한다. [게임 업데이트 대응](game-update-compatibility.md)에 실제 정적 분석·읽기 검사와 남은 인수를 기록한다.
+실행 중인 `BongoCat.exe`의 경로에서 설치 파일을 찾는다. `0.1.0.dev6`은 `feature-contract.json`의 채팅·숨김·로비·프로필 계약을 확인한다. `Assembly-CSharp.dll`·`Heathen.Steamworks.dll`의 전체 해시나 공개 빌드 번호가 달라도 사용하는 구조·코드가 같으면 연결한다. Auto Chest Opener에 의존하지 않는다. Mono 메모리 구조와 Steam 네이티브 호출은 아직 확인한 ABI로 제한한다. 관련 계약이 달라지면 설치판의 앱 업데이트를 확인한다. [게임 업데이트 대응](game-update-compatibility.md)에 판정 범위·검사기·실제 검증과 남은 인수를 기록한다.
 
 ## 연결과 전송
 
