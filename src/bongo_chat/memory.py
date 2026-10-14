@@ -5,6 +5,7 @@ No saved addresses, remote calls, process writes, injection or file mutations.
 """
 import ctypes as C
 from ctypes import wintypes as W
+from array import array
 import re
 import struct
 import time
@@ -70,14 +71,18 @@ class Reader:
         except UnicodeError:
             return None
 
-    def scan(self, patterns, private_only=True):
+    def scan(self, patterns, private_only=True, pointer_aligned=False):
         if not patterns or len(patterns) > 500:
             raise MemoryUnavailable("unsupported_metadata_candidates")
         hits = {name: set() for name in patterns}
         by_pattern = {}
         for name, pattern in patterns.items():
             by_pattern.setdefault(pattern, []).append(name)
-        matcher = re.compile(b"|".join(re.escape(p) for p in by_pattern)) if len(patterns) > 4 else None
+        pointers = None
+        if pointer_aligned:
+            if any(len(pattern) != 8 for pattern in by_pattern):
+                raise MemoryUnavailable("unsupported_pointer_pattern")
+            pointers = {int.from_bytes(pattern, "little"): keys for pattern, keys in by_pattern.items()}
         address, started, read_total = 0, time.monotonic(), 0
         overlap = max(map(len, patterns.values()))
         while address < 0x7fffffffffff:
@@ -94,18 +99,30 @@ class Reader:
                     start = region.BaseAddress + offset
                     chunk = self.read(start, min(region.RegionSize-offset, 4*1024*1024+overlap))
                     read_total += len(chunk)
-                    if matcher:
-                        for match in matcher.finditer(chunk):
-                            for name in by_pattern[match.group()]:
-                                hits[name].add(start+match.start())
-                    else:
-                        for name, pattern in patterns.items():
-                            pos = chunk.find(pattern)
-                            while pos >= 0:
-                                hits[name].add(start+pos)
-                                pos = chunk.find(pattern, pos+1)
-                    if any(len(values) > 4096 for values in hits.values()):
-                        raise MemoryUnavailable("ambiguous_metadata")
+                    if pointers is not None:
+                        # Mono class-name fields and vtables are 8-byte aligned.
+                        # Read each aligned word once instead of rescanning the
+                        # entire heap for every candidate string address.
+                        skip = (-start) % 8
+                        words = array('Q', chunk[skip:skip + (len(chunk)-skip)//8*8])
+                        for index, value in enumerate(words):
+                            keys = pointers.get(value)
+                            if keys:
+                                for key in keys:
+                                    hits[key].add(start+skip+index*8)
+                                    if len(hits[key]) > 4096:
+                                        raise MemoryUnavailable("ambiguous_metadata")
+                        continue
+                    for pattern, keys in by_pattern.items():
+                        if (self.stop and self.stop.is_set()) or time.monotonic()-started > 120:
+                            raise MemoryUnavailable("discovery_cancelled_or_budget")
+                        pos = chunk.find(pattern)
+                        while pos >= 0:
+                            for key in keys:
+                                hits[key].add(start+pos)
+                                if len(hits[key]) > 4096:
+                                    raise MemoryUnavailable("ambiguous_metadata")
+                            pos = chunk.find(pattern, pos+1)
             address = next_address
         if not self.game.alive():
             raise MemoryUnavailable("process_changed")
@@ -161,7 +178,7 @@ class GameMemory:
         specifications = {"cache": ("PlayerDataCache", "", "_playerDataCache"),
                           "lobby": ("LobbyData", "Heathen.SteamworksIntegration", "Current")}
         names = r.scan({key: (s[0]+"\0").encode() for key, s in specifications.items()}, private_only=False)
-        references = r.scan({f"{key}:{addr}": struct.pack("<Q", addr) for key, values in names.items() for addr in values})
+        references = r.scan({f"{key}:{addr}": struct.pack("<Q", addr) for key, values in names.items() for addr in values}, pointer_aligned=True)
         classes = {key: set() for key in specifications}
         for ref, addresses in references.items():
             key = ref.split(":")[0]
@@ -178,7 +195,7 @@ class GameMemory:
         if any(len(values) != 1 for values in classes.values()):
             raise MemoryUnavailable("metadata_not_unique")
         pointers = {key: next(iter(values)) for key, values in classes.items()}
-        vtables = r.scan({key: struct.pack("<Q", cls) for key, cls in pointers.items()})
+        vtables = r.scan({key: struct.pack("<Q", cls) for key, cls in pointers.items()}, pointer_aligned=True)
         for key, cls in pointers.items():
             slots = r.i32(cls+0x5c)
             if slots is None or not 0 < slots < 128:
