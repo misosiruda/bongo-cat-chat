@@ -13,10 +13,12 @@
   const positions = new Map();
   const notices = {
     checking: 'Steam과 게임의 채팅·숨김 연동 구조를 확인하고 있어요.',
-    discovering: '게임의 숨김 상태를 확인하고 있어요. 최초 연결에는 시간이 걸릴 수 있어요.',
+    discovering: '로비를 찾았어요. 현재 로비와 숨김 설정을 확인하는 동안 메시지를 미리 작성할 수 있어요.',
+    discovery_failed: 'Steam 연결은 유지 중이에요. 현재 로비 검증을 다시 시도하고 있어요. 전송은 확인 후 사용할 수 있어요.',
     read_only: '읽기 전용으로 실행 중입니다. 메시지를 전송하지 않습니다.',
     no_lobby: '현재 게임 로비를 확인할 수 없어요. 게임에서 로비에 참여해 주세요.',
-    hidden_unavailable: '게임의 숨김 상태를 확인할 수 없어 상대 대화 표시·신규 저장과 전송을 중단했어요.',
+    hidden_unavailable: '로비 연결은 유지 중이에요. 숨김 설정을 확인할 수 없어 상대 대화 표시와 신규 저장을 보류하고 있어요.',
+    hidden_syncing: '일부 참여자의 숨김 설정을 확인하고 있어요. 확인된 상대의 대화부터 표시하고 저장합니다.',
     unsupported_game_build: '채팅·숨김 연동 구조의 호환성을 확인하지 못했어요. 대응 앱 업데이트를 확인하고 있습니다.',
     game_files_changed: '게임 업데이트를 감지했어요. 연동 구조를 다시 확인하고 있습니다.',
     compatibility_tool_missing: '호환성 검사 파일이 없어 연결할 수 없어요. 앱을 다시 설치해 주세요.',
@@ -180,8 +182,9 @@
     for (const room of data.rooms) (room.lobby === data.context.lobby ? $('live-rooms') : $('archived-rooms')).append(roomButton(room,room.lobby === data.context.lobby));
     const room = data.rooms.find(r => r.lobby === selected);
     $('room-title').textContent = room?.name || 'Bongo Cat Chat';
-    const connected = data.state === 'ready' && data.hidden_ok;
-    $('connection-label').querySelector('span').textContent = data.can_send ? '게임과 연결됨' : selected && selected !== data.context.lobby ? '보관 기록 · 읽기 전용' : connected ? '게임 수신 연결됨' : '연결 확인 중';
+    const connected = data.connected;
+    const connectionLabel = !data.lobby_verified ? '로비 발견 · 연결 확인 중' : !data.hidden_ok ? '게임과 연결됨 · 숨김 확인 중' : data.can_send ? '게임과 연결됨' : '게임 수신 연결됨';
+    $('connection-label').querySelector('span').textContent = selected && selected !== data.context.lobby ? '보관 기록 · 읽기 전용' : connected ? connectionLabel : '연결 확인 중';
     document.querySelectorAll('.status-dot').forEach(el => el.classList.toggle('unavailable',!connected));
     let notice = data.notice ? notices[data.notice] || '게임 상태를 확인하지 못했어요. 연동을 중단하고 다시 확인하고 있습니다.' : '';
     if (data.notice === 'unsupported_game_build') {
@@ -198,7 +201,7 @@
     $('connection-notice').hidden = false;
     $('storage-label').textContent = data.storage_error ? '저장 실패 · 일부 기록 미보관' : '이 기기에 30일 보관';
     document.querySelector('.account-copy strong').textContent = data.profiles[data.context.account]?.name || '계정 확인 중';
-    $('account-status').textContent = connected ? 'Bongo Cat 연결됨' : '연결 확인 중';
+    $('account-status').textContent = connected ? (data.lobby_verified ? 'Bongo Cat 연결됨' : 'Steam 연결됨 · 로비 확인 중') : '연결 확인 중';
     const accountAvatar = document.querySelector('.account-avatar');
     const replacement = avatar(data.profiles[data.context.account]); replacement.classList.add('account-avatar'); accountAvatar.replaceWith(replacement);
     const people = Object.entries(data.profiles);
@@ -237,7 +240,7 @@
       render(data,reset && (switching || editing === draftVersion));
     } catch (e) {
       if (version === requestVersion) {
-        if (model) render({...model,state:'unavailable',notice:'view_unavailable',hidden_ok:false,can_send:false,messages:[],profiles:{},has_more:false},false);
+        if (model) render({...model,state:'unavailable',notice:'view_unavailable',connected:false,lobby_verified:false,privacy_ready:false,hidden_ok:false,can_send:false,messages:[],profiles:{},has_more:false},false);
         showError(e); $('send-button').disabled=true;
       }
     } finally {refreshing=false; if (lockedEditor) switching--; updateSend();}
