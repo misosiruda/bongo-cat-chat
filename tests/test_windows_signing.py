@@ -333,6 +333,7 @@ def test_installer_update_choice_is_shared_and_preserved(nsis_project, monkeypat
     uninstall_key = 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + app_id
     engine = bundle / 'install.ps1'
     engine.write_text(engine.read_text(encoding='utf-8-sig').replace('Write-Output $_.Exception.Message', 'Write-Output $_.Exception.ToString(); Write-Output $_.ScriptStackTrace'), encoding='utf-8-sig')
+    shutil.copyfile(engine, project / 'packaging/install.ps1')
     source = project / 'packaging/installer.nsi'
     text = source.read_text(encoding='utf-8').replace('!define APP_ID "BongoCatChat"', f'!define APP_ID "{app_id}"').replace('!define APP_NAME "Bongo Cat Chat"', f'!define APP_NAME "{app_id}"')
     text = text.replace('  Pop $1\n', '  Pop $1\n  FileOpen $2 "$EXEDIR\\engine-diagnostic.txt" w\n  FileWriteUTF16LE $2 "$1"\n  FileClose $2\n')
