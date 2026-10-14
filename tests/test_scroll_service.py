@@ -53,9 +53,11 @@ def test_unseen_metadata_is_filtered_even_outside_history_window(service):
     received(service, '숨김 검사 가상 기록')
     page = service.view(start=1, seen=110, limit=10)
     assert page['unseen'] and page['has_newer']
+    assert page['unseen_seq'] == 111
     service.update(state(hidden={'fixture-peer': True}))
     hidden = service.view(start=1, seen=110, limit=10)
     assert not hidden['unseen'] and hidden['latest_seq'] == 110
+    assert hidden['unseen_seq'] == 0
     service.update(state(hidden_ok=False))
     assert not service.view(start=1, seen=110)['unseen']
 

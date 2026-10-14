@@ -137,9 +137,9 @@
     const latestBottom = atBottom() && !model.has_newer && !query;
     if (latestBottom) {
       seenSeq=Math.max(seenSeq || 0, model.latest_seq || 0);
-      seenVolatile=new Set(model.volatile_peer_ids || []); model.unseen=false;
+      seenVolatile=new Set(model.volatile_peer_ids || []); model.unseen=false; model.unseen_seq=0;
     }
-    const unread = !query && (model.unseen || (model.volatile_peer_ids || []).some(id => !seenVolatile.has(id)));
+    const unread = !query && ((model.unseen_seq || 0) > (seenSeq || 0) || (model.volatile_peer_ids || []).some(id => !seenVolatile.has(id)));
     $('new-messages').hidden=latestBottom || !unread;
     $('latest').hidden=latestBottom || unread;
     $('latest').textContent=query || model.has_newer ? '최근 대화로' : '맨 아래로';
@@ -328,7 +328,7 @@
       render(data,reset && (switching || editing === draftVersion));
     } catch (e) {
       if (version === requestVersion) {
-        if (model) render({...model,state:'unavailable',notice:'view_unavailable',connected:false,lobby_verified:false,privacy_ready:false,hidden_ok:false,can_send:false,messages:[],profiles:{},has_more:false,has_newer:false,unseen:false,volatile_peer_ids:[]},false);
+        if (model) render({...model,state:'unavailable',notice:'view_unavailable',connected:false,lobby_verified:false,privacy_ready:false,hidden_ok:false,can_send:false,messages:[],profiles:{},has_more:false,has_newer:false,unseen:false,unseen_seq:0,volatile_peer_ids:[]},false);
         showError(e); $('send-button').disabled=true;
       }
     } finally {refreshing--; if (lockedEditor) switching--; updateSend();}

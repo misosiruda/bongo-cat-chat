@@ -126,11 +126,11 @@ class Store:
                 f"SELECT EXISTS(SELECT 1 FROM messages WHERE {matching} AND seq>?)", (*params, last)).fetchone()[0]
             latest_seq = self.db.execute(f"SELECT coalesce(max(seq),0) FROM messages WHERE {scope}",
                                          (account, lobby, cutoff)).fetchone()[0]
-            unseen = seen is not None and self.db.execute(
-                f"SELECT EXISTS(SELECT 1 FROM messages WHERE {scope} AND sender<>? AND seq>?)",
+            unseen_seq = 0 if seen is None else self.db.execute(
+                f"SELECT coalesce(max(seq),0) FROM messages WHERE {scope} AND sender<>? AND seq>?",
                 (account, lobby, cutoff, account, seen)).fetchone()[0]
         return dict(messages=[dict(r) for r in rows], has_more=bool(has_more), has_newer=bool(has_newer),
-                    latest_seq=latest_seq, unseen=bool(unseen))
+                    latest_seq=latest_seq, unseen=bool(unseen_seq), unseen_seq=unseen_seq)
 
     def messages(self, account, lobby, allowed, query="", before=None, limit=100):
         return self.message_page(account, lobby, allowed, query, before, limit)['messages']

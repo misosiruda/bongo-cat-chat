@@ -179,7 +179,7 @@ class ChatService:
         lobby = lobby or self.state.get("lobby", "")
         allowed = self.allowed()
         theme, collapsed = 'system', False
-        page = dict(messages=[], has_more=False, has_newer=False, latest_seq=0, unseen=False)
+        page = dict(messages=[], has_more=False, has_newer=False, latest_seq=0, unseen=False, unseen_seq=0)
         try:
             if account and lobby:
                 page = self.store.message_page(account, lobby, allowed, query, before, limit, start, seen)
@@ -191,7 +191,7 @@ class ChatService:
         except (sqlite3.Error, OSError):
             self.storage_error = True
             rows, rooms, draft = [], [], ""
-            page = dict(has_more=False, has_newer=False, latest_seq=0, unseen=False)
+            page = dict(has_more=False, has_newer=False, latest_seq=0, unseen=False, unseen_seq=0)
         visible_volatile = [r for r in self.volatile.values() if r["account"] == account
                             and r["lobby"] == lobby and r["sender"] in allowed | {account} and not is_meow_message(r["body"])]
         volatile = [dict(r, unsaved=True) for r in self.volatile.values() if r["account"] == account
@@ -215,5 +215,5 @@ class ChatService:
                 "storage_error": self.storage_error, "revision": self.revision,
                 "theme": theme, "collapsed": collapsed,
                 "lobby": lobby, "has_more": page['has_more'], "has_newer": page['has_newer'],
-                "latest_seq": page['latest_seq'], "unseen": page['unseen'],
+                "latest_seq": page['latest_seq'], "unseen": page['unseen'], "unseen_seq": page['unseen_seq'],
                 "volatile_peer_ids": [r['id'] for r in visible_volatile if not r['own']]}

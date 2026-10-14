@@ -89,6 +89,10 @@ main `2cc8348`을 기준으로 정렬한 `fix/chat-scroll-history` 워크트리�
 - `python tests/browser_check.py --browser <로컬 Chromium> --output <외부 검증 폴더>`: 기존 1,536×1,024·480×800·1,240×840·960×540·400×500 화면 검사, 설정 배치 6개 경우·모달 갱신 12개 표본 통과.
 - `node --check src/bongo_chat/ui/app.js`, `git diff --check`: 통과.
 
+PR 게시 전 로컬 검수에서 지연된 조회 응답이 이미 읽은 메시지의 표시를 다시 켜는 경우를 추가로 재현했다. 읽지 않은 상대 메시지의 최대 순번 `unseen_seq`를 현재 UI 확인 순번과 비교하도록 수정했다. `tests/test_scroll_desktop.py`에서 실제 QWebChannel 응답을 보류하고 수동 최신 도착·다시 위로 이동·응답 해제를 수행한 회귀 검사가 통과했다.
+
+이 추가 수정 후 `python -m pytest tests/test_core.py tests/test_desktop.py tests/test_scroll_service.py tests/test_scroll_desktop.py -q` **91개 통과**, 스크롤 브라우저 검사 **7개 흐름 재통과**, JavaScript 구문 검사 통과를 확인했다. 위의 전체 305개 결과는 추가 수정 전 기준이며, 최신 코드의 영향 범위는 이 별도 결과로 구분한다.
+
 새 창 크기·긴 메시지·실제 Windows 입력·설치 패키지와 실사용 Steam 연결의 조합은 추가 인수 범위다. DB schema와 송신 API 변경이 없어 이전 코드로 복귀해도 저장 기록을 변환할 필요는 없다. 화면 정책과 조회 계약은 같은 앱 묶음으로 반영해야 한다.
 
 - `tests/test_core.py`: 엄격한 UTF-8 JSON·채널·길이·제어문자 검사, 원본 한글 52바이트의 해시, 자기 수신 순서·반복 발언·앱 이벤트 중복, 계정·로비·구간 분리, 숨김·미확인·오래된 표본, 저장 실패, 30일 보관, 직접 삭제, 230건 페이지 조회, 송신 직전 재검증.
