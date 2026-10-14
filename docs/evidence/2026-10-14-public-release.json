@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-14",
+  "release": "v0.1.0.dev6",
+  "release_url": "https://github.com/misosiruda/bongo-cat-chat/releases/tag/v0.1.0.dev6",
+  "release_id": 412356251,
+  "published_at_utc": "2026-10-14T05:09:47Z",
+  "source_commit": "45e7d1e6ad6cc0900e5f18d6e30a40f1452cee8a",
+  "product_stage": "development",
+  "github_channel": {"draft": false, "prerelease": false, "latest": true},
+  "uploaded_assets": 6,
+  "all_server_asset_hashes_match": true,
+  "setup": {
+    "file": "BongoCatChat-0.1.0.dev6-windows-x64-Setup.exe",
+    "bytes": 251537106,
+    "sha256": "a5619c34927c4ec5bba874d4f18ddde6a97df672030d6c0921a8a305172531fc",
+    "full_anonymous_download_hash_verified": true,
+    "windows_authenticode_signed": false
+  },
+  "update_archive": {
+    "bytes": 253950571,
+    "sha256": "95fe6e16334a1454ae2c02bb59b29fba58573fd18eaf2ba67b6c7bcb637c54b0",
+    "ed25519_signature_verified": true,
+    "entries": 3204,
+    "expanded_bytes": 637106521,
+    "forbidden_entries": 0,
+    "extracted_app_offline_smoke_passed": true
+  },
+  "public_update_verification": {
+    "verified_at_utc": "2026-10-14T05:12:53.849427+00:00",
+    "api_fixture_used": false,
+    "production_transport_used": true,
+    "isolated_installation": true,
+    "from": "0.1.0.dev5",
+    "to": "0.1.0.dev6",
+    "download_states": ["downloading", "ready"],
+    "active_changed_only_on_next_launch": true,
+    "actual_previous_windows_launcher_used": true,
+    "previous_version_retained": true,
+    "synthetic_history_drafts_settings_unchanged": true,
+    "same_version_check": "current",
+    "renderer": true,
+    "javascript_console_errors": 0,
+    "offscreen_qt": true,
+    "offline_game_mode": true,
+    "game_connection_or_chat_send": false
+  },
+  "not_verified": ["another PC", "clean game installation", "normal GUI long-run GPU stability", "power loss and antivirus interference", "Windows code signing", "general distribution terms"]
+}

@@ -2,11 +2,11 @@
 
 일반 이용자는 설치 파일 하나로 설치한다. Python, Git, PowerShell 명령어 입력이나 관리자 권한은 필요하지 않다.
 
-현재는 개발판이며 **GitHub에 설치 파일을 게시한 릴리스는 아직 없다.** 소스 ZIP은 설치 파일이 아니다. 릴리스 게시 이후의 다운로드 위치는 [Bongo Cat Chat Releases](https://github.com/misosiruda/bongo-cat-chat/releases)다.
+현재 공개 개발판은 **0.1.0.dev6**이다. [Windows 설치 파일을 바로 다운로드](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev6/BongoCatChat-0.1.0.dev6-windows-x64-Setup.exe)하거나 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `Setup.exe`를 받는다. `Source code` ZIP과 `bongo-cat-chat-windows-x64.zip`은 일반 이용자용 설치 파일이 아니다. 후자는 기존 앱의 자동 업데이트용이다.
 
 ## 설치와 시작
 
-1. 전달받은 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 더블클릭한다.
+1. 릴리스에서 받은 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 더블클릭한다.
 2. 한국어 설치 안내에서 **다음 → 설치 → 마침**을 누른다. 설치 위치는 바꿀 수 있으며, 기본값은 현재 사용자의 프로그램 폴더다.
 3. 시작 메뉴에서 **Bongo Cat Chat**을 실행한다.
 4. Steam과 Bongo Cat을 실행하고 게임에서 로비에 참여한다. 앱의 연결 상태를 확인한 뒤 채팅한다.
