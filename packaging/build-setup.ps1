@@ -35,7 +35,7 @@ $outputFile = Join-Path $outputPath "BongoCatChat-$version-windows-x64-Setup$suf
 if ((Test-Path -LiteralPath $outputFile) -or (Test-Path -LiteralPath ($outputFile + '.sha256'))) { throw 'Setup assets already exist; use a fresh output directory' }
 $pendingFile = Join-Path $outputPath ('.setup-' + [Guid]::NewGuid().ToString('N') + '.exe')
 $privacyFile = Join-Path $outputPath ('.privacy-' + [Guid]::NewGuid().ToString('N') + '.txt')
-$compilerArgs = @('/V2', '/NOCD', "/DBUNDLE_DIR=$bundlePath", "/DOUTPUT_FILE=$pendingFile", "/DAPP_VERSION=$version", "/DNUMERIC_VERSION=$numericVersion", "/DINSTALLED_KB=$installedKb", "/DREMOVAL_SCRIPT=$(Join-Path $PSScriptRoot 'uninstall.ps1')")
+$compilerArgs = @('/V2', '/NOCD', "/DBUNDLE_DIR=$bundlePath", "/DOUTPUT_FILE=$pendingFile", "/DAPP_VERSION=$version", "/DNUMERIC_VERSION=$numericVersion", "/DINSTALLED_KB=$installedKb", "/DREMOVAL_SCRIPT=$(Join-Path $PSScriptRoot 'uninstall.ps1')", "/DAPP_ICON=$(Join-Path $projectRoot 'src/bongo_chat/ui/app-icon.ico')")
 if ($TestIdentity) { $compilerArgs += @('/DAPP_ID=BongoCatChatInstallerTest', '/DAPP_NAME=Bongo Cat Chat Installer Test') }
 $originalSigningConfig = $env:BONGO_CODE_SIGNING_CONFIG
 if ($signing) { $resolvedSigningConfig = (Resolve-Path -LiteralPath $SigningConfig).Path }

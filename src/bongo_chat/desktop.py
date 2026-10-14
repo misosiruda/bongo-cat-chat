@@ -8,6 +8,7 @@ import sys
 import time
 
 from PySide6.QtCore import QObject, QLockFile, QTimer, QUrl, Slot
+from PySide6.QtGui import QIcon
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings, QWebEngineUrlRequestInterceptor
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -55,7 +56,9 @@ class Requests(QWebEngineUrlRequestInterceptor):
     def interceptRequest(self, info):
         url = info.requestUrl()
         if url.scheme() == "file":
-            allowed = Path(url.toLocalFile()).resolve() in {UI / name for name in ("index.html", "app.js", "messenger.css")}
+            allowed = Path(url.toLocalFile()).resolve() in {
+                UI / name for name in ("index.html", "app.js", "messenger.css", "app-icon.png", "favicon.ico")
+            }
         else:
             allowed = url.toString() == "qrc:///qtwebchannel/qwebchannel.js" or url.scheme() == "data"
         info.block(not allowed)
@@ -261,6 +264,7 @@ def window(controller):
     channel.registerObject("bridge", controller)
     page.setWebChannel(channel)
     view.setWindowTitle("Bongo Cat Chat · 개발판")
+    view.setWindowIcon(QIcon(str(UI / "app-icon.ico")))
     view.resize(1240, 840)
     view.setMinimumSize(400, 500)
     view.load(QUrl.fromLocalFile(str(UI / "index.html")))
@@ -270,6 +274,7 @@ def window(controller):
 
 def run(data, offline=False, read_only=False, smoke_report=None, connection_report=None, install_root=None):
     app = QApplication.instance() or QApplication([])
+    app.setWindowIcon(QIcon(str(UI / "app-icon.ico")))
     data.mkdir(parents=True, exist_ok=True)
     lock = QLockFile(str(data / "app.lock"))
     lock.setStaleLockTime(0)

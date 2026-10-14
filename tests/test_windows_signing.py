@@ -264,6 +264,9 @@ def nsis_project(tmp_path):
         pytest.skip('Set BONGO_TEST_NSIS_PATH for actual NSIS compiler integration')
     project = tmp_path / '한글 빌드 폴더'
     shutil.copytree(REPO / 'packaging', project / 'packaging')
+    icons = project / 'src/bongo_chat/ui'
+    icons.mkdir(parents=True)
+    shutil.copy2(REPO / 'src/bongo_chat/ui/app-icon.ico', icons / 'app-icon.ico')
     (project / 'docs').mkdir()
     shutil.copy2(REPO / 'docs/privacy-policy.md', project / 'docs/privacy-policy.md')
     bundle, _ = make_bundle(project / 'dist')
