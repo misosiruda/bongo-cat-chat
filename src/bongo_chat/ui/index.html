@@ -67,12 +67,17 @@
 
       <div class="connection-notice" id="connection-notice" role="status" hidden></div>
       <div class="search-status" id="search-status" hidden><span id="search-summary" role="status"></span><button id="clear-search" type="button">검색 지우기 <svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <div class="message-region">
       <div class="message-scroll" id="message-scroll" tabindex="0" aria-label="대화 내용">
-        <button id="older" class="page-button" hidden>이전 기록 100개</button><button id="latest" class="page-button" hidden>최근 대화로</button>
+        <button id="older" class="page-button" hidden>이전 대화 불러오기</button>
         <div class="message-list" id="message-list" role="list" aria-label="메시지 목록"></div>
         <div class="empty-state" id="empty-state" hidden><svg aria-hidden="true"><use href="#i-cat"/></svg><h2 id="empty-title"></h2><p id="empty-description"></p></div>
       </div>
-      <button id="new-messages" class="page-button" hidden>새 메시지 보기</button>
+      <div class="scroll-navigation" aria-label="대화 이동">
+        <button id="latest" class="page-button" hidden>맨 아래로</button>
+        <button id="new-messages" class="page-button" hidden>새 메시지 보기</button>
+      </div>
+      </div>
       <div class="composer-region">
         <form class="composer" id="message-form">
           <label class="sr-only" for="message-input">메시지</label>
