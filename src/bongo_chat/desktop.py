@@ -4,6 +4,7 @@ import multiprocessing as mp
 from pathlib import Path
 import queue
 import sqlite3
+import sys
 import time
 
 from PySide6.QtCore import QObject, QLockFile, QTimer, QUrl, Slot
@@ -22,6 +23,32 @@ from .privacy import update_checks_allowed, set_update_checks_allowed
 
 UI = Path(__file__).with_name("ui").resolve()
 LEGAL = Path(__file__).with_name('legal')
+SOURCE_ROOT = Path(__file__).resolve().parents[2]
+
+
+def legal_document(document):
+    names = {'privacy': 'PRIVACY.md', 'licenses': 'THIRD-PARTY-NOTICES.txt',
+             'chromium': 'CHROMIUM-LICENSES.html', 'sources': 'SOURCES.md'}
+    name = names.get(document)
+    if name is None:
+        raise ValueError('invalid_document')
+    try:
+        path = LEGAL / name
+        if not getattr(sys, 'frozen', False) and not path.is_file():
+            # Source runs have no assembled distribution. Show the checked-in
+            # policy/review instead; frozen copies must use their own notices.
+            sources = {'privacy': 'docs/privacy-policy.md', 'licenses': 'docs/license-review.md',
+                       'chromium': 'packaging/licenses/CHROMIUM-LICENSES.html',
+                       'sources': 'docs/licensing/SOURCES.md'}
+            path = SOURCE_ROOT / sources[document]
+            if document == 'licenses':
+                return name, ('소스 실행 환경: 자체 라이선스와 의존성 검토 안내입니다.\n'
+                              '배포물의 전체 고지는 tools/collect_license_notices.py로 생성합니다.\n\n'
+                              + (SOURCE_ROOT / 'LICENSE').read_text(encoding='utf-8')
+                              + '\n\n' + path.read_text(encoding='utf-8'))
+        return name, path.read_text(encoding='utf-8')
+    except (OSError, UnicodeError):
+        raise ValueError('legal_unavailable') from None
 
 
 class Requests(QWebEngineUrlRequestInterceptor):
@@ -116,7 +143,7 @@ class Controller(QObject):
         except (ValueError, TypeError, KeyError, queue.Full) as exc:
             # Don't return native exception messages or paths through the renderer.
             code = str(exc)
-            if code not in {"connection_changed", "development_limit_50", "control_character", "storage_failed_before_send"}:
+            if code not in {"connection_changed", "development_limit_50", "control_character", "storage_failed_before_send", "legal_unavailable"}:
                 code = "request_failed"
             return json.dumps({"error": code})
 
@@ -169,16 +196,13 @@ class Controller(QObject):
         elif action == 'check_updates':
             self.updates.request()
         elif action == 'update_permission':
-            set_update_checks_allowed(args['allowed'])
+            try:
+                set_update_checks_allowed(args['allowed'])
+            except OSError:
+                return {'error': 'update_permission_failed'}
             self.updates.set_allowed(args['allowed'])
         elif action == 'legal':
-            names = {'privacy': 'PRIVACY.md', 'licenses': 'THIRD-PARTY-NOTICES.txt',
-                     'chromium': 'CHROMIUM-LICENSES.html', 'sources': 'SOURCES.md'}
-            name = names.get(args.get('document'))
-            if name is None:
-                raise ValueError('invalid_document')
-            path = LEGAL / name
-            text = path.read_text(encoding='utf-8')
+            name, text = legal_document(args.get('document'))
             dialog = QDialog()
             dialog.setWindowTitle('개인정보 및 오픈소스 안내')
             dialog.resize(760, 620)

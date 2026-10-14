@@ -90,7 +90,9 @@
     const text = ({connection_changed:'연결 대상이 변경되어 전송하지 않았어요. 초안은 원래 방에 남겨 두었습니다.',
       development_limit_50:'개발판에서는 50 UTF-16 단위 이내로 보내 주세요.',
       storage_failed_before_send:'기록을 저장하지 못해 전송하지 않았어요.',
-      storage_failed:'저장에 실패했어요. 작성한 내용은 이 창에서 확인해 주세요.'})[error.message] || '요청을 완료하지 못했어요. 연결·저장 상태를 확인해 주세요.';
+      storage_failed:'저장에 실패했어요. 작성한 내용은 이 창에서 확인해 주세요.',
+      legal_unavailable:'안내 파일을 열지 못했어요. 앱 파일을 복구하거나 다시 설치해 주세요.',
+      update_permission_failed:'업데이트 통신 설정을 저장하지 못했어요. 기존 선택을 유지합니다.'})[error.message] || '요청을 완료하지 못했어요. 연결·저장 상태를 확인해 주세요.';
     toast(text);
   }
   function updateSend() {

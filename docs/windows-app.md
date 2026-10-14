@@ -38,6 +38,8 @@ Steam 초기화·게임 메모리 접근 없이 창만 실행하려면:
 .venv/Scripts/python -m bongo_chat --offline
 ```
 
+설정의 개인정보·Chromium·대응 소스 안내는 소스 실행에서도 저장소 문서를 연다. 소스 환경의 오픈소스 라이선스 버튼은 자체 MIT와 의존성 검토를 표시하며, 설치본은 빌드 시 수집한 전체 고지를 표시한다. 고지 파일 읽기나 업데이트 통신 선택 저장에 실패해도 이를 채팅 DB 장애로 처리하지 않으며 기존 통신 선택을 유지한다.
+
 실행 중인 `BongoCat.exe`의 경로에서 설치 파일을 찾는다. `0.1.0.dev6`은 `feature-contract.json`의 채팅·숨김·로비·프로필 계약을 확인한다. `Assembly-CSharp.dll`·`Heathen.Steamworks.dll`의 전체 해시나 공개 빌드 번호가 달라도 사용하는 구조·코드가 같으면 연결한다. Auto Chest Opener에 의존하지 않는다. Mono 메모리 구조와 Steam 네이티브 호출은 아직 확인한 ABI로 제한한다. 관련 계약이 달라지면 설치판의 앱 업데이트를 확인한다. [게임 업데이트 대응](game-update-compatibility.md)에 판정 범위·검사기·실제 검증과 남은 인수를 기록한다.
 
 ## 연결과 전송
