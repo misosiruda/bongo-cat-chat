@@ -46,7 +46,7 @@ Copy-Item packaging/signing-config.example.json research/private/signing-config.
 
 처리 순서:
 
-1. PyInstaller 빌드 후 실행기 `BongoCatChat.exe`, 앱 본체 `BongoCatChatApp.exe`, 자체 호환성 검사기 `FeatureProbe.exe`를 서명한다.
+1. PyInstaller 빌드 후 실행기 `BongoCatChat.exe`, 앱 본체 `BongoCatChatApp.exe`, 자체 호환성 검사기 `FeatureProbe.exe`와 읽기 전용 검색기 `MemoryScan.exe`를 서명한다.
 2. 각 파일에 SHA-256 Authenticode와 RFC 3161 타임스탬프를 적용한다. 서명 상태·인증서 지문·타임스탬프와 `signtool verify /pa /all /tw` 결과를 확인한다. SignTool의 경고 종료 코드도 실패로 처리한다.
 3. 설치 빌드가 입력 묶음의 서명을 다시 검사한다. NSIS `!uninstfinalize`에서 `Uninstall.exe`를 서명한 후 설치 파일에 포함한다.
 4. 임시 이름으로 생성된 설치 EXE를 서명·검증하고 최종 해시를 계산한 뒤 배포용 파일명과 `.sha256`을 만든다. 실패한 임시 설치 파일은 제거한다. 이미 같은 출력 파일이나 체크섬이 있으면 덮어쓰지 않는다.

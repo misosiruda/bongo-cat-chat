@@ -1,4 +1,4 @@
-# Shared Authenticode policy for local builds. Never imports a key or changes trust stores.
+﻿# Shared Authenticode policy for local builds. Never imports a key or changes trust stores.
 # A Python/NSIS child can inherit PowerShell 7 module paths while running Windows
 # PowerShell 5.1. Load this host's built-ins explicitly to avoid cross-version modules.
 Import-Module "$PSHOME/Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1" -ErrorAction Stop
@@ -78,7 +78,8 @@ function Get-BundleSigningTargets {
     # Only binaries built from this repository; do not replace third-party signatures.
     $targets = @((Join-Path $bundlePath 'BongoCatChat.exe'),
         (Join-Path $app 'BongoCatChatApp.exe'),
-        (Join-Path $app '_internal/bongo_chat/compatibility/FeatureProbe.exe'))
+        (Join-Path $app '_internal/bongo_chat/compatibility/FeatureProbe.exe'),
+        (Join-Path $app '_internal/bongo_chat/compatibility/MemoryScan.exe'))
     # Validate the complete list before modifying any file.
     return @($targets | ForEach-Object { Assert-SigningFile -Path $_ })
 }

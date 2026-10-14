@@ -42,7 +42,7 @@ def test_version_rejects_invalid_resources(version):
 
 def test_product_version_is_consistent(tmp_path):
     tool("windows_version").write_resources(tmp_path, "0.1.0.dev6")
-    for name in ("BongoCatChat.txt", "BongoCatChatApp.txt", "FeatureProbe.Version.cs"):
+    for name in ("BongoCatChat.txt", "BongoCatChatApp.txt", "FeatureProbe.Version.cs", "MemoryScan.Version.cs"):
         source = (tmp_path / name).read_text()
         assert "Bongo Cat Chat" in source and "0.1.0.dev6" in source
     assert 'AssemblyFileVersion("0.1.0.6")' in (tmp_path / "FeatureProbe.Version.cs").read_text()

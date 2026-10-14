@@ -18,5 +18,9 @@
              product-name="Bongo Cat Chat" product-version="${version}">
       <authenticode-sign />
     </pe-file>
+    <pe-file path="BongoCatChat/versions/${version}/BongoCatChatApp/_internal/bongo_chat/compatibility/MemoryScan.exe"
+             product-name="Bongo Cat Chat" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
   </zip-file>
 </artifact-configuration>

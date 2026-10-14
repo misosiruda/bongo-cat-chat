@@ -298,6 +298,27 @@ def test_modal_stays_open_during_live_refresh(qt_chat, dialog_id, opener):
     assert controller.worker is None
 
 
+def test_early_lobby_keeps_draft_and_separates_privacy_from_send(qt_chat):
+    app, controller, page = qt_chat
+    controller.service.update(state(state='syncing', notice='discovering', lobby_verified=False,
+                                    privacy_ready=False, hidden_ok=False, send_enabled=False))
+    wait_until(app, lambda: js(app, page, "document.querySelector('#connection-label').textContent.includes('로비 발견')"))
+    assert js(app, page, "document.querySelector('#room-title').textContent") == '테스트 로비'
+    assert js(app, page, "document.querySelector('#message-input').disabled") is False
+    assert js(app, page, "document.querySelectorAll('.message-bubble').length") == 0
+    js(app, page, "document.querySelector('#message-input').value='연결 확인 중 작성';document.querySelector('#message-input').dispatchEvent(new Event('input'))")
+    assert js(app, page, "document.querySelector('#send-button').disabled") is True
+    wait_until(app, lambda: controller.store.draft('fixture-self', 'fixture-room-a') == '연결 확인 중 작성')
+    controller.service.update(state(state='syncing', notice='hidden_unavailable', privacy_ready=False, hidden_ok=False))
+    wait_until(app, lambda: js(app, page, "document.querySelector('#connection-label').textContent.includes('숨김 확인 중')"))
+    assert js(app, page, "document.querySelector('#send-button').disabled") is False
+    assert js(app, page, "document.querySelectorAll('.message-bubble').length") == 0
+    assert js(app, page, "document.querySelector('#message-input').value") == '연결 확인 중 작성'
+    controller.service.update(state())
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 1)
+    assert js(app, page, "document.querySelector('#message-input').value") == '연결 확인 중 작성'
+
+
 def test_game_change_checks_updates_once_and_keeps_privacy_gate(qt_chat, monkeypatch):
     app, controller, page = qt_chat
     requests = []

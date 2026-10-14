@@ -1,4 +1,4 @@
-param([string]$OutputRoot = 'dist', [string]$SigningConfig, [switch]$AllowUnsigned, [string]$Python)
+﻿param([string]$OutputRoot = 'dist', [string]$SigningConfig, [switch]$AllowUnsigned, [string]$Python)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'code-signing.ps1')
 $signing = Get-CodeSigningSettings -SigningConfig $SigningConfig -AllowUnsigned:$AllowUnsigned
@@ -25,7 +25,7 @@ try {
     $version = (& $python -c "import sys; sys.path.insert(0, 'src'); from bongo_chat import __version__; print(__version__)").Trim()
     if ($version -notmatch '^\d+\.\d+\.\d+(\.dev\d+)?$') { throw 'Invalid app version' }
     $versionPath = Join-Path $bundle "versions/$version"
-    & $python -m PyInstaller --clean --noconfirm --windowed --onedir --distpath $versionPath --name BongoCatChatApp --version-file artifacts/windows-version/BongoCatChatApp.txt --paths src --additional-hooks-dir packaging/hooks --runtime-hook packaging/hooks/disable_unity_audio.py --exclude-module UnityPy.export.AudioClipConverter --exclude-module fmod_toolkit --exclude-module pyfmodex --add-data 'src/bongo_chat/ui;bongo_chat/ui' --add-data 'src/bongo_chat/update-config.json;bongo_chat' --add-data 'src/bongo_chat/feature-contract.json;bongo_chat' --collect-data UnityPy --collect-data archspec --copy-metadata UnityPy --add-data 'artifacts/compatibility/FeatureProbe.exe;bongo_chat/compatibility' --add-data 'artifacts/compatibility/Mono.Cecil.dll;bongo_chat/compatibility' --add-data 'tools/compatibility/Mono.Cecil.LICENSE.txt;bongo_chat/compatibility' tools/launch.py
+    & $python -m PyInstaller --clean --noconfirm --windowed --onedir --distpath $versionPath --name BongoCatChatApp --version-file artifacts/windows-version/BongoCatChatApp.txt --paths src --additional-hooks-dir packaging/hooks --runtime-hook packaging/hooks/disable_unity_audio.py --exclude-module UnityPy.export.AudioClipConverter --exclude-module fmod_toolkit --exclude-module pyfmodex --add-data 'src/bongo_chat/ui;bongo_chat/ui' --add-data 'src/bongo_chat/update-config.json;bongo_chat' --add-data 'src/bongo_chat/feature-contract.json;bongo_chat' --collect-data UnityPy --collect-data archspec --copy-metadata UnityPy --add-data 'artifacts/compatibility/MemoryScan.exe;bongo_chat/compatibility' --add-data 'artifacts/compatibility/FeatureProbe.exe;bongo_chat/compatibility' --add-data 'artifacts/compatibility/Mono.Cecil.dll;bongo_chat/compatibility' --add-data 'tools/compatibility/Mono.Cecil.LICENSE.txt;bongo_chat/compatibility' tools/launch.py
     if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed' }
     & $python -m PyInstaller --clean --noconfirm --windowed --onefile --distpath $bundle --name BongoCatChat --version-file artifacts/windows-version/BongoCatChat.txt --paths src --add-data 'src/bongo_chat/update-config.json;bongo_chat' tools/launch_bootstrap.py
     if ($LASTEXITCODE -ne 0) { throw 'Launcher build failed' }

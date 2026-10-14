@@ -4,13 +4,14 @@ import time
 from uuid import uuid4
 
 from .environment import UnsupportedGameBuild, running_game, verify_compatibility
-from .memory import GameMemory
+from .memory import MemoryDiscovery, MemoryUnavailable
 from .steam import APP_ID, Steam
 
 
 def unavailable(notice):
     return {"type": "state", "state": "unavailable", "notice": notice, "account": "", "lobby": "",
-            "generation": "", "hidden_ok": False, "hidden": {}, "profiles": {}, "send_enabled": False}
+            "generation": "", "connected": False, "lobby_verified": False,
+            "privacy_ready": False, "hidden_ok": False, "hidden": {}, "profiles": {}, "send_enabled": False}
 
 
 class LiveConnection:
@@ -24,28 +25,40 @@ class LiveConnection:
         self.profiles = {}
         self.profile_time = 0
         self.last_send = 0
+        self.discovery_failed = False
 
-    def snapshot(self):
+    def destination(self):
+        """Verify the destination independently of hidden-list availability."""
         if self.compatibility:
             self.compatibility.check()
         if not self.game.alive():
             raise RuntimeError("process_changed")
         account = self.steam.account()
-        lobby = self.memory.lobby()
-        reported_app, reported_lobby = self.steam.reported_game(account)
-        members = self.steam.members(lobby) if lobby != "0" else set()
-        hidden = self.memory.hidden()
-        # Double-read the game source around metadata/Steam calls.
-        if self.memory.lobby() != lobby or self.steam.account() != account:
+        reported = self.steam.reported_game(account)
+        app, lobby = reported
+        members = self.steam.members(lobby) if app == APP_ID and lobby != "0" else set()
+        source = self.memory.lobby() if self.memory else None
+        if (self.steam.account() != account or self.steam.reported_game(account) != reported
+                or self.memory and self.memory.lobby() != source):
             raise RuntimeError("connection_changed")
-        valid = lobby != "0" and account in members and reported_app == APP_ID and reported_lobby == lobby
+        valid = lobby != "0" and account in members and app == APP_ID and (source is None or source == lobby)
+        return account, lobby, members, valid, valid and source is not None
+
+    def snapshot(self):
+        account, lobby, members, valid, verified = self.destination()
         identity = (self.game.pid, self.game.created, account, lobby, valid)
         changed = identity != self.identity
         if changed:
             self.identity, self.generation = identity, str(uuid4())
             self.profiles = {}
             self.profile_time = 0
-        complete = valid and (members-{account}) <= hidden.keys()
+        hidden, privacy_ready = {}, False
+        if verified:
+            try:
+                hidden = self.memory.hidden()
+                privacy_ready = True
+            except (MemoryUnavailable, UnicodeError):
+                pass  # Keep the verified lobby and retry privacy on the next tick.
         if valid and time.monotonic()-self.profile_time >= 1:
             profiles = {}
             for uid in members:
@@ -58,18 +71,35 @@ class LiveConnection:
                     row["avatar"] = self.avatars.get(skin.replace(" ", ""), hat.replace(" ", "") if hat else None)
                 profiles[uid] = row
             self.profiles, self.profile_time = profiles, time.monotonic()
-        if self.memory.lobby() != lobby or self.steam.account() != account:
+        if (self.steam.account() != account or valid and self.steam.reported_game(account) != (APP_ID, lobby)
+                or verified and self.memory.lobby() != lobby):
             raise RuntimeError("connection_changed")
-        hidden = self.memory.hidden()
-        complete = valid and (members-{account}) <= hidden.keys()
+        if verified:
+            try:
+                hidden = self.memory.hidden()
+                privacy_ready = True
+            except (MemoryUnavailable, UnicodeError):
+                hidden, privacy_ready = {}, False
+        complete = privacy_ready and (members-{account}) <= hidden.keys()
+        if not valid:
+            notice = "no_lobby"
+        elif not verified:
+            notice = "discovery_failed" if self.discovery_failed else "discovering"
+        elif not privacy_ready:
+            notice = "hidden_unavailable"
+        elif not complete:
+            notice = "hidden_syncing"
+        else:
+            notice = "read_only" if self.read_only else ""
         state = {"type": "state", "account": account, "lobby": lobby if valid else "",
-                 "generation": self.generation, "hidden_ok": complete, "hidden": hidden,
-                 "profiles": self.profiles, "send_enabled": complete and not self.read_only,
+                 "generation": self.generation, "connected": valid, "lobby_verified": verified,
+                 "privacy_ready": privacy_ready, "hidden_ok": complete, "hidden": hidden,
+                 "profiles": self.profiles, "send_enabled": verified and not self.read_only,
                  "avatar_stage": getattr(self.avatars, "stage", "disabled"),
                  "avatar_error": getattr(self.avatars, "error", ""),
-                 "state": "ready" if complete else ("privacy_unavailable" if valid else "no_lobby"),
+                 "state": "ready" if complete else ("syncing" if valid else "no_lobby"),
                  "name": self.steam.room_name(lobby) if valid else "",
-                 "notice": "read_only" if complete and self.read_only else ("" if complete else "hidden_unavailable" if valid else "no_lobby")}
+                 "notice": notice}
         self.state = state
         return state, members, changed
 
@@ -78,9 +108,11 @@ class LiveConnection:
             return "failed"
         if time.monotonic()-command.get("queued", 0) > 2.0:
             return "failed"
-        state, members, changed = self.snapshot()
-        current = {k: state[k] for k in ("account", "lobby", "generation")}
-        if changed or command.get("context") != current or not state["send_enabled"]:
+        account, lobby, members, valid, verified = self.destination()
+        identity = (self.game.pid, self.game.created, account, lobby, valid)
+        current = {"account": account, "lobby": lobby, "generation": self.generation}
+        if (not verified or not self.state.get("send_enabled") or identity != self.identity
+                or command.get("context") != current):
             return "failed"
         # Bind the original destination. A game move after this check is not atomic.
         if self.memory.lobby() != current["lobby"] or self.steam.account() != current["account"] or not self.game.alive():
@@ -106,34 +138,50 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
             raise RuntimeError("event_queue_overflow")
 
     while not stop.is_set():
-        memory = steam = avatars = None
+        discovery = steam = avatars = None
         try:
             emit(unavailable("checking"))
             game = running_game()
             compatibility = verify_compatibility(game.root, stop)
-            memory = GameMemory(game, stop)
-            emit(unavailable("discovering"))
-            memory.discover()
-            compatibility.check()
             steam = Steam(game.root)
             steam.start()
-            if render_avatars:
-                from .avatars import Avatars
-                avatars = Avatars(game.root)
             compatibility.check()
-            live = LiveConnection(game, memory, steam, read_only, avatars, compatibility)
+            live = LiveConnection(game, None, steam, read_only, compatibility=compatibility)
             last_state, last_emit, receive_context = None, 0, None
+            receive_senders, retry_discovery_at = set(), 0
             while not stop.is_set():
+                if discovery and discovery.done.is_set():
+                    live.memory = discovery.memory
+                    if discovery.failed:
+                        live.discovery_failed = True
+                        discovery.close()
+                        discovery = None
+                        retry_discovery_at = time.monotonic() + 15
                 state, members, changed = live.snapshot()
                 context = {k: state[k] for k in ("account", "lobby", "generation")}
                 if state != last_state or time.monotonic()-last_emit >= 0.5:
                     emit(state)
                     last_state, last_emit = state, time.monotonic()
                 # Drain callbacks after transitions without attributing old payloads to a new segment.
-                for message in steam.pump(context, members, accept=receive_context == context and state["hidden_ok"]):
-                    if message["sender"] == state["account"] or state["hidden"].get(message["sender"]) is False:
-                        emit(message)
-                receive_context = context
+                allowed = {state["account"]} if state["lobby_verified"] else set()
+                if state["privacy_ready"]:
+                    allowed.update(uid for uid, hidden in state["hidden"].items() if hidden is False)
+                # Drop unknown/hidden senders before copying a body. Also drain
+                # the first batch after verification so pending-period callbacks
+                # cannot be relabelled as messages received after synchronization.
+                for message in steam.pump(context, members & allowed & receive_senders,
+                                          accept=receive_context == context):
+                    emit(message)
+                receive_context, receive_senders = context, allowed
+                if state["connected"] and not discovery and time.monotonic() >= retry_discovery_at:
+                    live.discovery_failed = False
+                    discovery = MemoryDiscovery(game, stop)
+                # Asset decoding competes with discovery for the Python GIL.
+                # Publish verified chat readiness before starting that work.
+                if state["lobby_verified"] and render_avatars and not avatars:
+                    from .avatars import Avatars
+                    avatars = Avatars(game.root)
+                    live.avatars = avatars
                 for _ in range(32):
                     try:
                         command = commands.get_nowait()
@@ -160,6 +208,6 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
                 avatars.close()
             if steam:
                 steam.close()  # No LeaveLobby, joins or lobby setting mutations.
-            if memory:
-                memory.close()
+            if discovery:
+                discovery.close()
         stop.wait(3)

@@ -1,0 +1,110 @@
+{
+  "date": "2026-10-14",
+  "scope": "local source and isolated Windows bundle; not a published release",
+  "baseline": {
+    "commit": "16615d7",
+    "measurement": "sequential source calls, excluding Qt and avatar rendering",
+    "first_ready_seconds": 61.55,
+    "discovery_seconds": 57.8618,
+    "scan_seconds": [
+      11.6515,
+      23.1403,
+      23.0244
+    ],
+    "hidden_read_seconds": 0.0135,
+    "steam_start_seconds": 0.1269
+  },
+  "source_worker_probe": {
+    "command": ".venv/Scripts/python tools/probe_startup.py --timeout 150 --avatars",
+    "measurement": "one real worker run, avatar thread enabled, excluding Qt startup",
+    "first_lobby_seconds": 0.8123,
+    "first_verified_lobby_seconds": 33.4095,
+    "first_hidden_complete_seconds": 33.4095,
+    "scan_seconds": [
+      11.1936,
+      10.7675,
+      10.4153
+    ],
+    "maximum_state_gap_seconds": 0.8137,
+    "sends": 0,
+    "decoded_messages": 0,
+    "chat_database_opened": false,
+    "lobby_mutations": 0,
+    "game_writes": 0,
+    "game_still_running": true
+  },
+  "tests": {
+    "command": ".venv/Scripts/python -m pytest -q",
+    "passed": 181,
+    "seconds": 85.38,
+    "synthetic_qt_integration_included": true,
+    "compiled_scanner_synthetic_buffers_included": true,
+    "node_syntax_check": true,
+    "python_compile_check": true,
+    "git_diff_check": true
+  },
+  "browser": {
+    "viewports": [
+      "1536x1024",
+      "480x800"
+    ],
+    "checks": "passed",
+    "console_errors": 0,
+    "synthetic_only": true,
+    "startup_screenshot_visually_inspected": true
+  },
+  "frozen_bundle": {
+    "build_command": "powershell -NoProfile -ExecutionPolicy Bypass -File packaging/build.ps1 -OutputRoot dist/early-lobby-connection",
+    "offline_exit_code": 0,
+    "readonly_exit_code": 0,
+    "offline": {
+      "renderer": true,
+      "console_errors": [],
+      "steam_connected": false,
+      "offline": true,
+      "version": "0.1.0.dev6"
+    },
+    "readonly": {
+      "ready": true,
+      "state": "ready",
+      "notice": "read_only",
+      "read_only": true,
+      "send_enabled": false,
+      "profile_count": 12,
+      "rendered_avatar_count": 12,
+      "avatar_stage": "ready",
+      "avatar_error": "",
+      "stored_messages": 0,
+      "console_error_count": 0,
+      "renderer_read_only": true
+    },
+    "offscreen_qt": true,
+    "isolated_data_directory": true,
+    "developer_tools_excluded_from_path": true,
+    "scanner_included": true,
+    "scanner_matches_compiled_helper": true,
+    "scanner_sha256": "f94616fd5edf9e49c19e0c29a0ab4fcd2e16219f0f19643d4e039299297cc87d",
+    "application_sha256": "2a99ec18e323a620ccbce584d25ee3b81758bb286220e74230cd682922877961"
+  },
+  "source_sha256": {
+    "src/bongo_chat/environment.py": "2446a8cd5c4af4898f2e61756f56e487f4005ebe57bae292ae181390676e1e39",
+    "src/bongo_chat/memory.py": "0fddcfacf95f1a57b63a2f24ac23302026287b71cfec577dc04342b12baae7dd",
+    "src/bongo_chat/service.py": "7b97d4c796688bdf081bfbb5181f5d07c025fdd649216fb470a0ad67f7c48325",
+    "src/bongo_chat/worker.py": "22d1fdee0068195cec950cae9b6272587c448d0828f996c62df4f9354e72e50b",
+    "src/bongo_chat/ui/app.js": "6b9f87f7193f30258d06681a4a6d4765fc7de20b24a760e39c323f0e8e808792",
+    "tools/compatibility/MemoryScan.cs": "fcbfcd6216274fa2acbcdfeacaada790914cb287e07fde66db6e95abda69e720",
+    "tools/prepare-compatibility.ps1": "d0b78628c7dba7c288272c357ca392bb5ec2abc633950717224ccaf90f922e15",
+    "packaging/build.ps1": "ba12efcaafe42f5b217845ecb1fc80c1245890566fc91335db3ee43bc39793c1"
+  },
+  "not_verified": [
+    "real outgoing messages on this change",
+    "actual hide/unhide transitions",
+    "actual lobby or account changes",
+    "clean game installation",
+    "another PC",
+    "repeated cold-start performance",
+    "public release update delivery"
+  ],
+  "existing_installation_replaced": false,
+  "release_created": false
+}

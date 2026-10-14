@@ -5,6 +5,8 @@ import json
 import sqlite3
 import time
 
+from .protocol import is_meow_message
+
 RETENTION_SECONDS = 30 * 24 * 60 * 60
 MESSAGE_COLUMNS = "id,session,account,lobby,sender,name,body,received,own,status,echo"
 
@@ -14,6 +16,7 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, timeout=0.25)
         self.db.row_factory = sqlite3.Row
+        self.db.create_function("is_meow_message", 1, is_meow_message, deterministic=True)
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA secure_delete=ON")
         self.db.execute("PRAGMA journal_mode=WAL")
@@ -107,6 +110,7 @@ class Store:
         with self.visible(account, allowed):
             rows = self.db.execute("""SELECT * FROM messages WHERE account=? AND lobby=?
                 AND sender IN (SELECT id FROM visible_users)
+                AND is_meow_message(body)=0
                 AND received>=? AND (? IS NULL OR seq<?) AND (?='' OR instr(lower(body),lower(?))>0)
                 ORDER BY seq DESC LIMIT ?""", (account, lobby, time.time()-RETENTION_SECONDS,
                     before, before, query, query, limit)).fetchall()

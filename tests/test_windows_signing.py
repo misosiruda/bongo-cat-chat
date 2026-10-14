@@ -57,7 +57,7 @@ def make_bundle(root):
     app = bundle / 'versions/0.1.0.dev7/BongoCatChatApp'
     helper = app / '_internal/bongo_chat/compatibility/FeatureProbe.exe'
     helper.parent.mkdir(parents=True)
-    targets = [bundle / 'BongoCatChat.exe', app / 'BongoCatChatApp.exe', helper]
+    targets = [bundle / 'BongoCatChat.exe', app / 'BongoCatChatApp.exe', helper, helper.with_name('MemoryScan.exe')]
     for target in targets:
         target.write_bytes(b'inert executable fixture')
     (bundle / '.bongo-cat-chat-install').write_text(json.dumps(
@@ -331,6 +331,8 @@ def test_installer_update_choice_is_shared_and_preserved(nsis_project, monkeypat
     app_id = 'BongoCatChatPrivacyTest-' + uuid4().hex
     key = 'Software\\' + app_id
     uninstall_key = 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + app_id
+    engine = bundle / 'install.ps1'
+    engine.write_text(engine.read_text(encoding='utf-8-sig').replace('Write-Output $_.Exception.Message', 'Write-Output $_.Exception.ToString(); Write-Output $_.ScriptStackTrace'), encoding='utf-8-sig')
     source = project / 'packaging/installer.nsi'
     text = source.read_text(encoding='utf-8').replace('!define APP_ID "BongoCatChat"', f'!define APP_ID "{app_id}"').replace('!define APP_NAME "Bongo Cat Chat"', f'!define APP_NAME "{app_id}"')
     text = text.replace('  Pop $1\n', '  Pop $1\n  FileOpen $2 "$EXEDIR\\engine-diagnostic.txt" w\n  FileWriteUTF16LE $2 "$1"\n  FileClose $2\n')

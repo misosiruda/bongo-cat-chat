@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import subprocess
 
+import pefile
+
 from audit_distribution import ROOT, inspect_bundle
 
 
@@ -19,6 +21,21 @@ def main():
     version = json.loads((bundle / '.bongo-cat-chat-install').read_text(encoding='utf-8-sig'))['active']
     app = bundle / 'versions' / version / 'BongoCatChatApp'
     legal = app / '_internal/bongo_chat/legal'
+    products = {}
+    for target in (bundle / 'BongoCatChat.exe', app / 'BongoCatChatApp.exe',
+                   app / '_internal/bongo_chat/compatibility/FeatureProbe.exe',
+                   app / '_internal/bongo_chat/compatibility/MemoryScan.exe'):
+        with pefile.PE(str(target)) as executable:
+            entries = {}
+            for group in getattr(executable, 'FileInfo', []):
+                for section in group:
+                    for table in getattr(section, 'StringTable', []):
+                        entries.update(table.entries)
+            product = {key: entries.get(key.encode(), b'').decode('utf-8')
+                       for key in ('ProductName', 'ProductVersion')}
+        if product != {'ProductName': 'Bongo Cat Chat', 'ProductVersion': version}:
+            raise ValueError(f'Incorrect signing metadata: {target.name}: {product}')
+        products[str(target.relative_to(bundle))] = product
     # A developer's editable install must never supply stale UI/config assets.
     for relative in ('ui/index.html', 'ui/app.js', 'ui/messenger.css', 'update-config.json', 'feature-contract.json'):
         if (app / '_internal/bongo_chat' / relative).read_bytes() != (ROOT / 'src/bongo_chat' / relative).read_bytes():
@@ -43,7 +60,7 @@ def main():
     smoke = json.loads(report.read_text(encoding='utf-8')) if report.exists() else {}
     if completed.returncode or not smoke.get('renderer') or smoke.get('console_errors') or smoke.get('steam_connected'):
         raise ValueError(f'Frozen offline smoke failed: {completed.returncode}, {smoke}')
-    (evidence / 'bundle-validation.json').write_text(json.dumps({'version': version, 'notice_hashes': hashes, 'native_files': len(audit['native_files']), 'known_blockers': [], 'offline_renderer': smoke, 'authenticode': 'unsigned review candidate'}, indent=2), encoding='utf-8')
+    (evidence / 'bundle-validation.json').write_text(json.dumps({'version': version, 'products': products, 'notice_hashes': hashes, 'native_files': len(audit['native_files']), 'known_blockers': [], 'offline_renderer': smoke, 'authenticode': 'unsigned review candidate'}, indent=2), encoding='utf-8')
     print('Bundle notices, dependency guards and frozen offline renderer verified')
 
 

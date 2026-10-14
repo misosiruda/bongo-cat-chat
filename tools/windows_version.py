@@ -31,13 +31,14 @@ def write_resources(output, version):
 """
         (output / f"{name}.txt").write_text(text, encoding="utf-8")
     numeric = ".".join(map(str, numbers))
-    (output / "FeatureProbe.Version.cs").write_text(
-        'using System.Reflection;\n'
-        '[assembly: AssemblyProduct("Bongo Cat Chat")]\n'
-        '[assembly: AssemblyTitle("Bongo Cat Chat compatibility probe")]\n'
-        f'[assembly: AssemblyVersion("{numeric}")]\n'
-        f'[assembly: AssemblyFileVersion("{numeric}")]\n'
-        f'[assembly: AssemblyInformationalVersion("{version}")]\n', encoding="utf-8")
+    for name, title in (("FeatureProbe", "compatibility probe"), ("MemoryScan", "read-only memory scanner")):
+        (output / f"{name}.Version.cs").write_text(
+            'using System.Reflection;\n'
+            '[assembly: AssemblyProduct("Bongo Cat Chat")]\n'
+            f'[assembly: AssemblyTitle("Bongo Cat Chat {title}")]\n'
+            f'[assembly: AssemblyVersion("{numeric}")]\n'
+            f'[assembly: AssemblyFileVersion("{numeric}")]\n'
+            f'[assembly: AssemblyInformationalVersion("{version}")]\n', encoding="utf-8")
 
 
 if __name__ == "__main__":

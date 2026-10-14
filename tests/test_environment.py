@@ -80,3 +80,27 @@ def test_updates_during_verification_or_active_connection_require_recheck(game_f
 def test_real_contract_has_complete_feature_profiles():
     catalog = env.compatibility_contract()
     assert all(set(profile) == set(FEATURES) for profile in catalog['profiles'])
+
+
+def test_game_discovery_reads_details_only_for_matching_name(tmp_path, monkeypatch):
+    from contextlib import nullcontext
+    calls = []
+    class Process:
+        pid = 123
+        def __init__(self, name):
+            self.info = {'name': name}
+        def oneshot(self):
+            return nullcontext()
+        def exe(self):
+            calls.append(self.info['name'])
+            assert self.info['name'] == 'BongoCat.exe'
+            return str(tmp_path / 'BongoCat.exe')
+        def create_time(self):
+            return 456
+    def processes(attrs):
+        assert attrs == ['name']
+        return [Process('unrelated.exe'), Process(None), Process('BongoCat.exe')]
+    monkeypatch.setattr(env.psutil, 'process_iter', processes)
+    game = env.running_game()
+    assert game.root == tmp_path and game.created == 456
+    assert calls == ['BongoCat.exe']

@@ -4,7 +4,7 @@ import sqlite3
 import time
 from uuid import uuid4
 
-from .protocol import encode
+from .protocol import encode, is_meow_message
 
 
 class ChatService:
@@ -79,15 +79,21 @@ class ChatService:
             self.write(self.store.end, self.session, reason)
 
     def fresh(self):
-        return self.clock() - self.updated < 2.5 and self.state.get("hidden_ok", False)
+        return self.clock() - self.updated < 2.5
+
+    def connected(self):
+        return self.fresh() and self.state.get("connected", False)
+
+    def verified(self):
+        return self.connected() and self.state.get("lobby_verified", False)
 
     def allowed(self):
-        if not self.fresh():
+        if not self.verified() or not self.state.get("privacy_ready", False):
             return set()
         return {uid for uid, hidden in self.state.get("hidden", {}).items() if hidden is False}
 
     def can_send(self):
-        return bool(self.session and self.fresh() and self.state.get("state") == "ready"
+        return bool(self.session and self.verified()
                     and self.state.get("send_enabled") and not self.storage_error)
 
     def context(self):
@@ -128,7 +134,9 @@ class ChatService:
 
     def receive(self, event):
         # The adapter already copied the payload and assigned this app UUID.
-        if event["context"] != self.context() or not self.session:
+        if event["context"] != self.context() or not self.session or not self.verified():
+            return
+        if is_meow_message(event["text"]):
             return
         receipt = event["id"]
         if receipt in self.receipts:
@@ -182,6 +190,7 @@ class ChatService:
             rows, rooms, draft = [], [], ""
         volatile = [dict(r, unsaved=True) for r in self.volatile.values() if r["account"] == account
                     and r["lobby"] == lobby and r["sender"] in allowed | {account}
+                    and not is_meow_message(r["body"])
                     and query.lower() in r["body"].lower() and before is None]
         messages = sorted(rows + volatile, key=lambda r: (
             r.get('seq', r.get('_before_seq', float('inf'))), not r.get('unsaved', False)))
@@ -190,7 +199,10 @@ class ChatService:
         profiles = {uid: p for uid, p in self.state.get("profiles", {}).items() if uid in allowed | {account}}
         return {"context": self.context(), "state": self.state.get("state"), "notice": self.state.get("notice", ""),
                 "game_build": self.state.get("game_build", ""),
-                "hidden_ok": self.fresh(), "can_send": self.can_send() and lobby == self.state.get("lobby"),
+                "connected": self.connected(), "lobby_verified": self.verified(),
+                "privacy_ready": self.verified() and self.state.get("privacy_ready", False),
+                "hidden_ok": self.verified() and self.state.get("hidden_ok", False),
+                "can_send": self.can_send() and lobby == self.state.get("lobby"),
                 "rooms": rooms, "messages": messages, "profiles": profiles, "draft": draft,
                 "storage_error": self.storage_error, "revision": self.revision,
                 "theme": theme, "collapsed": collapsed,
