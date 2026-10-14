@@ -1,6 +1,24 @@
 # SignPath 신청 후보 검증
 
-2026-10-14, 별도 `build/windows-code-signing` 워크트리에서 수행했다. `45e7d1e`에서 시작하여 `2cc8348`까지의 main을 병합했다. 원래 작업 폴더는 수정하지 않았고 실제 사용자 기록·게임 로비에 시험 데이터를 쓰지 않았다. 자체 소스 MIT와 개인정보 선택 기능을 포함한 **미서명 심사 후보**이며 기존 dev6/dev7 Release 자산은 변경하지 않았다.
+2026-10-14, 별도 `build/windows-code-signing` 워크트리에서 수행했다. `45e7d1e`에서 시작하여 최초 CI에서는 `2cc8348`, 후속 검수에서는 `c3595a0`까지의 main을 병합했다. 원래 작업 폴더는 수정하지 않았고 실제 사용자 기록·게임 로비에 시험 데이터를 쓰지 않았다. 자체 소스 MIT와 개인정보 선택 기능을 포함한 **미서명 심사 후보**이며 기존 dev6/dev7 Release 자산은 변경하지 않았다.
+
+## PR 검수 후 로컬 회귀 검사
+
+최초 자동 코드 리뷰 `5514900074`와 보안 리뷰는 `7896224781818609ee74f6edf3e506a5d587ebb4`에서 모두 완료됐다. [제공자 완료 기록](https://github.com/misosiruda/bongo-cat-chat/pull/16#issuecomment-6163822940)을 근거로 하며 CI 성공을 보안 리뷰 완료로 대체하지 않는다. 보안 지적은 없었고 코드 지적 두 건은 다음과 같이 수정했다.
+
+- [고지 파일 조회](https://github.com/misosiruda/bongo-cat-chat/pull/16#discussion_r4268294521): 소스 실행에서는 저장소의 개인정보·Chromium·대응 소스 문서, 자체 MIT와 의존성 검토를 연다. 설치본은 계속 동봉한 전체 고지를 사용하며 소스 파일로 대체하지 않는다. 누락·권한·인코딩 오류를 채팅 DB 장애로 처리하지 않는다. 같은 오류 분류 문제를 가진 업데이트 선택 저장 실패도 분리하고 기존 선택을 유지한다. 수정 `5ea6f6b`.
+- [대응 소스 미러 실패](https://github.com/misosiruda/bongo-cat-chat/pull/16#discussion_r4268294530): 크기·해시 불일치도 해당 URL 실패로 처리하고 공식 URL을 시도한다. 양쪽 모두 실패하면 예외를 반환하며 다운로드를 최종 파일로 교체하지 않고 임시 파일을 제거한다. 수정 `0fc77c6`.
+
+기록 탐색·스크롤 PR #17의 main 변경을 통합한 소스 `0fc77c610e4018e710df869469397892bb497d46`에서 **377 passed in 142.48s, 실패·오류·skip 0**을 확인했다. 코드와 테스트의 검증 결과이며 아래 과거 CI의 앱 artifact를 이 수정본으로 간주하지 않는다. 후속 문서 수정 외 실행 소스·의존성 변경은 없으며 최신 CI 결과는 PR Checks에서 별도로 확인한다.
+
+```powershell
+$env:QT_QPA_PLATFORM = 'offscreen'
+$env:QTWEBENGINE_CHROMIUM_FLAGS = '--disable-gpu'
+$env:BONGO_TEST_NSIS_PATH = 'C:/Project/bongo-cat-chat/research/private/tooling/nsis-3.13'
+& 'C:/Project/bongo-cat-chat/.venv/Scripts/python.exe' -m pytest -q --junitxml=dist/review-tests.xml
+```
+
+추가 13건은 소스 실행의 안내 4종, 설치본 고지 실패 3종, 설정 저장 실패 시 채팅·기존 선택 보존, 미러 실패 4종의 공식 URL 재시도, 양쪽 해시 실패 시 거부를 검사한다. 실제 외부 HTTP 대신 합성 응답을 사용하며, 전체 검사에는 Qt 화면과 격리된 실제 NSIS 설치·제거도 포함한다. 수동 리뷰 요청이나 Actions 재실행은 하지 않는다.
 
 ## 재현할 CI와 결과 위치
 

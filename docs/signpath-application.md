@@ -4,7 +4,7 @@
 
 ## 준비 상태와 순서
 
-자체 소스 MIT, 타사 고지·대응 소스, 설치 개인정보 안내와 업데이트 통신 선택은 준비했다. 공개 신청 후보는 `build/windows-code-signing` 브랜치다. 아래 정책 URL은 이 브랜치에서 바로 열 수 있으며 main 통합 후에는 `blob/main` 주소로 바꿀 수 있다. 기존 공개 설치 파일을 이 후보로 교체하지 않았다.
+자체 소스 MIT, 타사 고지·대응 소스, 설치 개인정보 안내와 업데이트 통신 선택은 준비했다. 신청 후보의 변경과 검증은 [PR #16](https://github.com/misosiruda/bongo-cat-chat/pull/16)에 있다. 아래 정책 URL은 작업 브랜치 정리 후에도 유지되도록 main 기준이며 **PR 병합 후 사용한다**. 병합 전 검토는 PR의 Files changed에서 한다. 기존 공개 설치 파일을 이 후보로 교체하지 않았다.
 
 1. 아래 후보·정책·CI 근거를 검토한다. [검증된 Windows CI](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38530843368)는 테스트 344개, 앱·설치 파일, 오프라인 실행과 대응 소스 검사를 통과했다. 실행 SHA와 artifact는 [검증 기록](signpath-validation.md)에 둔다.
 2. 신청인의 실제 이름·연락 이메일·GitHub/SignPath MFA 상태를 채우고 영문 초안을 제출한다. GitHub noreply 주소를 연락 이메일로 추정하지 않는다.
@@ -15,15 +15,15 @@
 
 ## 실제 폼에 대응하는 값
 
-아래 문서와 홈페이지는 공개 작업 브랜치의 실제 URL이다. 기존 릴리스는 이전 개발판이며, 심사용 후보는 CI artifact임을 구분한다.
+아래 문서와 홈페이지는 병합 후 공개 main의 URL이다. 기존 릴리스는 이전 개발판이며, 심사용 후보는 실행 SHA가 표시된 CI artifact임을 구분한다.
 
 | 신청 필드 | 준비할 값 |
 | --- | --- |
 | Project Name | `Bongo Cat Chat` |
 | Repository URL | `https://github.com/misosiruda/bongo-cat-chat` |
-| Homepage URL | `https://github.com/misosiruda/bongo-cat-chat/tree/build/windows-code-signing` |
-| Download URL | `https://github.com/misosiruda/bongo-cat-chat/blob/build/windows-code-signing/docs/installation.md` — 릴리스 다운로드와 Code signing policy를 연결한 안내 |
-| Privacy Policy URL | `https://github.com/misosiruda/bongo-cat-chat/blob/build/windows-code-signing/docs/privacy-policy.md` |
+| Homepage URL | `https://github.com/misosiruda/bongo-cat-chat` |
+| Download URL | `https://github.com/misosiruda/bongo-cat-chat/blob/main/docs/installation.md` — 릴리스 다운로드와 Code signing policy를 연결한 안내 |
+| Privacy Policy URL | `https://github.com/misosiruda/bongo-cat-chat/blob/main/docs/privacy-policy.md` |
 | Wikipedia URL | 비워 둠. 확인된 영문 Wikipedia 문서 없음 |
 | Category | `Gaming` — 실제 선택지에서 확인 |
 | Maintainer Type | 개인 유지보수에 해당하는 선택지. 선택지 문자열은 제출 화면에서 확인 |
