@@ -1,5 +1,58 @@
-param([string]$Destination = $PSScriptRoot, [switch]$NoShortcut, [string]$ShortcutName = 'Bongo Cat Chat')
+﻿param([string]$Destination = $PSScriptRoot, [switch]$NoShortcut, [string]$ShortcutName = 'Bongo Cat Chat')
 $ErrorActionPreference = 'Stop'
+# Keep both engines standalone for existing installation/update formats.
+# IShellLinkW avoids WSH TargetPath parsing through the machine's ANSI code page.
+function Initialize-ShortcutInterop {
+    if ('BongoChatShortcut' -as [type]) { return }
+    Add-Type -TypeDefinition @"
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
+public static class BongoChatShortcut {
+    [ComImport, Guid("00021401-0000-0000-C000-000000000046")]
+    private class ShellLink {}
+    [ComImport, Guid("000214F9-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface ILink {
+        void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder path, int size, IntPtr data, uint flags);
+        void GetIDList(out IntPtr list);
+        void SetIDList(IntPtr list);
+        void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder value, int size);
+        void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string value);
+        void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder value, int size);
+        void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string value);
+        void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder value, int size);
+        void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string value);
+        void GetHotkey(out short value);
+        void SetHotkey(short value);
+        void GetShowCmd(out int value);
+        void SetShowCmd(int value);
+        void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder value, int size, out int index);
+        void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string value, int index);
+        void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string value, uint reserved);
+        void Resolve(IntPtr window, uint flags);
+        void SetPath([MarshalAs(UnmanagedType.LPWStr)] string value);
+    }
+    public static string Read(string path) {
+        object link = new ShellLink();
+        try {
+            ((IPersistFile)link).Load(path, 0);
+            var value = new StringBuilder(32768);
+            ((ILink)link).GetPath(value, value.Capacity, IntPtr.Zero, 4);
+            return value.ToString();
+        } finally { Marshal.FinalReleaseComObject(link); }
+    }
+    public static void Write(string path, string target, string directory) {
+        object link = new ShellLink();
+        try {
+            ((ILink)link).SetPath(target);
+            ((ILink)link).SetWorkingDirectory(directory);
+            ((IPersistFile)link).Save(path, true);
+        } finally { Marshal.FinalReleaseComObject(link); }
+    }
+}
+"@
+}
 function Assert-NoLinks([string]$Path, [switch]$Tree) {
     for ($part = $Path; $part; $part = Split-Path $part -Parent) {
         if ((Get-Item -LiteralPath $part -Force -ErrorAction SilentlyContinue).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Linked installation paths are not supported' }
@@ -51,9 +104,10 @@ try {
     if (-not $NoShortcut) {
         $shortcutPath = Join-Path $env:APPDATA "Microsoft/Windows/Start Menu/Programs/$ShortcutName.lnk"
         if (Test-Path -LiteralPath $shortcutPath) {
-            $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
-            if (-not $shortcut.TargetPath) { throw 'Cannot inspect the Start Menu shortcut; retry uninstall' }
-            if ($shortcut.TargetPath -eq (Join-Path $target 'BongoCatChat.exe')) { Remove-Item -LiteralPath $shortcutPath }
+            Initialize-ShortcutInterop
+            $shortcutTarget = [BongoChatShortcut]::Read($shortcutPath)
+            if (-not $shortcutTarget) { throw 'Cannot inspect the Start Menu shortcut; retry uninstall' }
+            if ($shortcutTarget -eq (Join-Path $target 'BongoCatChat.exe')) { Remove-Item -LiteralPath $shortcutPath }
         }
     }
     foreach ($name in $members) {

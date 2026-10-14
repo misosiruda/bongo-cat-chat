@@ -357,7 +357,7 @@ def test_installer_update_choice_is_shared_and_preserved(nsis_project, monkeypat
             assert installed.returncode == 0, diagnostic.read_text(encoding='utf-16-le') if diagnostic.exists() else installed.stdout + installed.stderr
             assert (target / 'BongoCatChat.exe').is_file()
             shortcut = Path(env['APPDATA']) / f'Microsoft/Windows/Start Menu/Programs/{app_id}.lnk'
-            inspected = ps(test_root, f'(New-Object -ComObject WScript.Shell).CreateShortcut({quote(shortcut)}).TargetPath | ConvertTo-Json')
+            inspected = ps(test_root, f'(New-Object -ComObject Shell.Application).NameSpace({quote(shortcut.parent)}).ParseName({quote(shortcut.name)}).GetLink.Path | ConvertTo-Json')
             assert inspected.returncode == 0, inspected.stdout + inspected.stderr
             assert json.loads(inspected.stdout) == str(target / 'BongoCatChat.exe')
             assert privacy.update_checks_allowed() is expected
