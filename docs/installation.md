@@ -30,3 +30,9 @@ Windows **설정 → 앱 → 설치된 앱 → Bongo Cat Chat → 제거**를 �
 제거해도 대화 기록과 설정은 남는다. 기록까지 지우려면 제거 전에 앱 설정에서 선택한 로비 또는 현재 계정의 기록을 삭제한다. 대화·초안의 기본 보관 기간은 30일이며 앱 실행 중 정리한다. 앱을 꺼 둔 동안의 채팅을 복원하지 않는다.
 
 개발자의 빌드·검사 절차는 [Windows 개발판](windows-app.md), 실제 시험 범위는 [설치 검증 기록](installer-validation.md)에 구분한다.
+
+## 서명 신청 준비 후보의 개인정보·고지
+
+다음 배포를 준비하는 서명 작업 브랜치에는 설치 중 개인정보 전문 안내와 **GitHub 업데이트 확인 및 다운로드 허용** 선택이 있다. 재설치 때 기존 선택을 유지하며 무인 설치는 `/S /UPDATECHECKS=0`으로 통신을 끈다. 앱 설정에서 다시 켜거나 개인정보·오픈소스 고지·대응 소스를 열람할 수 있다. 아직 공개된 이전 설치 파일에는 이 변경이 포함되지 않는다.
+
+[Code signing policy](code-signing-policy.md) · [Privacy policy](privacy-policy.md) · [대응 소스와 라이브러리 교체](licensing/SOURCES.md). SignPath 승인 전이며 Windows 코드 서명은 아직 적용되지 않았다.

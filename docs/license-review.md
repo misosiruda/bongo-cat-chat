@@ -1,6 +1,6 @@
 # SignPath 신청을 위한 라이선스 검토
 
-기준일: 2026-10-14. 소스 기준은 `45e7d1e`와 `build/windows-code-signing`의 로컬 변경이다. 그 뒤 `main`에서 진행 중인 다른 기능 변경은 이 검토에 자동 포함되지 않는다. 공개 릴리스 `v0.1.0.dev6`의 실제 파일, 설치된 잠금 버전의 패키지 메타데이터, 원저작자의 문서를 대조했다.
+기준일: 2026-10-14. 서명 준비는 `45e7d1e`에서 시작했으며 `9fbcd85`까지의 main 변경(dev7·설정창·모자 수정)을 병합했다. 검토 대상은 `build/windows-code-signing`의 신청 후보이며 기존 공개 자산을 소급해 승인하는 문서가 아니다. 공개 릴리스 `v0.1.0.dev6`의 실제 파일, 설치된 잠금 버전의 패키지 메타데이터, 원저작자의 문서를 대조했다.
 
 ## 판정
 
@@ -8,7 +8,7 @@
 
 | 대상 | 확인한 사실 | 이번 조치 / 남은 확인 |
 | --- | --- | --- |
-| 자체 소스·문서 | 기존 원격 저장소는 공개이지만 LICENSE 미지정 | 소유자의 MIT 선택을 로컬에 적용. 게시 후 원격 표시 확인 |
+| 자체 소스·문서 | 기존 원격 저장소는 공개이지만 LICENSE 미지정 | 소유자의 MIT 선택을 루트 LICENSE와 패키지 메타데이터에 적용하고 공개 작업 브랜치에 게시 |
 | FMOD | 기존 번들에 `fmod_toolkit/libfmod/Windows/x64/fmod.dll` 존재. MIT인 Python 래퍼와 FMOD Engine의 이용 조건은 다름 | 앱이 쓰지 않는 AudioClip 변환과 FMOD를 빌드에서 제외. 새 번들 검증 결과는 아래 기록 |
 | Qt QML 부가 모듈 | 기존 번들에 Qt Graphs/Quick3D/VirtualKeyboard 등 앱에서 쓰지 않는 모듈이 포함됨 | QML 리소스·디버그 플러그인·가상 키보드 수집을 제한. Widgets/WebEngine과 Windows 기본 입력 경로 유지 |
 | Qt/PySide6 | 사용 모듈은 LGPL 경로 검토 대상. 패키지 한 개의 라이선스 문자열로 모든 Qt DLL을 판정할 수 없음 | 모듈별 고지, 라이브러리 교체·재빌드 설명, 대응 소스 접근을 확인 |
@@ -22,16 +22,22 @@ Qt PDF는 현재 공식 문서에 LGPLv3 선택지가 있으므로 이름만 보
 
 ## LGPL 및 네이티브 고지 준비
 
-다음은 MIT와 별개로 최종 배포 전에 완료할 항목이다. 이 문서는 완료되지 않은 제공 약속을 만들지 않는다.
+이번 후보는 다음 자료를 `_internal/bongo_chat/legal/`에 동봉하고 앱 설정에서 오프라인으로 열람한다.
 
-1. 설치물 안에서 MIT·각 라이브러리 저작권/허가 고지·LGPLv3/GPLv3 관련 전문을 열람할 수 있게 한다. Qt/Chromium, Python/OpenSSL, Pillow·텍스처 디코더 등 네이티브 하위 구성요소도 확인한다.
-2. 실제 Windows wheel과 일치하는 Qt/PySide/Chromium 대응 소스, 패치 유무, 빌드 자료를 확보하고 배포 페이지에서 버전별로 접근할 수 있게 한다. 일반적인 다운로드 홈페이지 링크만으로 대응 소스 검증을 완료했다고 쓰지 않는다.
-3. DLL을 분리한 onedir 구조를 유지하고 사용자가 라이브러리를 교체하거나 소스에서 다시 빌드해 실행할 수 있게 한다. 라이브러리 수정·디버깅을 위한 역공학을 금지하는 EULA를 추가하지 않는다. 자동 업데이트와 로컬 교체본의 상호작용도 검증한다.
-4. 최종 새 버전의 패키지와 소스 태그를 연결하고 SHA-256 및 구성요소 목록을 보관한다. 의존성 버전이나 PyInstaller hook이 바뀌면 다시 검사한다.
+- 자체 MIT, Python 패키지·CPython·Mono.Cecil·PyInstaller 고지, GPLv3/LGPLv3/LGPLv2.1 전문
+- Qt/PySide 소스 아카이브의 저작권·라이선스·attribution 자료와 Chromium 별도 고지
+- OpenSSL 3.0.16, Mesa 11.2.2/LLVM 3.6.2, NSIS 3.13 고지
+- 정확한 소스 URL·SHA-256·크기를 고정한 `sources.lock.json`, [대응 소스 및 DLL 교체 안내](licensing/SOURCES.md)
 
-이번 변경은 `tools/collect_license_notices.py`로 패키지에 포함된 고지, CPython·Mono.Cecil 고지, 공식 GNU 라이선스 전문과 자체 MIT·개인정보 안내를 모아 앱의 `_internal/bongo_chat/legal/`에 동봉한다. FMOD 래퍼와 개발 전용 도구는 수집 대상에서 제외한다. 수집된 문서에도 네이티브 검토가 남았음을 표시한다. Qt/Chromium의 구성요소별 대응 소스와 고지의 완전성, 설치 UI에서의 안내는 별도 완료 항목이다.
+Qt 6.12.0 7개 모듈, PySide/Shiboken 6.12.0, Qt WebEngine/Pdf 6.140.0의 전체 소스 아카이브 9개를 확보하고 공식 Qt 다운로드 메타데이터의 SHA-256과 대조했다. WebEngine은 별도 버전으로 출시되는 모듈이다. 아카이브의 `src/3rdparty/chromium/chrome/VERSION`은 설치된 API가 반환하는 `140.0.7339.225`와 일치한다. `CHROMIUM_VERSION`의 보안 패치 추적 값은 이 API 버전과 구분한다.
 
-Qt의 대응 소스 제공·교체 가능성·고지 요구사항은 [Qt LGPL 안내](https://www.qt.io/development/open-source-lgpl-obligations)를 기준으로 정리했다. 공식 [Qt 6.12.0 소스 인덱스](https://download.qt.io/archive/qt/6.12/6.12.0/)와 [PySide6 6.12.0 소스](https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.12.0-src/)의 존재를 확인했다. 모든 내장 서브모듈의 정확한 대응 및 해시 검증까지 마친 것은 아니다.
+고지 생성기는 소스를 실행하거나 디렉터리로 풀지 않고 라이선스 파일·저작권 고지·attribution을 보존한다. upstream 도구·시험·다른 플랫폼 고지도 포함한 보수적 모음이며, 그 모든 구성요소가 실제 Windows 실행물에 들어 있다는 뜻은 아니다. 버전이나 생성 고지 해시가 바뀌면 빌드를 실패시킨다. 실제 payload의 알려진 배포 차단 요소는 별도 검사한다.
+
+DLL은 onedir의 별도 파일로 유지한다. 사용자가 LGPL 라이브러리를 교체하고 개인 수정본을 실행하거나 디버깅 목적으로 역공학하는 것을 금지하지 않는다. 앱이 DLL 자체의 프로젝트 서명을 강제하지 않는다. 이미 준비된 앱 업데이트가 교체본을 바꿀 수 있다는 점과 안전한 교체 순서를 안내했다.
+
+CI는 동일한 소스 아카이브를 내려받아 검사하고 별도 artifact로 보관한다. **새 공개 바이너리를 배포할 때 이 소스 묶음도 릴리스 자산으로 함께 게시하고 다운로드 안내에서 연결한다.** 보존 기간이 짧은 CI artifact만으로 공개 릴리스의 장기 소스 제공을 대체하지 않는다. 이번 작업에서 기존 dev6/dev7 자산은 교체하지 않는다.
+
+Qt의 의무 정리는 [공식 LGPL 안내](https://www.qt.io/development/open-source-lgpl-obligations), [Qt 소스](https://download.qt.io/archive/qt/6.12/6.12.0/), [PySide 소스](https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.12.0-src/)를 따른다. 전체 저작권 분쟁 부재나 법률 검토 완료를 보증하는 문서는 아니다.
 
 설치된 Qt wheel이 `LicenseRef-Qt-Commercial.txt`만 라이선스 파일 메타데이터에 열거하는 경우가 있다. 이것만으로 상용 라이선스를 취득했다고 간주하지 않는다. 공식 PySide 배포 설명은 같은 PyPI wheel의 오픈소스 사용 경로도 명시한다. [PySide6 WebEngine 배포 설명](https://pypi.org/project/PySide6-WebEngine/6.12.0.140/).
 
@@ -57,12 +63,12 @@ QML hook은 현재 Widgets 앱에 필요한 동적 의존성을 수집하되 QML
 - 최종 빌드·오프라인 UI·설치 파일·회귀 검사 결과는 [SignPath 준비 검증](signpath-validation.md)에 별도로 기록한다.
 - 실제 SignPath 서버 검증, 인증서 서명, SmartScreen 변화, 다른 PC 또는 실제 게임 아바타 표시는 이번 검사에서 확인하지 않는다.
 
-## 신청 전에 남은 항목
+## 신청 준비와 재단 심사 항목
 
 - [x] 자체 소스 MIT 선택과 로컬 적용
 - [x] 의존성/네이티브 배포 차단 요소 조사 및 자동 검사 추가
-- [ ] 최종 LGPL/Chromium/네이티브 고지와 대응 소스 제공 검토 완료
-- [ ] 설치 중 개인정보 안내와 업데이트 통신 선택권 요건 확인·구현
+- [x] LGPL/Chromium/네이티브 고지, 대응 소스 9개 해시 검증 및 향후 릴리스 동봉 절차
+- [x] 설치 중 개인정보 전문 안내와 업데이트 통신 선택, 앱 내 변경·고지 열람
 - [ ] Steam/게임 라이브러리 외부 의존을 SignPath 심사자가 수용하는지 확인
 - [ ] GitHub 호스팅 빌드 성공 URL 확보
 - [ ] 라이선스·정책 문서를 원격 저장소와 릴리스 안내에 게시

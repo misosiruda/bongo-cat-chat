@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import sys
 import zipfile
+from uuid import uuid4
+import winreg
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -321,3 +323,41 @@ exit $(if ('{failure}' -eq 'uninstaller') {{ 1 }} else {{ 0 }})
     else:
         assert result.returncode != 0
         assert not list(output.iterdir())
+
+
+def test_installer_update_choice_is_shared_and_preserved(nsis_project, monkeypatch):
+    from bongo_chat import privacy
+    project, bundle, nsis = nsis_project
+    app_id = 'BongoCatChatPrivacyTest-' + uuid4().hex
+    key = 'Software\\' + app_id
+    uninstall_key = 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + app_id
+    source = project / 'packaging/installer.nsi'
+    source.write_text(source.read_text(encoding='utf-8').replace('!define APP_ID "BongoCatChat"', f'!define APP_ID "{app_id}"').replace('!define APP_NAME "Bongo Cat Chat"', f'!define APP_NAME "{app_id}"'), encoding='utf-8')
+    result = run_script(project / 'packaging/build-setup.ps1', '-Bundle', bundle, '-NsisPath', nsis, '-AllowUnsigned')
+    assert result.returncode == 0, result.stdout + result.stderr
+    setup, = (project / 'dist/setup').glob('*Setup.exe')
+    target = project / 'installed'
+    env = dict(os.environ, LOCALAPPDATA=str(project / 'local'), APPDATA=str(project / 'roaming'))
+    monkeypatch.setattr(privacy, 'KEY', key)
+    try:
+        for choice, expected in [('0', False), (None, False), ('1', True)]:
+            # NSIS requires /D last and unquoted even when the path has spaces.
+            args = subprocess.list2cmdline([str(setup), '/S'] + ([] if choice is None else ['/UPDATECHECKS=' + choice])) + ' /D=' + str(target)
+            installed = subprocess.run(args, env=env, capture_output=True, timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
+            assert installed.returncode == 0, installed.stdout + installed.stderr
+            assert privacy.update_checks_allowed() is expected
+        privacy.set_update_checks_allowed(False)
+        # The app choice survives repair, then the same removal engine preserves it.
+        installed = subprocess.run(subprocess.list2cmdline([str(setup), '/S']) + ' /D=' + str(target), env=env, timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
+        assert installed.returncode == 0 and not privacy.update_checks_allowed()
+        removed = run_script(project / 'packaging/uninstall.ps1', '-Destination', target, '-ShortcutName', app_id, env=env)
+        assert removed.returncode == 0, removed.stdout + removed.stderr
+        assert not privacy.update_checks_allowed()
+        assert not (target / 'BongoCatChat.exe').exists()
+    finally:
+        # These unique test-owned keys never share the product's registration.
+        for owned in (key, uninstall_key):
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, owned)
+            except FileNotFoundError:
+                pass

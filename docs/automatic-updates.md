@@ -75,3 +75,9 @@ pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/automatic-updates -Al
 ## 검증
 
 `tests/test_updates.py`는 서명·스키마·해시·릴리스 형식, 실패 다운로드, ZIP 경로·링크, 설치 잠금, 포인터 변경 실패, 후보 검사 실패, 이전 선택 복구와 파일 보존을 검사한다. `tests/test_desktop.py`는 실제 Qt의 준비 표시·확인 버튼·초안 보존을 검사한다. API 대역과 실제 Windows 실행기 증거는 [검증 기록](update-validation.md)에 구분한다.
+
+## 업데이트 통신 선택
+
+이번 서명 준비 버전부터 설치 중 또는 앱 설정의 **GitHub 업데이트 확인 및 다운로드 허용**을 끌 수 있다. 끄면 자동 확인, 게임 호환성 오류 시 확인, 수동 확인을 모두 중지한다. Steam 채팅은 유지된다. 진행 중인 네트워크 요청은 취소를 요청하지만 이미 보낸 연결 정보는 회수하지 못한다. 이미 검증·준비된 업데이트는 다음 실행에 로컬 적용될 수 있다.
+
+선택은 현재 Windows 사용자의 `HKCU\Software\BongoCatChat\AllowUpdateChecks`에 저장하며 재설치·제거 후 유지한다. 무인 설치는 `/S /UPDATECHECKS=0`으로 끌 수 있다. [개인정보 안내](privacy-policy.md)를 따른다.

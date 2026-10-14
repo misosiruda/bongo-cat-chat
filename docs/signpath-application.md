@@ -4,32 +4,30 @@
 
 ## 준비 상태와 순서
 
-소유자는 자체 코드의 **MIT** 사용을 선택했다. [라이선스 검토](license-review.md)의 타사 고지·대응 소스·외부 게임 의존성 항목을 정리하고, 아래 문서와 GitHub 빌드가 실제로 공개된 뒤 신청한다.
+자체 소스 MIT, 타사 고지·대응 소스, 설치 개인정보 안내와 업데이트 통신 선택은 준비했다. 공개 신청 후보는 `build/windows-code-signing` 브랜치다. 아래 정책 URL은 이 브랜치에서 바로 열 수 있으며 main 통합 후에는 `blob/main` 주소로 바꿀 수 있다. 기존 공개 설치 파일을 이 후보로 교체하지 않았다.
 
-1. 현재 다른 개발 작업과 이번 워크트리 변경을 검토·통합하고 새 버전을 정한다. 기존 `v0.1.0.dev6` 자산은 이 작업에서 교체하지 않았다.
-2. [LICENSE](../LICENSE), [Code signing policy](code-signing-policy.md), [Privacy policy](privacy-policy.md)를 공개 저장소에 게시한다. 홈페이지와 릴리스 안내에서 정책을 연결한다.
-3. 설치 중 개인정보 안내·업데이트 통신 선택권과 LGPL/Chromium 고지를 완성한다. [라이선스 검토](license-review.md)에 미완료 항목이 있다.
-4. `.github/workflows/windows-signpath-preflight.yml`을 GitHub 호스팅 Windows 실행기에서 실행하고, 성공 실행 URL·소스 커밋·artifact를 보관한다. 로컬 성공을 GitHub 실행 성공으로 대신하지 않는다.
-5. 신청인의 실제 이름·연락 이메일·MFA 사용 상태를 채우고 아래 영문 초안을 현재 사실에 맞춰 제출한다. 소스 메타데이터의 GitHub noreply 주소를 연락 이메일로 사용하지 않는다.
-6. 승인 후 SignPath 프로젝트·정책·검증용 서명을 구성하고 매 릴리스 사람이 승인한다. 이후 실제 서명 검증을 거친 새 버전을 배포한다.
+1. 아래 후보·정책·CI 근거를 검토한다. 성공 실행과 artifact는 [검증 기록](signpath-validation.md)에 둔다.
+2. 신청인의 실제 이름·연락 이메일·GitHub/SignPath MFA 상태를 채우고 영문 초안을 제출한다. GitHub noreply 주소를 연락 이메일로 추정하지 않는다.
+3. 재단의 신규 프로젝트 인지도 및 외부 Steam/게임 의존 판단을 받는다.
+4. 승인 후 SignPath GitHub App과 프로젝트·artifact·수동 승인 정책을 설정한다. 실제 서명을 검증한 새 버전에 대응 소스 자산을 함께 게시한다.
 
 새 프로젝트의 인지도 요건과 외부 게임 연동 방식에 대한 수용 여부는 재단 판단이다. 라이선스와 서류를 갖췄다고 승인을 보장하지 않는다. [공식 조건](https://signpath.org/terms).
 
 ## 실제 폼에 대응하는 값
 
-아래 `blob/main` 문서 링크는 **이번 변경이 main에 게시된 후** 사용할 예정 주소다. 아직 게시된 링크로 제출하지 않는다.
+아래 문서와 홈페이지는 공개 작업 브랜치의 실제 URL이다. 기존 릴리스는 이전 개발판이며, 심사용 후보는 CI artifact임을 구분한다.
 
 | 신청 필드 | 준비할 값 |
 | --- | --- |
 | Project Name | `Bongo Cat Chat` |
 | Repository URL | `https://github.com/misosiruda/bongo-cat-chat` |
-| Homepage URL | `https://github.com/misosiruda/bongo-cat-chat` |
+| Homepage URL | `https://github.com/misosiruda/bongo-cat-chat/tree/build/windows-code-signing` |
 | Download URL | `https://github.com/misosiruda/bongo-cat-chat/releases` |
-| Privacy Policy URL | `https://github.com/misosiruda/bongo-cat-chat/blob/main/docs/privacy-policy.md` — 게시 후 사용 |
+| Privacy Policy URL | `https://github.com/misosiruda/bongo-cat-chat/blob/build/windows-code-signing/docs/privacy-policy.md` |
 | Wikipedia URL | 비워 둠. 확인된 영문 Wikipedia 문서 없음 |
 | Category | `Gaming` — 실제 선택지에서 확인 |
 | Maintainer Type | 개인 유지보수에 해당하는 선택지. 선택지 문자열은 제출 화면에서 확인 |
-| Build System | GitHub Actions — 실제 preflight 성공 후 선택 |
+| Build System | GitHub Actions — GitHub-hosted Windows 2022, 소스 검증·테스트·설치 파일 빌드 |
 | First Name / Last Name | 신청인이 SignPath 계정에 사용할 실제 이름 입력 |
 | Email | 신청인이 받을 수 있는 이메일 직접 입력 |
 | Company Name | 개인 프로젝트이므로 해당 없으면 비워 둠 |
@@ -66,13 +64,13 @@ Source code, development decisions and validation records are available in the r
 아래는 별도 전달 초안이며 필수 폼 항목이라고 가정하지 않는다. 미완료 사실은 해결·검증한 뒤에만 수정한다.
 
 ```text
-Licensing: The maintainer has selected the MIT license for project-owned code. Dependencies keep their original licenses. We are removing unused proprietary FMOD binaries and unused GPL-only Qt add-ons from the application bundle, and completing the required third-party notices and corresponding-source access before submitting a signing candidate.
+Licensing: The maintainer has selected the MIT license for project-owned code. Dependencies keep their original licenses. The application build excludes unused proprietary FMOD binaries and unused GPL-only Qt add-ons. The review candidate includes third-party notices, Qt/Chromium source notices and a hash-pinned corresponding-source archive list. CI verifies and retains all nine Qt/PySide source archives. Future binary releases from this branch will publish those source archives alongside the binaries. Existing public dev6/dev7 artifacts have not been retroactively rebuilt by this work.
 
 External integration: The application loads a Steam API library from the user's installed game and performs read-only compatibility and state checks. Game binaries and artwork are not redistributed. It has no feature for exploiting vulnerabilities, bypassing security controls, writing to game memory or injecting code. Please confirm whether this externally installed game/Steam dependency is acceptable under the Foundation's component policy; we do not assume that it qualifies for the System Libraries exception.
 
-Privacy: Chat history stays in local SQLite storage. User-initiated messages are sent through Steam lobby chat. Installed copies automatically check GitHub for updates, which exposes ordinary connection metadata to GitHub. Chat content and game identifiers are not sent to GitHub or a developer-operated server. We disclose the update behavior and are preparing the installation-time notice and update-control requirements.
+Privacy: Chat history stays in local SQLite storage. User-initiated messages are sent through Steam lobby chat. Installed copies automatically check GitHub for updates, which exposes ordinary connection metadata to GitHub. Chat content and game identifiers are not sent to GitHub or a developer-operated server. The installer displays the privacy policy and offers a persistent option to disable automatic and manual GitHub update requests; the same option and offline notices are available in app settings. Steam chat remains usable with update checks disabled. The choice survives reinstall and uninstall.
 
-Build/signing: The proposed trusted build system is GitHub Actions on GitHub-hosted Windows runners. Only project-owned executables will be submitted for signing; upstream DLLs and QtWebEngineProcess.exe will not be re-signed with the Foundation certificate. Each release will require manual approval. The SignPath account, policy and end-to-end signing flow are not configured yet.
+Build/signing: The review candidate is built by GitHub Actions on GitHub-hosted Windows runners. Source/notice verification, automated tests and unsigned installer compilation are part of the workflow. Only project-owned executables will be submitted for signing; upstream DLLs and QtWebEngineProcess.exe will not be re-signed with the Foundation certificate. Each release will require manual approval. The SignPath account, policy and end-to-end signing flow are not configured yet. Microsoft runtime libraries are upstream runtime components; they are not MIT-licensed project binaries. Please review their System Libraries treatment together with the external game/Steam dependency.
 ```
 
 ## 승인 후 필요한 서비스 설정
