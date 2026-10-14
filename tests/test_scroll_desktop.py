@@ -80,5 +80,3 @@ def test_history_bridge_rejects_invalid_window_arguments(qt_chat, changes):
     _, controller, _ = qt_chat
     with pytest.raises(ValueError, match='invalid_query'):
         controller.dispatch(dict(action='view', **changes))
-
-
