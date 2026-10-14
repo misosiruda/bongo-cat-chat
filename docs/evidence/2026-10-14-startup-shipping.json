@@ -1,0 +1,144 @@
+{
+  "date": "2026-10-14",
+  "scope": "latest main integration, local review, source and frozen development bundle validation; no release publication",
+  "base_commit": "97a60523c1bc7ff7183d342abbaf3bf3fba059ed",
+  "runtime_commit": "e4e720b05986a69015856e0b35bc739fd6d7a904",
+  "runtime_trees": {
+    "src": "d40413c29ca664b467384613cf3b93c0ee53206b",
+    "tests": "dfedc2fa27ae501973222e90d95dc615985e779f",
+    "tools": "3c0c5ab5ae6cf2e55702b1788a38722c1488deb0",
+    "packaging": "eb03ad950a47072e78ec15dbce7537c5a6903b95"
+  },
+  "environment": {
+    "python": "3.13.3",
+    "system": "Windows",
+    "machine": "AMD64"
+  },
+  "full_suite": {
+    "commit": "1efc32b1aedfad9d563bc7a6f536019b7dfddbbf",
+    "command": ".venv/Scripts/python -m pytest -q",
+    "passed": 285,
+    "failed": 1,
+    "seconds": 113.38,
+    "failure": "tests/test_desktop.py::test_settings_close_stays_reachable_after_scroll_and_reopen[light-size2]",
+    "diagnosis": "Qt visibility predicate timed out; GPU context warnings observed; exact cause not established"
+  },
+  "targeted_rechecks": [
+    {
+      "command": ".venv/Scripts/python -m pytest -q tests/test_desktop.py",
+      "passed": 19,
+      "seconds": 28.04,
+      "scope": "same source after the full-suite timeout"
+    },
+    {
+      "command": ".venv/Scripts/python -m pytest -q tests/test_desktop.py",
+      "passed": 19,
+      "seconds": 28.64,
+      "scope": "final settings copy; GPU warnings remained without test failure"
+    }
+  ],
+  "browser": {
+    "command": ".venv/Scripts/python tests/browser_check.py --browser <local Chrome> --output <ignored evidence directory>",
+    "checks": "passed",
+    "viewports": [
+      "1536x1024",
+      "480x800",
+      "1240x840",
+      "960x540",
+      "400x500"
+    ],
+    "settings_layout_cases": 6,
+    "modal_refresh_samples": 12,
+    "console_errors": 0,
+    "steam_connected": false,
+    "data": "synthetic",
+    "final_settings_copy_included": true
+  },
+  "static_checks": [
+    "git diff --check",
+    "node --check src/bongo_chat/ui/app.js",
+    "python -m compileall -q src tools tests"
+  ],
+  "worker_probe": {
+    "command": ".venv/Scripts/python tools/probe_startup.py --timeout 60 --avatars",
+    "measurement": "one new source worker process on the same running game and PC; excludes Qt startup",
+    "result": {
+      "first_seconds": {
+        "connected": 0.6097,
+        "lobby_verified": 0.7847,
+        "privacy_ready": 0.7847,
+        "hidden_ok": 0.7847,
+        "receive_eligible": 0.9782
+      },
+      "scan_seconds": [],
+      "discoveries": [
+        {
+          "method": "catalog",
+          "seconds": 0.0329
+        }
+      ],
+      "maximum_state_gap_seconds": 0.7784,
+      "avatars_enabled": true,
+      "ready": true,
+      "sends": 0,
+      "decoded_messages": 0,
+      "chat_database_opened": false,
+      "lobby_mutations": 0,
+      "game_writes": 0,
+      "game_still_running": true
+    }
+  },
+  "bundle": {
+    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File packaging/build.ps1 -OutputRoot dist/connection-reviewed",
+    "version": "0.1.0.dev7",
+    "purpose": "local development candidate, not a new published version",
+    "built": true,
+    "hashes": {
+      "ui_sha256": "08707AB99776E8AC041FA8B87ACAFEA1F4B22F3D04CEFF0A0DBBCF048CD30480",
+      "ui_matches": true,
+      "app_sha256": "87FCC3E6D5816E0C986AE6725CED9E84A081448A486D39E5BF07249446951911",
+      "scan_sha256": "B88B26DDDD387963F50EFF5FAE10F11C522F64A47362A0CC8C0F93E302FF1D9F",
+      "scan_matches": true
+    },
+    "offline": {
+      "renderer": true,
+      "console_errors": [],
+      "steam_connected": false,
+      "offline": true,
+      "version": "0.1.0.dev7"
+    },
+    "read_only_connection": {
+      "ready": true,
+      "state": "ready",
+      "notice": "read_only",
+      "read_only": true,
+      "send_enabled": false,
+      "profile_count": 11,
+      "rendered_avatar_count": 11,
+      "avatar_stage": "ready",
+      "avatar_error": "",
+      "stored_messages": 1,
+      "console_error_count": 0,
+      "renderer_read_only": true
+    },
+    "warnings": [
+      "Qt QML assetdownloader plugin missing",
+      "fmod.dll ctypes lookup warning"
+    ],
+    "privacy": "isolated ignored private data directory; received message content and identifiers not inspected or published",
+    "sends": 0,
+    "game_writes": 0,
+    "lobby_mutations": 0
+  },
+  "local_review_fix": "Updated the settings explanation to match independent lobby verification and privacy gates",
+  "not_verified": [
+    "frozen executable launch latency",
+    "actual outgoing messages or peer display",
+    "game restart and cold start performance",
+    "actual lobby/account/hide transitions",
+    "other PC and clean game installation",
+    "long running operation"
+  ],
+  "existing_installation_replaced": false,
+  "release_created": false
+}
