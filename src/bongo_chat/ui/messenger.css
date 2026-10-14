@@ -139,10 +139,15 @@ mark { background: var(--mark); color: var(--mark-ink); border-radius: 3px; padd
 .storage-hint svg { height: 20px; width: 20px; }
 .drawer-backdrop { display: none; }
 dialog { color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 20px; width: min(460px, calc(100vw - 32px)); padding: 26px; box-shadow: 0 16px 80px var(--shadow); max-height: min(760px, 88dvh); overflow: auto; }
-dialog::backdrop { background: #090d1855; backdrop-filter: blur(3px); }
+/* Keep the Windows Qt overlay off the backdrop-blur compositor path. */
+dialog::backdrop { background: #090d1880; }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
 .dialog-heading h2 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -.6px; }
 .dialog-heading form { margin: 0; }
+.settings-dialog { padding: 0; max-height: min(760px, calc(100dvh - 32px)); overflow: hidden; }
+.settings-dialog[open] { display: flex; flex-direction: column; }
+.settings-dialog > .dialog-heading { flex: 0 0 auto; margin: 0; padding: 18px 24px; border-bottom: 1px solid var(--line); }
+.settings-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 22px 24px 24px; }
 .appearance-field { border: 0; padding: 0; margin: 0; }
 .appearance-field legend { font-size: 15px; font-weight: 600; }
 .appearance-field p, .settings-note, .settings-footnote, .participant-description { color: var(--muted); font-size: 13px; line-height: 1.7; }
@@ -242,5 +247,5 @@ dialog::backdrop { background: #090d1855; backdrop-filter: blur(3px); }
 }
 
 /* Desktop runtime: same design tokens, no sample profiles. */
-.update-panel {border-block:1px solid var(--line);padding:14px 0;margin:18px 0}.update-panel h3 {font-size:14px;margin:0}.update-panel h3 span {font-weight:400;font-size:12px;opacity:.7;margin-left:8px}.update-panel .page-button {margin-left:0}.settings-dialog {max-height:90vh;overflow:auto}
+.update-panel {border-block:1px solid var(--line);padding:14px 0;margin:18px 0}.update-panel h3 {font-size:14px;margin:0}.update-panel h3 span {font-weight:400;font-size:12px;opacity:.7;margin-left:8px}.update-panel .page-button {margin-left:0}
 .avatar::before {display:none} .avatar {display:inline-flex;align-items:center;justify-content:center} .avatar img {width:100%;height:100%;object-fit:contain} .avatar svg {width:60%;height:60%;opacity:.55} .page-button {background:var(--active);color:var(--accent-ink);padding:9px 15px;border-radius:8px;margin:8px;font-size:13px} .status-dot.unavailable {background:var(--amber)} .connection-notice {max-height:80px;overflow:auto} .message {scroll-margin:20px} .message:target {outline:2px solid var(--accent)}

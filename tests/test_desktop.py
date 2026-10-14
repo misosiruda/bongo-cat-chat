@@ -216,6 +216,87 @@ def test_update_ready_keeps_editor_and_does_not_restart(qt_chat, monkeypatch):
     assert controller.worker is None and not controller.closed
 
 
+@pytest.mark.parametrize('size', [(1240, 840), (960, 540), (400, 500)])
+@pytest.mark.parametrize('theme', ['light', 'dark'])
+def test_settings_close_stays_reachable_after_scroll_and_reopen(qt_chat, size, theme):
+    app, controller, page = qt_chat
+    page.parent().resize(*size)
+    controller.store.setting('theme', theme)
+    wait_until(app, lambda: js(app, page, 'document.documentElement.dataset.theme') == theme)
+    js(app, page, """
+      document.querySelector('#message-input').value='설정 확인 중 초안';
+      document.querySelector('#message-input').dispatchEvent(new Event('input'));
+      if (innerWidth <= 760) document.querySelector('#mobile-menu').click();
+      document.querySelector('#settings-button').focus();
+      document.querySelector('#settings-button').click();
+      document.querySelector('#delete-room').click();
+      document.querySelector('#confirm-delete').scrollIntoView({block:'end'});
+    """)
+    # Visible means inside the dialog's clipped viewport and able to receive
+    # a pointer click, not merely a DOM element with display != none.
+    visible_controls = """(() => {
+      const dialog=document.querySelector('#settings-dialog');
+      const bounds=dialog.getBoundingClientRect();
+      const visible=selector => {
+        const element=document.querySelector(selector), rect=element.getBoundingClientRect();
+        return rect.top >= bounds.top && rect.bottom <= bounds.bottom
+          && rect.left >= bounds.left && rect.right <= bounds.right
+          && element.contains(document.elementFromPoint(rect.x+rect.width/2, rect.y+rect.height/2));
+      };
+      return bounds.top >= 0 && bounds.bottom <= innerHeight
+        && bounds.left >= 0 && bounds.right <= innerWidth
+        && visible('#settings-title') && visible('[aria-label="설정 닫기"]')
+        && visible('#confirm-delete');
+    })()"""
+    wait_until(app, lambda: js(app, page, visible_controls))
+    js(app, page, """
+      document.querySelector('[aria-label="설정 닫기"]').click();
+      document.querySelector('#settings-button').click();
+    """)
+    assert js(app, page, "document.querySelector('#delete-confirm').hidden") is True
+    assert js(app, page, "document.querySelector('#settings-content').scrollTop") == 0
+    assert js(app, page, "document.activeElement.getAttribute('aria-label')") == '설정 닫기'
+    js(app, page, "document.querySelector('[aria-label=\"설정 닫기\"]').click()")
+    assert js(app, page, "document.querySelector('#settings-dialog').open") is False
+    assert js(app, page, "document.activeElement.id") == 'settings-button'
+    assert js(app, page, "document.querySelector('#message-input').value") == '설정 확인 중 초안'
+    assert controller.store.db.execute('SELECT count(*) FROM messages').fetchone()[0] == 1
+    assert controller.worker is None
+
+
+@pytest.mark.parametrize('dialog_id,opener', [
+    ('settings-dialog', 'settings-button'),
+    ('participants-dialog', 'participants-button'),
+])
+def test_modal_stays_open_during_live_refresh(qt_chat, dialog_id, opener):
+    app, controller, page = qt_chat
+    js(app, page, f"document.querySelector('#{opener}').click()")
+    js(app, page, f"""
+      window.modalOpenChanges=0;
+      new MutationObserver(records=>window.modalOpenChanges+=records.length)
+        .observe(document.querySelector('#{dialog_id}'),{{attributes:true,attributeFilter:['open']}});
+    """)
+    for index in range(6):
+        controller.service.update(state(profiles={
+            'fixture-self': {'name': '테스트 계정'},
+            'fixture-peer': {'name': f'갱신 고양이 {index}'},
+        }))
+        received(controller.service, f'모달 뒤에서 수신한 합성 발언 {index}')
+        controller.updates.report('checking' if index % 2 else 'ready', '0.2.0')
+        wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == index+2)
+        assert js(app, page, f"""(() => {{
+          const dialog=document.querySelector('#{dialog_id}');
+          const heading=dialog.querySelector('h2'), rect=heading.getBoundingClientRect();
+          return dialog.open && dialog.matches(':modal') && window.modalOpenChanges===0
+            && dialog.contains(document.activeElement)
+            && heading.contains(document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2));
+        }})()""") is True
+    # Native open state alone cannot detect a GPU-composited overlay disappearing.
+    # Also keep the known problematic Windows Qt blur path out of both modals.
+    assert js(app, page, f"getComputedStyle(document.querySelector('#{dialog_id}'),'::backdrop').backdropFilter") == 'none'
+    assert controller.worker is None
+
+
 def test_game_change_checks_updates_once_and_keeps_privacy_gate(qt_chat, monkeypatch):
     app, controller, page = qt_chat
     requests = []
