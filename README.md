@@ -55,6 +55,11 @@ Python 송신은 상대방에게 전달되지만, 게임 자체의 로컬 말풍
 | 문서 | 내용 |
 | --- | --- |
 | [Windows 개발판](docs/windows-app.md) | 실행, 실제 구현, 연결·개인정보 정책, 개발 패키지 |
+| [Windows 코드 서명](docs/windows-code-signing.md) | 인증서 준비, 앱·설치·제거 EXE 서명, 미서명 빌드 구분과 남은 인수 |
+| [SignPath 신청 준비](docs/signpath-application.md) | 실제 신청 필드와 영문 초안, 무료 서명 심사·CI 연결 준비 |
+| [라이선스 검토](docs/license-review.md) | MIT 선택, FMOD·Qt 의존성 검사와 남은 고지·소스 제공 검토 |
+| [Code signing policy](docs/code-signing-policy.md) | 서명 역할·대상·승인 정책. SignPath 승인 전 준비 상태 |
+| [Privacy policy](docs/privacy-policy.md) | 로컬 저장·Steam 채팅·GitHub 자동 업데이트 통신 |
 | [설치 안내](docs/installation.md) | 일반 이용자의 설치·시작·업데이트·제거 |
 | [게임 업데이트 대응](docs/game-update-compatibility.md) | 미지원 감지·자동 앱 업데이트와 새 빌드의 확인 범위 |
 | [제품 검증 기록](docs/product-validation.md) | 오프라인 검사·실제 송수신·사용자 확인·패키징 결과의 구분 |
@@ -89,4 +94,4 @@ Python 송신은 상대방에게 전달되지만, 게임 자체의 로컬 말풍
 4. 실제 Windows IME·게임 고양이 화면 대조·개발 도구 없는 PC의 설치와 실행·삭제를 검증한다.
 5. 개발자에게 설명할 자료와 배포 조건을 정리한 뒤 일반 배포 여부를 결정한다.
 
-개발 일정과 소스 라이선스는 아직 결정하지 않았다. 저장소와 첫 개발판 릴리스는 공개됐다. 일반 배포 조건 검토·게임 개발사의 승인·순정 환경 인수를 완료한 것으로 표현하지 않는다.
+자체 소스와 문서는 [MIT License](LICENSE)를 사용한다. 외부 의존성·게임 이름·이미지의 권리는 각 권리자에게 남는다. 첫 공개 개발판은 [v0.1.0.dev6](https://github.com/misosiruda/bongo-cat-chat/releases/tag/v0.1.0.dev6)이며, 이번 라이선스·서명 준비 변경을 포함한 새 릴리스는 아직 게시하지 않았다. 일반 배포 조건과 의존성 고지 검토는 [별도 기록](docs/license-review.md)을 따른다.

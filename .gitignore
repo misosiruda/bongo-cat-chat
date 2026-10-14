@@ -23,6 +23,9 @@ logs/
 *.dpapi
 *.key
 *.pem
+*.pfx
+*.p12
+signing-config.local.json
 !.env.example
 .venv/
 venv/

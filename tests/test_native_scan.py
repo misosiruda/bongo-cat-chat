@@ -6,6 +6,7 @@ from pathlib import Path
 import random
 import struct
 import subprocess
+import sys
 
 import pytest
 
@@ -18,7 +19,7 @@ def matcher():
     def run(args, payload=None):
         return subprocess.run([str(value) for value in args], input=payload, capture_output=True,
                               timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
-    prepared = run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ROOT / 'tools/prepare-compatibility.ps1'])
+    prepared = run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ROOT / 'tools/prepare-compatibility.ps1', '-Python', sys.executable])
     assert prepared.returncode == 0, prepared.stdout
     directory = ROOT / 'artifacts/compatibility'
     executable = directory / 'MemoryScanFixture.exe'

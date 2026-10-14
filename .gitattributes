@@ -1,0 +1,5 @@
+# Upstream licence evidence is hashed byte-for-byte by the packaging gate.
+packaging/licenses/*.txt -text
+packaging/licenses/*.html -text
+packaging/licenses/QT-NOTICES.txt linguist-generated=true
+packaging/licenses/CHROMIUM-LICENSES.html linguist-generated=true

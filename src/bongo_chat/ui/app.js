@@ -30,6 +30,7 @@
   };
   const statuses = {pending: '전송 중', accepted: '전송됨 · Steam 접수', failed: '전송 실패', unknown: '전송 결과 확인 불가 · 자동 재전송 안 함'};
   const updateStatuses = {idle:'업데이트를 자동으로 확인합니다.', checking:'새 버전을 확인하고 있어요.',
+    disabled:'GitHub 업데이트 통신을 껐습니다. Steam 채팅은 계속 사용할 수 있습니다.',
     downloading:'새 버전을 내려받고 있어요. 채팅을 계속 이용할 수 있습니다.', ready:'업데이트 준비 완료 · 다음 실행 때 적용합니다.',
     current:'최신 버전을 사용하고 있어요.', unavailable:'아직 받을 수 있는 정식 릴리스가 없습니다.',
     applied:'새 버전이 적용됐어요.', rolled_back:'새 버전이 시작되지 않아 이전 버전으로 돌아왔습니다.',
@@ -89,7 +90,9 @@
     const text = ({connection_changed:'연결 대상이 변경되어 전송하지 않았어요. 초안은 원래 방에 남겨 두었습니다.',
       development_limit_50:'개발판에서는 50 UTF-16 단위 이내로 보내 주세요.',
       storage_failed_before_send:'기록을 저장하지 못해 전송하지 않았어요.',
-      storage_failed:'저장에 실패했어요. 작성한 내용은 이 창에서 확인해 주세요.'})[error.message] || '요청을 완료하지 못했어요. 연결·저장 상태를 확인해 주세요.';
+      storage_failed:'저장에 실패했어요. 작성한 내용은 이 창에서 확인해 주세요.',
+      legal_unavailable:'안내 파일을 열지 못했어요. 앱 파일을 복구하거나 다시 설치해 주세요.',
+      update_permission_failed:'업데이트 통신 설정을 저장하지 못했어요. 기존 선택을 유지합니다.'})[error.message] || '요청을 완료하지 못했어요. 연결·저장 상태를 확인해 주세요.';
     toast(text);
   }
   function updateSend() {
@@ -262,7 +265,8 @@
     const update = data.update || {state:'development',current:''};
     $('app-version').textContent = update.current ? `v${update.current}` : '';
     $('update-status').textContent = updateStatuses[update.state] || updateStatuses.verification_failed;
-    $('check-updates').disabled = ['checking','downloading','offline','development'].includes(update.state);
+    $('check-updates').disabled = ['checking','downloading','offline','development','disabled'].includes(update.state);
+    $('allow-update-checks').checked = update.allowed !== false;
     theme = data.theme; collapsed = data.collapsed; applyTheme(); applySidebar();
     $('live-rooms').replaceChildren(); $('archived-rooms').replaceChildren();
     for (const room of data.rooms) (room.lobby === data.context.lobby ? $('live-rooms') : $('archived-rooms')).append(roomButton(room,room.lobby === data.context.lobby));
@@ -276,6 +280,7 @@
     if (data.notice === 'unsupported_game_build') {
       const build = /^[0-9]{1,12}$/.test(data.game_build || '') ? `게임 빌드 ${data.game_build}` : '현재 게임 파일';
       const progress = ({checking:'앱 업데이트를 확인하고 있어요.', downloading:'새 앱을 내려받고 있어요.',
+        disabled:'GitHub 통신이 꺼져 있습니다. 앱 설정에서 업데이트 확인을 켤 수 있어요.',
         ready:'새 앱이 준비됐어요. 앱을 다시 실행하면 적용합니다.',
         offline:'오프라인 상태입니다.', development:'설치판에서 자동 업데이트를 사용할 수 있어요.',
         network_error:'업데이트 서버에 연결하지 못했어요. 자동으로 다시 확인합니다.',
@@ -376,6 +381,8 @@
     $('participants-button').addEventListener('click',()=>$('participants-dialog').showModal());
     $('refresh-button').addEventListener('click',()=>rpc('refresh').then(()=>refresh()).catch(showError));
     $('check-updates').addEventListener('click',()=>rpc('check_updates').then(()=>refresh(true)).catch(showError));
+    $('allow-update-checks').addEventListener('change',event=>rpc('update_permission',{allowed:event.target.checked}).then(()=>refresh(true)).catch(error=>{showError(error);refresh(true);}));
+    document.querySelectorAll('[data-legal]').forEach(button=>button.addEventListener('click',()=>rpc('legal',{document:button.dataset.legal}).catch(showError)));
     document.querySelectorAll('[name=appearance]').forEach(el=>el.addEventListener('change',()=>{theme=el.value;applyTheme();rpc('setting',{key:'theme',value:theme}).catch(showError);}));
     media.addEventListener('change',applyTheme); narrow.addEventListener('change',applySidebar);
     ['delete-room','delete-all'].forEach(id=>$(id).addEventListener('click',()=>{deleteScope={account,lobby:id==='delete-room'?selected:null};$('delete-confirm').hidden=false;}));

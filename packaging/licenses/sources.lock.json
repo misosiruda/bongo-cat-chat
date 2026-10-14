@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "qt": "6.12.0",
+  "webengine": "6.140.0",
+  "chromium": "140.0.7339.225",
+  "archives": [
+    {
+      "url": "https://download.qt.io/archive/qt/6.12/6.12.0/submodules/qtbase-everywhere-src-6.12.0.tar.xz",
+      "file": "qtbase-everywhere-src-6.12.0.tar.xz",
+      "sha256": "a951bd163c7b80fc6b8c88d7668fb56abf91c152373e13c10666763238131307",
+      "bytes": 51220268
+    },
+    {
+      "url": "https://download.qt.io/archive/qt/6.12/6.12.0/submodules/qtdeclarative-everywhere-src-6.12.0.tar.xz",
+      "file": "qtdeclarative-everywhere-src-6.12.0.tar.xz",
+      "sha256": "311f3a2603e1973bb59baef9dfa740a376de713157d4782ee043681e889c9260",
+      "bytes": 39221652
+    },
+    {
+      "url": "https://download.qt.io/archive/qt/6.12/6.12.0/submodules/qtimageformats-everywhere-src-6.12.0.tar.xz",
+      "file": "qtimageformats-everywhere-src-6.12.0.tar.xz",
+      "sha256": "0943132b5db8de6b6a7f1d162682173e8763c7ed94e80fd39113292845f67762",
+      "bytes": 1848620
+    },
+    {
+      "url": "https://download.qt.io/archive/qt/6.12/6.12.0/submodules/qtsvg-everywhere-src-6.12.0.tar.xz",
+      "file": "qtsvg-everywhere-src-6.12.0.tar.xz",
+      "sha256": "e4ab39534ec97987b1b9b60ef7f4d3253d5912a69f8c713a01753174a4029331",
+      "bytes": 2341876
+    },
+    {
+      "url": "https://download.qt.io/archive/qt/6.12/6.12.0/submodules/qtserialport-everywhere-src-6.12.0.tar.xz",
+      "file": "qtserialport-everywhere-src-6.12.0.tar.xz",
+      "sha256": "ba8886a54eee466e57c9fa1341255cc09c462c84baab3ee7b19d67cdbcbd71c3",
+      "bytes": 265576
+    },
+    {
+      "url": "https://download.qt.io/archive/qt/6.12/6.12.0/submodules/qtpositioning-everywhere-src-6.12.0.tar.xz",
+      "file": "qtpositioning-everywhere-src-6.12.0.tar.xz",
+      "sha256": "b060d410fac7413b05a0e7938bbf3325f7ad08d7df14af3956270f0696e76763",
+      "bytes": 662600
+    },
+    {
+      "url": "https://download.qt.io/archive/qt/6.12/6.12.0/submodules/qtwebchannel-everywhere-src-6.12.0.tar.xz",
+      "file": "qtwebchannel-everywhere-src-6.12.0.tar.xz",
+      "sha256": "9afdfb64855b33c1cc16a4fdce69a556876f0d5b9df79d88de7306ffa2dca327",
+      "bytes": 194940
+    },
+    {
+      "url": "https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.12.0-src/pyside-setup-everywhere-src-6.12.0.tar.xz",
+      "file": "pyside-setup-everywhere-src-6.12.0.tar.xz",
+      "sha256": "099c1a597cf33c1b000e11cf68a0b82d216fb802bf81726efc720394f10c7751",
+      "bytes": 18211772
+    },
+    {
+      "url": "https://download.qt.io/online/qtsdkrepository/all_os/extensions/qtwebengine/6120/61400/src_doc_examples/extensions.qtwebengine.6120.61400.src/6.12.0-0-202609281005qtwebengine-everywhere-src-6.140.0.tar.xz",
+      "file": "6.12.0-0-202609281005qtwebengine-everywhere-src-6.140.0.tar.xz",
+      "sha256": "141e9b230e5ec9ee65a7357ca4b87d702e4badc515289eeade1047a788bb96e7",
+      "bytes": 584649116
+    }
+  ],
+  "notices": {
+    "QT-NOTICES.txt": "4c201cda17572aee79aaaab8394fdb3b983363ae73191db72411653ebc43e99e",
+    "CHROMIUM-LICENSES.html": "7c3c1cbe7abce0b60826c1649f9e87825eef7ab616ea393e827f2ce84fe00cd2"
+  }
+}

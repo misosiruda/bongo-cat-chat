@@ -10,7 +10,7 @@
 - SQLite: 계정·로비·연결 구간, 앱 UUID, 수신 순번, UTC 수신 시각, 송신 상태를 보관한다. 처음에는 최신 100개를 조회하고, 위로 스크롤하면 이전 100개를 이어 붙인다. 화면의 저장 기록은 최대 1,000개 범위로 다시 조회하며 본문 부분 문자열 검색을 제공한다. 별도 검색 인덱스의 복제 원문은 만들지 않는다.
 - PyInstaller `onedir` 앱과 `onefile` 실행기: Python·Qt를 포함하며 버전 폴더를 전환해 [자동 업데이트](automatic-updates.md)를 적용한다. 업데이트 manifest 서명은 구현했지만 Windows Authenticode 서명과 공개 배포용 설치 마법사는 포함하지 않는다.
 
-이미지 추출용 UnityPy는 texture 모듈을 열 때 오디오 변환 모듈도 import한다. 그래서 개발 묶음에는 PyPI의 `fmod_toolkit`에 포함된 네이티브 의존성도 들어간다. 게임 설치에서 복사한 DLL이 아니며 앱은 오디오 기능을 제공하거나 실행하지 않는다. 이 간접 의존성까지 포함한 일반 배포 이용 조건·고지는 별도 확인 대상이다. 패키징은 `archspec` CPU 데이터도 포함하며 다른 도구의 DLL이 섞이지 않도록 빌드 PATH를 제한한다.
+이미지 추출용 UnityPy는 texture 모듈을 열 때 오디오 변환 모듈도 import한다. 공개된 `0.1.0.dev6` 묶음은 그 간접 의존성인 FMOD를 포함했다. 이번 SignPath 준비 빌드는 오디오 변환 진입점을 명시적으로 비활성화하고 FMOD와 불필요한 Qt QML/GPL 플러그인을 제외한다. 사용자가 설치한 게임 그림은 계속 로컬에서 읽으며 오디오 기능을 제공하지 않는다. `archspec` CPU 데이터와 Widgets/WebEngine 의존성은 유지하고 다른 도구의 DLL이 섞이지 않도록 빌드 PATH를 제한한다. [라이선스 검토](license-review.md)와 [준비 검증](signpath-validation.md)을 참고한다.
 
 버전은 `pyproject.toml`, 전체 개발 환경 의존성은 `requirements-lock.txt`에 고정했다. 라이선스 선택·일반 배포 허가를 의미하지 않는다.
 
@@ -37,6 +37,8 @@ Steam 초기화·게임 메모리 접근 없이 창만 실행하려면:
 ```powershell
 .venv/Scripts/python -m bongo_chat --offline
 ```
+
+설정의 개인정보·Chromium·대응 소스 안내는 소스 실행에서도 저장소 문서를 연다. 소스 환경의 오픈소스 라이선스 버튼은 자체 MIT와 의존성 검토를 표시하며, 설치본은 빌드 시 수집한 전체 고지를 표시한다. 고지 파일 읽기나 업데이트 통신 선택 저장에 실패해도 이를 채팅 DB 장애로 처리하지 않으며 기존 통신 선택을 유지한다.
 
 실행 중인 `BongoCat.exe`의 경로에서 설치 파일을 찾는다. `0.1.0.dev6`은 `feature-contract.json`의 채팅·숨김·로비·프로필 계약을 확인한다. `Assembly-CSharp.dll`·`Heathen.Steamworks.dll`의 전체 해시나 공개 빌드 번호가 달라도 사용하는 구조·코드가 같으면 연결한다. Auto Chest Opener에 의존하지 않는다. Mono 메모리 구조와 Steam 네이티브 호출은 아직 확인한 ABI로 제한한다. 관련 계약이 달라지면 설치판의 앱 업데이트를 확인한다. [게임 업데이트 대응](game-update-compatibility.md)에 판정 범위·검사기·실제 검증과 남은 인수를 기록한다.
 
@@ -114,11 +116,11 @@ UTF-8 JSON `Channel=3`, 문자열 `Message`만 처리한다. 반환 길이·발�
 node --check src/bongo_chat/ui/app.js
 .venv/Scripts/python tools/probe_readonly.py --seconds 15
 .venv/Scripts/python tools/probe_startup.py --avatars
-pwsh -NoProfile -File packaging/build.ps1
+pwsh -NoProfile -File packaging/build.ps1 -AllowUnsigned
 dist/BongoCatChat/BongoCatChat.exe --offline
 ```
 
-출력 폴더의 앱이 실행 중이면 빌드를 시작하지 않는다. 창을 유지한 채 새 묶음을 만들려면 `pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/reviewed`를 사용한다. 이 경우 결과는 `dist/reviewed/BongoCatChat`이며 출력 경로는 저장소의 `dist` 안으로 제한한다.
+출력 폴더의 앱이 실행 중이면 빌드를 시작하지 않는다. 창을 유지한 채 새 개발 묶음을 만들려면 `pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/reviewed -AllowUnsigned`를 사용한다. 이 경우 결과는 `dist/reviewed/BongoCatChat`이며 출력 경로는 저장소의 `dist` 안으로 제한한다. 배포용은 `-SigningConfig`로 [Windows 코드 서명](windows-code-signing.md)을 적용한다. 서명 설정과 개발용 미서명 허용을 모두 생략하면 빌드를 중단한다.
 
 `probe_readonly.py`는 실제 설치를 읽지만 송신·로비 변경·재시작·채팅 DB 저장은 하지 않는다. 결과에는 건수와 상태만 출력한다. 게임 재시작 호환성은 사용자가 재시작한 뒤 새 프로세스에서 다시 실행해 비교해야 한다.
 
@@ -147,8 +149,8 @@ dist/BongoCatChat/BongoCatChat.exe --offline
 개발자는 먼저 `packaging/build.ps1`로 전체 묶음을 만들고 NSIS 3.13으로 설치 파일을 빌드한다. [공식 다운로드](https://nsis.sourceforge.io/Download)의 ZIP을 개발 도구 폴더에 풀어 사용한다. NSIS를 제품 이용자에게 따로 설치하게 하지 않는다.
 
 ```powershell
-./packaging/build.ps1 -OutputRoot dist/windows-setup
-./packaging/build-setup.ps1 -Bundle dist/windows-setup/BongoCatChat -NsisPath <NSIS-3.13-폴더>
+./packaging/build.ps1 -OutputRoot dist/windows-setup -AllowUnsigned
+./packaging/build-setup.ps1 -Bundle dist/windows-setup/BongoCatChat -NsisPath <NSIS-3.13-폴더> -AllowUnsigned
 ```
 
 결과는 `dist/setup/BongoCatChat-<버전>-windows-x64-Setup.exe`와 SHA-256 파일이다. 설치 프로그램 안에 전체 Qt·Python 묶음을 넣으며 런타임을 인터넷에서 받지 않는다. 앱 묶음의 `BongoCatChat.exe`만 따로 복사하는 것은 지원하지 않는다. 빌드 단계는 게임 DLL·Unity assets가 섞이면 실패한다. `-TestIdentity`는 별도 설치 이름·등록 키를 사용하는 검사용이며 이용자에게 배포하지 않는다.

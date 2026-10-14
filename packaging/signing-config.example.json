@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "signToolPath": "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\<SDK-version>\\x64\\signtool.exe",
+  "certificateThumbprint": "<40-character-thumbprint-of-your-code-signing-certificate>",
+  "certificateStoreLocation": "CurrentUser",
+  "timestampUrl": "http://timestamp.digicert.com"
+}

@@ -51,6 +51,8 @@ BongoCatChat/
 
 ## 릴리스 작성자 절차
 
+Windows 게시자 인증은 아래 Ed25519 서명과 별개다. 배포용 묶음은 먼저 [Windows 코드 서명](windows-code-signing.md)을 적용하고 `pack --signing-config <설정-파일>`로 다시 검사한다. 아래 예시는 인증서 없는 로컬 개발 검사이며 `--allow-unsigned`를 명시한다. Windows 경고 제거 검증으로 사용하지 않는다.
+
 개인키는 Git·앱·릴리스에 포함하지 않는다. 개발 PC의 키는 Git 제외 경로 `research/private/update-signing-key.dpapi`에 Windows 사용자 범위 [DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata)로 암호화했다. 공개키만 `src/bongo_chat/update-config.json`에 고정한다. 다른 계정·PC에서의 배포, 키 백업·복구는 별도 준비가 필요하다. 임의로 키를 교체하면 기존 이용자가 새 서명을 검증할 수 없다.
 
 아래 초기화는 처음 한 번만 실행한다. 기존 개인키나 공개키가 있으면 덮어쓰지 않는다.
@@ -62,8 +64,8 @@ BongoCatChat/
 `src/bongo_chat/__init__.py`와 `pyproject.toml`의 버전을 맞춘다. 안정판은 `0.1.0`, 개발판은 `.devN` 형식을 사용한다. 첫 공개판은 검증된 `0.1.0.dev6`을 유지하고 기존 업데이트가 받을 수 있는 일반 GitHub Release(`draft=false`, `prerelease=false`, 최신 릴리스)로 게시했다. GitHub의 배포 채널 선택이 안정판 인수 완료를 뜻하지 않으며 제목·설명에 개발판을 명시한다.
 
 ```powershell
-pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/automatic-updates
-.venv/Scripts/python tools/release.py pack --bundle dist/automatic-updates/BongoCatChat --private-key research/private/update-signing-key.dpapi --output dist/release-assets
+pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/automatic-updates -AllowUnsigned
+.venv/Scripts/python tools/release.py pack --bundle dist/automatic-updates/BongoCatChat --private-key research/private/update-signing-key.dpapi --output dist/release-assets --allow-unsigned
 ```
 
 생성 자산은 `bongo-cat-chat-windows-x64.zip`, `update-manifest.json`, `update-manifest.sig`다. 도구는 로컬 파일만 만들며 GitHub에 게시하지 않는다. 첫 설치에는 실행기·버전 폴더·설치 스크립트를 갖춘 전체 설치 묶음이 필요하다. 위 ZIP은 기존 실행기가 받는 업데이트 페이로드다.
@@ -73,3 +75,9 @@ pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/automatic-updates
 ## 검증
 
 `tests/test_updates.py`는 서명·스키마·해시·릴리스 형식, 실패 다운로드, ZIP 경로·링크, 설치 잠금, 포인터 변경 실패, 후보 검사 실패, 이전 선택 복구와 파일 보존을 검사한다. `tests/test_desktop.py`는 실제 Qt의 준비 표시·확인 버튼·초안 보존을 검사한다. API 대역과 실제 Windows 실행기 증거는 [검증 기록](update-validation.md)에 구분한다.
+
+## 업데이트 통신 선택
+
+이번 서명 준비 버전부터 설치 중 또는 앱 설정의 **GitHub 업데이트 확인 및 다운로드 허용**을 끌 수 있다. 끄면 자동 확인, 게임 호환성 오류 시 확인, 수동 확인을 모두 중지한다. Steam 채팅은 유지된다. 진행 중인 네트워크 요청은 취소를 요청하지만 이미 보낸 연결 정보는 회수하지 못한다. 이미 검증·준비된 업데이트는 다음 실행에 로컬 적용될 수 있다.
+
+선택은 현재 Windows 사용자의 `HKCU\Software\BongoCatChat\AllowUpdateChecks`에 저장하며 재설치·제거 후 유지한다. 무인 설치는 `/S /UPDATECHECKS=0`으로 끌 수 있다. [개인정보 안내](privacy-policy.md)를 따른다.
