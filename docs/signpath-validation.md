@@ -4,6 +4,10 @@
 
 ## 재현할 CI와 결과 위치
 
+**성공 확인:** [GitHub Actions #38530843368](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38530843368), 2026-10-14. PR head `61e266e51ede2bd052a41eca61074705a5b654ba`, 실제 테스트 merge SHA `f5f109104a27ad04c6799e56da99cb45e9bc9036`. `344 passed in 98.90s`; 소스 9개 검사, 앱/설치 파일 빌드, 고지·제품 메타데이터·frozen 오프라인 화면 검사와 artifact 업로드까지 모두 성공했다. 유니코드 바로가기 수정 후 로컬 설치·제거·서명 검사도 `50 passed in 90.06s`다.
+
+해당 실행의 artifact ID는 앱·설치 파일 `11878381827`, 대응 소스 `11877648037`, 테스트 결과 `11877503484`다. GitHub가 기록한 앱 artifact ZIP SHA-256은 `33d86b9e1eec8fbb1fc8834120d6d60b2f1fe66fb8c8494082aedaa91c33bb55`이며 Setup.exe 자체 해시와 구분한다. 보존 기간 이후에는 이 공개 소스와 workflow에서 다시 빌드해야 한다.
+
 [PR #16](https://github.com/misosiruda/bongo-cat-chat/pull/16)의 Checks와 [Windows SignPath preflight](https://github.com/misosiruda/bongo-cat-chat/actions/workflows/windows-signpath-preflight.yml)에서 실행 SHA, 각 단계 결과, artifact를 함께 확인한다. 최종 성공 실행 URL과 결과 수치는 PR 본문의 검증 항목에 기록한다. 아래는 수행할 검사와 결과물 설명이며 실행 중·실패·취소된 작업을 성공으로 간주하지 않는다.
 
 GitHub-hosted Windows 2022 / CPython 3.13.3에서 다음을 순서대로 실행한다.

@@ -6,7 +6,7 @@
 
 자체 소스 MIT, 타사 고지·대응 소스, 설치 개인정보 안내와 업데이트 통신 선택은 준비했다. 공개 신청 후보는 `build/windows-code-signing` 브랜치다. 아래 정책 URL은 이 브랜치에서 바로 열 수 있으며 main 통합 후에는 `blob/main` 주소로 바꿀 수 있다. 기존 공개 설치 파일을 이 후보로 교체하지 않았다.
 
-1. 아래 후보·정책·CI 근거를 검토한다. 성공 실행과 artifact는 [검증 기록](signpath-validation.md)에 둔다.
+1. 아래 후보·정책·CI 근거를 검토한다. [검증된 Windows CI](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38530843368)는 테스트 344개, 앱·설치 파일, 오프라인 실행과 대응 소스 검사를 통과했다. 실행 SHA와 artifact는 [검증 기록](signpath-validation.md)에 둔다.
 2. 신청인의 실제 이름·연락 이메일·GitHub/SignPath MFA 상태를 채우고 영문 초안을 제출한다. GitHub noreply 주소를 연락 이메일로 추정하지 않는다.
 3. 재단의 신규 프로젝트 인지도 및 외부 Steam/게임 의존 판단을 받는다.
 4. 승인 후 SignPath GitHub App과 프로젝트·artifact·수동 승인 정책을 설정한다. 실제 서명을 검증한 새 버전에 대응 소스 자산을 함께 게시한다.
@@ -22,7 +22,7 @@
 | Project Name | `Bongo Cat Chat` |
 | Repository URL | `https://github.com/misosiruda/bongo-cat-chat` |
 | Homepage URL | `https://github.com/misosiruda/bongo-cat-chat/tree/build/windows-code-signing` |
-| Download URL | `https://github.com/misosiruda/bongo-cat-chat/releases` |
+| Download URL | `https://github.com/misosiruda/bongo-cat-chat/blob/build/windows-code-signing/docs/installation.md` — 릴리스 다운로드와 Code signing policy를 연결한 안내 |
 | Privacy Policy URL | `https://github.com/misosiruda/bongo-cat-chat/blob/build/windows-code-signing/docs/privacy-policy.md` |
 | Wikipedia URL | 비워 둠. 확인된 영문 Wikipedia 문서 없음 |
 | Category | `Gaming` — 실제 선택지에서 확인 |
@@ -50,13 +50,16 @@ Bongo Cat Chat is an independently maintained Windows companion application for 
 
 ## Reputation
 
-아래는 지금 사용할 수 있는 사실만 담은 초안이다. 제출 시점에 검증된 CI 실행 URL을 추가한다. 다운로드 수는 반복 다운로드를 포함하므로 이용자 수로 바꾸지 않는다.
+아래는 지금 사용할 수 있는 사실만 담은 초안이다. 다운로드 수는 반복 다운로드를 포함하므로 이용자 수로 바꾸지 않는다.
 
 ```text
 This is a new project, and I do not claim broad adoption or an established reputation. The public repository was created on October 12, 2026. The first public Windows development release, v0.1.0.dev6, was published on October 14, 2026:
 https://github.com/misosiruda/bongo-cat-chat/releases/tag/v0.1.0.dev6
 
 Source code, development decisions and validation records are available in the repository. Existing validation distinguishes offline tests, local packaging checks and limited real-game checks; clean-install and multi-PC acceptance remain incomplete. I understand that the Foundation may require more publicly verifiable history before accepting an executable application.
+
+The unsigned review candidate passed 344 automated tests, corresponding-source verification, an actual frozen offline application check and installer compilation on GitHub-hosted Windows:
+https://github.com/misosiruda/bongo-cat-chat/actions/runs/38530843368
 ```
 
 ## 심사자가 추가 설명을 요청할 때

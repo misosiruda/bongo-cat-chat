@@ -70,7 +70,7 @@ QML hook은 현재 Widgets 앱에 필요한 동적 의존성을 수집하되 QML
 - [x] LGPL/Chromium/네이티브 고지, 대응 소스 9개 해시 검증 및 향후 릴리스 동봉 절차
 - [x] 설치 중 개인정보 전문 안내와 업데이트 통신 선택, 앱 내 변경·고지 열람
 - [ ] Steam/게임 라이브러리 외부 의존을 SignPath 심사자가 수용하는지 확인
-- GitHub 호스팅 빌드의 성공 URL·실행 SHA·artifact: [PR #16 검증 결과](https://github.com/misosiruda/bongo-cat-chat/pull/16)와 [검증 기록](signpath-validation.md)에서 확인. 대기·실패 실행은 성공 근거로 사용하지 않음
+- [x] [GitHub 호스팅 빌드 성공](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38530843368): 344개 테스트, 앱·설치 파일, frozen 오프라인 실행, 대응 소스 검증 및 artifact 업로드. SHA와 범위는 [검증 기록](signpath-validation.md) 참조
 - [x] 라이선스·정책 문서를 공개 후보 브랜치에 게시하고 신청 초안에서 연결
 - [ ] 승인 후 새 공개 릴리스에 정책 링크·대응 소스·서명 결과 게시
 - [ ] 계정·MFA·서명 담당자 설정 및 신청 제출
