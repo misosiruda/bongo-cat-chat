@@ -351,7 +351,7 @@ class UpdateManager:
             self.request()
 
     def request(self):
-        if not self.enabled or self.thread and self.thread.is_alive():
+        if not self.enabled or self.cancelled.is_set() or self.thread and self.thread.is_alive():
             return
         self.next_check = time.monotonic() + CHECK_INTERVAL
         self.report('checking')

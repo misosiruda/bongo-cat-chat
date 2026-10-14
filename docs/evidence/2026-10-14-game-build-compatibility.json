@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-14",
+  "app_version": "0.1.0.dev5",
+  "game_build": "25902419",
+  "environment": "Same Windows development PC; user confirmed Auto Chest Opener reapplied after game update; not a clean game installation",
+  "static_analysis": {
+    "changed_components": ["Assembly-CSharp.dll", "Heathen.Steamworks.dll"],
+    "unchanged_components": ["steam_api64.dll", "mono-2.0-bdwgc.dll"],
+    "hidden_cache_and_visibility_il_equal_to_previous_observation": true,
+    "name_rule_equal_to_previous_observation": true,
+    "chat_channel": 3,
+    "chat_encoding": "UTF-8 JSON with Channel and Message",
+    "new_cosmetic_slot_outside_current_renderer": "bongos"
+  },
+  "bounded_read_probe": {
+    "discovery_seconds": 42.6,
+    "observation_seconds": 30,
+    "states": ["ready"],
+    "profiles": 21,
+    "hidden_cache_entries": 20,
+    "chat_callbacks_decoded": 0,
+    "rejected_packets": 0,
+    "sends": 0,
+    "lobby_mutations": 0,
+    "process_writes": 0,
+    "plaintext_saved": false,
+    "game_process_survived_shutdown": true
+  },
+  "frozen_app_read_probe": {
+    "exit_code": 0,
+    "ready": true,
+    "read_only": true,
+    "send_enabled": false,
+    "profiles": 22,
+    "rendered_avatars": 22,
+    "avatar_error": "",
+    "stored_messages": 0,
+    "console_errors": 0,
+    "renderer_read_only": true
+  },
+  "offline_suite": {
+    "command": ".venv/Scripts/python.exe -m pytest -q",
+    "passed": 135,
+    "seconds": 50.67,
+    "includes": ["full tuple selection", "mixed and unknown files rejected", "untrusted build number", "pointer scan bounds", "hidden boolean validation", "Qt update state and privacy gate", "installer failure recovery and concurrent selection"]
+  },
+  "not_verified_on_new_game_build": [
+    "live send and peer game screen",
+    "actual hidden and unhidden user transitions",
+    "lobby moves and reconnects",
+    "clean game install and other PCs",
+    "long duration operation",
+    "publicly released update received by an installed user"
+  ],
+  "identifiers_and_chat_content_included": false
+}

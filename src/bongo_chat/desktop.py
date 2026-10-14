@@ -60,6 +60,7 @@ class Controller(QObject):
         self.stop = self.context.Event()
         self.last_prune = time.monotonic()
         self.known_accounts = set()
+        self.unsupported_fingerprint = None
         if offline:
             self.service.update(unavailable("offline"))
         else:
@@ -78,6 +79,11 @@ class Controller(QObject):
                 except queue.Empty:
                     break
                 if event.get("type") == "state":
+                    if event.get("notice") == "unsupported_game_build" and not self.closed:
+                        fingerprint = event.get("build_fingerprint", "unknown")
+                        if fingerprint != self.unsupported_fingerprint:
+                            self.unsupported_fingerprint = fingerprint
+                            self.updates.request()
                     if event.get("account"):
                         self.known_accounts.add(event["account"])
                     self.service.update(event)

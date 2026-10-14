@@ -37,7 +37,7 @@ Steam 초기화·게임 메모리 접근 없이 창만 실행하려면:
 .venv/Scripts/python -m bongo_chat --offline
 ```
 
-실행 중인 `BongoCat.exe`의 경로에서 설치 파일을 찾는다. 현재 개발판은 `supported-build.json`의 네 파일 SHA-256과 일치하는 설치만 허용한다. 이 목록은 기존 Auto Chest Opener 패치가 있던 개발 PC 기준이며, 순정 환경 지원 목록이 아니다. 다른 빌드는 추측해 호출하지 않고 미지원으로 표시한다.
+실행 중인 `BongoCat.exe`의 경로에서 설치 파일을 찾는다. 현재 개발판은 `supported-build.json`의 빌드별 네 파일 SHA-256 조합 하나와 완전히 일치하는 설치만 허용한다. 이 목록은 Auto Chest Opener 패치가 있던 개발 PC의 `25723683`·`25902419` 기준이며, 순정 환경 지원 목록이 아니다. 다른 빌드는 미지원으로 표시하고 설치판의 앱 업데이트를 즉시 확인한다. [게임 업데이트 대응](game-update-compatibility.md)에 실제 정적 분석·읽기 검사와 남은 인수를 기록한다.
 
 ## 연결과 전송
 
@@ -106,18 +106,22 @@ dist/BongoCatChat/BongoCatChat.exe --offline
 
 ## 설치·삭제
 
-로컬 빌드 후 `dist/BongoCatChat` 전체를 사용한다. EXE 하나만 복사하면 Qt·Python 파일이 없어 실행되지 않는다. 빌드 단계는 게임 DLL·Unity assets가 섞이면 실패한다.
+일반 이용자는 [설치 안내](installation.md)에 따라 단일 `Setup.exe`를 더블클릭한다. 한국어 마법사, 현재 사용자 설치, 시작 메뉴, Windows 설치된 앱 목록과 제거 프로그램을 제공한다. Python·Git·관리자 권한이나 수동 스크립트 실행은 필요하지 않다.
+
+개발자는 먼저 `packaging/build.ps1`로 전체 묶음을 만들고 NSIS 3.13으로 설치 파일을 빌드한다. [공식 다운로드](https://nsis.sourceforge.io/Download)의 ZIP을 개발 도구 폴더에 풀어 사용한다. NSIS를 제품 이용자에게 따로 설치하게 하지 않는다.
 
 ```powershell
-# 빌드 묶음 안에서 Windows 기본 PowerShell로 실행. 관리자 권한 불필요.
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
-# 종료 후 설치 폴더의 제거 스크립트 실행
-powershell -NoProfile -ExecutionPolicy Bypass -File .\uninstall.ps1
+./packaging/build.ps1 -OutputRoot dist/windows-setup
+./packaging/build-setup.ps1 -Bundle dist/windows-setup/BongoCatChat -NsisPath <NSIS-3.13-폴더>
 ```
 
-설치 스크립트는 사용자 프로그램 폴더로 복사하고 시작 메뉴 바로가기를 만든다. 기존 설치/바로가기를 덮어쓰지 않는다. 제거는 표식이 있는 설치의 알려진 구성원만 삭제한다. 게임 폴더와 대화 데이터는 건드리지 않는다. `uninstall.ps1`과 빈 설치 폴더는 남으므로 필요하면 직접 지운다. 대화까지 지우려면 제거 전 앱 설정에서 현재 계정 기록을 삭제한다. 데이터 폴더의 여러 계정 기록을 일괄 삭제하는 기능은 없다.
+결과는 `dist/setup/BongoCatChat-<버전>-windows-x64-Setup.exe`와 SHA-256 파일이다. 설치 프로그램 안에 전체 Qt·Python 묶음을 넣으며 런타임을 인터넷에서 받지 않는다. 앱 묶음의 `BongoCatChat.exe`만 따로 복사하는 것은 지원하지 않는다. 빌드 단계는 게임 DLL·Unity assets가 섞이면 실패한다. `-TestIdentity`는 별도 설치 이름·등록 키를 사용하는 검사용이며 이용자에게 배포하지 않는다.
 
-개발 도구가 없는 별도 Windows PC, 시작 메뉴 바로가기, 코드 서명·설치 UI·일반 배포는 미검증 또는 후속 작업이다. 로컬 복사·실행·제거 시험은 해당 인수를 대신하지 않는다.
+내부 설치 엔진은 기존 설치 여부·버전·재분석 지점·실행 잠금을 검사한다. 같은 버전 재설치와 이전 버전 교체를 지원하고 더 낮은 버전은 거부한다. 새 파일을 임시 폴더에 준비한 뒤 교체하며 실패하면 기존 파일을 복구한다. 실행 중인 프로세스를 종료하지 않는다. dev1의 정확한 설치 표식이 있으면 이전 구조도 전환한다. 무관한 파일이 들어 있는 폴더를 새 설치로 취급하지 않는다.
+
+제거 프로그램은 내장된 제거 엔진으로 검증된 앱 구성원만 삭제한다. 시작 메뉴와 자기 설치의 제거 등록을 정리하며 대화 데이터·설치 폴더의 별도 파일은 보존한다. 앱 설정에서는 선택 로비 또는 현재 계정의 기록을 직접 삭제할 수 있다. 여러 계정 기록을 일괄 삭제하는 기능은 없다.
+
+같은 PC에서의 설치 검사는 [설치 검증 기록](installer-validation.md)에 남긴다. 개발 도구가 없는 별도 PC, 코드 서명·SmartScreen·백신·전원 손실·일반 배포는 별도 인수 항목이다.
 
 ## 실제 송신 시험 절차
 

@@ -189,6 +189,7 @@ class ChatService:
             message.pop('_before_seq', None)
         profiles = {uid: p for uid, p in self.state.get("profiles", {}).items() if uid in allowed | {account}}
         return {"context": self.context(), "state": self.state.get("state"), "notice": self.state.get("notice", ""),
+                "game_build": self.state.get("game_build", ""),
                 "hidden_ok": self.fresh(), "can_send": self.can_send() and lobby == self.state.get("lobby"),
                 "rooms": rooms, "messages": messages, "profiles": profiles, "draft": draft,
                 "storage_error": self.storage_error, "revision": self.revision,

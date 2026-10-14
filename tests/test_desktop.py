@@ -13,6 +13,7 @@ from PySide6.QtWebEngineCore import QWebEngineScript
 
 from bongo_chat.desktop import Controller, run, window
 from bongo_chat.exit_codes import PROFILE_IN_USE
+from bongo_chat.worker import unavailable
 from test_core import received, state
 
 
@@ -213,3 +214,26 @@ def test_update_ready_keeps_editor_and_does_not_restart(qt_chat, monkeypatch):
     js(app, page, "document.querySelector('#check-updates').click()")
     wait_until(app, lambda: len(requests) == 1)
     assert controller.worker is None and not controller.closed
+
+
+def test_game_change_checks_updates_once_and_keeps_privacy_gate(qt_chat, monkeypatch):
+    app, controller, page = qt_chat
+    requests = []
+    monkeypatch.setattr(controller.updates, 'request', lambda: requests.append('check'))
+    event = dict(unavailable('unsupported_game_build'), game_build='99999999', build_fingerprint='fixture-new')
+    controller.events.put(event)
+    wait_until(app, lambda: len(requests) == 1)
+    controller.updates.report('checking')
+    wait_until(app, lambda: js(app, page, "document.querySelector('#connection-notice').textContent.includes('99999999')"))
+    assert js(app, page, "document.querySelectorAll('.message-bubble').length") == 0
+    assert js(app, page, "document.querySelector('#send-button').disabled") is True
+    # Worker retries go through checking each time; this must not flood GitHub.
+    revision = controller.service.revision
+    controller.events.put(unavailable('checking'))
+    controller.events.put(event)
+    wait_until(app, lambda: controller.service.revision >= revision+2)
+    assert requests == ['check']
+    controller.updates.report('ready', '0.2.0')
+    wait_until(app, lambda: js(app, page, "document.querySelector('#connection-notice').textContent.includes('다시 실행')"))
+    assert not controller.service.can_send() and not controller.closed
+    assert controller.store.db.execute('SELECT count(*) FROM messages').fetchone()[0] == 1

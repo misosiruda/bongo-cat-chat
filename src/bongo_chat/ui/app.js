@@ -17,7 +17,7 @@
     read_only: '읽기 전용으로 실행 중입니다. 메시지를 전송하지 않습니다.',
     no_lobby: '현재 게임 로비를 확인할 수 없어요. 게임에서 로비에 참여해 주세요.',
     hidden_unavailable: '게임의 숨김 상태를 확인할 수 없어 상대 대화 표시·신규 저장과 전송을 중단했어요.',
-    unsupported_game_build: '아직 지원을 확인하지 않은 게임 버전입니다. 연동을 중단했어요.',
+    unsupported_game_build: '현재 게임 파일의 호환성을 확인해야 해요. 연결 가능한 앱 업데이트를 기다리고 있습니다.',
     game_missing_or_ambiguous: '실행 중인 Bongo Cat 하나를 확인해야 연결할 수 있어요.',
     worker_stopped: '연결 작업자가 종료됐어요. 전송 결과가 불명확한 메시지는 다시 보내지 않습니다.',
     view_unavailable: '대화 상태를 조회하지 못해 표시와 전송을 중단했어요. 다시 확인하고 있습니다.',
@@ -180,7 +180,17 @@
     const connected = data.state === 'ready' && data.hidden_ok;
     $('connection-label').querySelector('span').textContent = data.can_send ? '게임과 연결됨' : selected && selected !== data.context.lobby ? '보관 기록 · 읽기 전용' : connected ? '게임 수신 연결됨' : '연결 확인 중';
     document.querySelectorAll('.status-dot').forEach(el => el.classList.toggle('unavailable',!connected));
-    const notice = data.notice ? notices[data.notice] || '게임 상태를 확인하지 못했어요. 연동을 중단하고 다시 확인하고 있습니다.' : '';
+    let notice = data.notice ? notices[data.notice] || '게임 상태를 확인하지 못했어요. 연동을 중단하고 다시 확인하고 있습니다.' : '';
+    if (data.notice === 'unsupported_game_build') {
+      const build = /^[0-9]{1,12}$/.test(data.game_build || '') ? `게임 빌드 ${data.game_build}` : '현재 게임 파일';
+      const progress = ({checking:'앱 업데이트를 확인하고 있어요.', downloading:'새 앱을 내려받고 있어요.',
+        ready:'새 앱이 준비됐어요. 앱을 다시 실행하면 적용합니다.',
+        offline:'오프라인 상태입니다.', development:'설치판에서 자동 업데이트를 사용할 수 있어요.',
+        network_error:'업데이트 서버에 연결하지 못했어요. 자동으로 다시 확인합니다.',
+        verification_failed:'업데이트를 검증하지 못했어요. 기존 앱을 유지합니다.'})[data.update?.state]
+        || '아직 대응 버전이 없습니다. 앱 업데이트를 주기적으로 확인합니다.';
+      notice = `${build}의 호환성을 확인하지 못해 연동을 중단했어요. ${progress}`;
+    }
     $('connection-notice').textContent = notice || (!data.hidden_ok ? notices.hidden_unavailable : '개발판 · 읽지 않은 구간과 숨김 중 대화는 복원하지 않습니다.');
     $('connection-notice').hidden = false;
     $('storage-label').textContent = data.storage_error ? '저장 실패 · 일부 기록 미보관' : '이 기기에 30일 보관';

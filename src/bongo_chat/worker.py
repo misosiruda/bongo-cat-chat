@@ -3,7 +3,7 @@ import queue
 import time
 from uuid import uuid4
 
-from .environment import running_game, verify_build
+from .environment import UnsupportedGameBuild, running_game, verify_build
 from .memory import GameMemory
 from .steam import APP_ID, Steam
 
@@ -144,7 +144,10 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
                 code = str(exc)
                 if not code.isascii() or not code.replace("_", "").isalnum() or len(code) > 80:
                     code = "connection_unavailable"
-                emit(unavailable(code))
+                state = unavailable(code)
+                if isinstance(exc, UnsupportedGameBuild):
+                    state.update(game_build=exc.build, build_fingerprint=exc.fingerprint)
+                emit(state)
         finally:
             if avatars:
                 avatars.close()
