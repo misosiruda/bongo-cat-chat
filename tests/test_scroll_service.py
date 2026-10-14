@@ -4,7 +4,17 @@ import time
 import pytest
 
 from bongo_chat.store import RETENTION_SECONDS
-from test_core import received, service, state, store
+from bongo_chat.service import ChatService
+from test_core import received, state, store
+
+
+@pytest.fixture
+def service(store):
+    # History fixtures may take longer than the live connection's 2.5 s TTL
+    # on CI disks. These tests control history, not the worker's heartbeat.
+    result = ChatService(store, clock=lambda: 100.0)
+    result.update(state())
+    return result
 
 
 @pytest.mark.parametrize('count, more', [(0, False), (99, False), (100, False), (101, True), (200, True)])

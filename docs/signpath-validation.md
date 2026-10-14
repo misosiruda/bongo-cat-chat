@@ -20,6 +20,8 @@ $env:BONGO_TEST_NSIS_PATH = 'C:/Project/bongo-cat-chat/research/private/tooling/
 
 추가 13건은 소스 실행의 안내 4종, 설치본 고지 실패 3종, 설정 저장 실패 시 채팅·기존 선택 보존, 미러 실패 4종의 공식 URL 재시도, 양쪽 해시 실패 시 거부를 검사한다. 실제 외부 HTTP 대신 합성 응답을 사용하며, 전체 검사에는 Qt 화면과 격리된 실제 NSIS 설치·제거도 포함한다. 수동 리뷰 요청이나 Actions 재실행은 하지 않는다.
 
+후속 [CI #38534578807](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38534578807)는 `a3d80d3`에서 `376 passed, 1 failed`였다. 기록 1,050개를 생성하는 `test_bounded_history_window_reports_forward_context`의 JUnit 실행 시간이 2.588초로, 실제 연결의 2.5초 유효성을 넘겨 기록을 감추는 보호가 발동했다. 기록 조회 테스트의 서비스 시계만 고정하여 CI 디스크 속도와 분리했다. 실제 앱의 유효 시간·개인정보 차단과 별도 만료 검사는 그대로 유지한다. 수정 후 `python -m pytest -q tests/test_scroll_service.py tests/test_core.py --junitxml=dist/history-clock-tests.xml`은 **63 passed in 1.66s**였다. 수정 push의 전체 CI 결과는 PR에 별도로 기록한다.
+
 ## 재현할 CI와 결과 위치
 
 **성공 확인:** [GitHub Actions #38530843368](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38530843368), 2026-10-14. PR head `61e266e51ede2bd052a41eca61074705a5b654ba`, 실제 테스트 merge SHA `f5f109104a27ad04c6799e56da99cb45e9bc9036`. `344 passed in 98.90s`; 소스 9개 검사, 앱/설치 파일 빌드, 고지·제품 메타데이터·frozen 오프라인 화면 검사와 artifact 업로드까지 모두 성공했다. 유니코드 바로가기 수정 후 로컬 설치·제거·서명 검사도 `50 passed in 90.06s`다.
