@@ -40,6 +40,8 @@ VIAddVersionKey /LANG=1042 "LegalCopyright" ""
 !define MUI_WELCOMEPAGE_TEXT "Bongo Cat의 로비 채팅을 별도 창에서 읽고 입력하는 메신저입니다.$\r$\n$\r$\n현재 Windows 사용자에게 설치합니다. Python이나 개발 도구를 따로 준비할 필요가 없습니다.$\r$\n$\r$\n실행 중인 Bongo Cat Chat을 닫은 뒤 계속하세요. 기존 대화 기록과 설정은 유지됩니다.$\r$\n$\r$\n버전 ${APP_VERSION} · 개발판"
 !define MUI_DIRECTORYPAGE_TEXT_TOP "설치할 폴더를 선택하세요. 기존 버전이 있으면 같은 폴더에 설치합니다."
 !insertmacro MUI_PAGE_WELCOME
+!define MUI_PAGE_HEADER_TEXT "개인정보 처리 안내"
+!define MUI_PAGE_HEADER_SUBTEXT "저장되는 정보와 연결 대상을 확인하세요."
 !define MUI_LICENSEPAGE_TEXT_TOP "로컬 기록, Steam 채팅 및 GitHub 업데이트 통신 안내입니다."
 !define MUI_LICENSEPAGE_TEXT_BOTTOM "다음 페이지에서 GitHub 업데이트 통신 사용 여부를 선택할 수 있습니다."
 !define MUI_LICENSEPAGE_BUTTON "다음 >"

@@ -332,19 +332,26 @@ def test_installer_update_choice_is_shared_and_preserved(nsis_project, monkeypat
     key = 'Software\\' + app_id
     uninstall_key = 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + app_id
     source = project / 'packaging/installer.nsi'
-    source.write_text(source.read_text(encoding='utf-8').replace('!define APP_ID "BongoCatChat"', f'!define APP_ID "{app_id}"').replace('!define APP_NAME "Bongo Cat Chat"', f'!define APP_NAME "{app_id}"'), encoding='utf-8')
+    text = source.read_text(encoding='utf-8').replace('!define APP_ID "BongoCatChat"', f'!define APP_ID "{app_id}"').replace('!define APP_NAME "Bongo Cat Chat"', f'!define APP_NAME "{app_id}"')
+    text = text.replace('  Pop $1\n', '  Pop $1\n  FileOpen $2 "$EXEDIR\\engine-diagnostic.txt" w\n  FileWriteUTF16LE $2 "$1"\n  FileClose $2\n')
+    source.write_text(text, encoding='utf-8')
     result = run_script(project / 'packaging/build-setup.ps1', '-Bundle', bundle, '-NsisPath', nsis, '-AllowUnsigned')
     assert result.returncode == 0, result.stdout + result.stderr
     setup, = (project / 'dist/setup').glob('*Setup.exe')
-    target = project / 'installed'
-    env = dict(os.environ, LOCALAPPDATA=str(project / 'local'), APPDATA=str(project / 'roaming'))
+    # Keep the tested installation below PowerShell 5.1's MAX_PATH ceiling;
+    # runneradmin's longer pytest root otherwise exercises path length, not consent.
+    test_root = project.parents[1] / ('privacy-' + uuid4().hex[:8])
+    test_root.mkdir()
+    target = test_root / '설치 폴더'
+    env = dict(os.environ, LOCALAPPDATA=str(test_root / 'local'), APPDATA=str(test_root / 'roaming'))
     monkeypatch.setattr(privacy, 'KEY', key)
     try:
         for choice, expected in [('0', False), (None, False), ('1', True)]:
             # NSIS requires /D last and unquoted even when the path has spaces.
             args = subprocess.list2cmdline([str(setup), '/S'] + ([] if choice is None else ['/UPDATECHECKS=' + choice])) + ' /D=' + str(target)
             installed = subprocess.run(args, env=env, capture_output=True, timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
-            assert installed.returncode == 0, installed.stdout + installed.stderr
+            diagnostic = setup.parent / 'engine-diagnostic.txt'
+            assert installed.returncode == 0, diagnostic.read_text(encoding='utf-16-le') if diagnostic.exists() else installed.stdout + installed.stderr
             assert privacy.update_checks_allowed() is expected
         privacy.set_update_checks_allowed(False)
         # The app choice survives repair, then the same removal engine preserves it.
