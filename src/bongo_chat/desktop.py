@@ -127,9 +127,13 @@ class Controller(QObject):
             lobby = args.get("lobby") if args.get("account", account) == account else None
             query = args.get("query", "")
             before = args.get("before")
-            if not isinstance(query, str) or len(query) > 120 or before is not None and (type(before) is not int or before < 0):
+            start, seen, limit = args.get('start'), args.get('seen'), args.get('limit', 100)
+            if (not isinstance(query, str) or len(query) > 120
+                    or any(value is not None and (type(value) is not int or value < 0) for value in (before, start, seen))
+                    or before is not None and start is not None
+                    or type(limit) is not int or not 1 <= limit <= 1000):
                 raise ValueError("invalid_query")
-            result = self.service.view(lobby, query, before)
+            result = self.service.view(lobby, query, before, start, seen, limit)
             result['update'] = self.updates.snapshot()
             return result
         if action == "send":

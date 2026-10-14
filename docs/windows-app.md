@@ -7,7 +7,7 @@
 - Python 3.13 / `ctypes`: 기존 PoC의 Steam ABI와 읽기 전용 Mono 조회 코드를 검토해 제품 모듈로 다시 작성했다. 연구 폴더를 import하거나 이전 PID·주소 파일을 읽지 않는다.
 - PySide6 / Qt WebEngine / QWebChannel: Windows 창과 한국어 입력을 제공하면서 PR #3의 HTML·CSS 디자인을 이어간다. 정적 시안이 프레임워크를 결정한 것은 아니다. WPF는 FFI·UI 재작성이 크고, WebView2 기반 Python 셸은 별도 런타임 조합 검증이 필요해 이 개발판에서는 선택하지 않았다.
 - Steam·메모리 조회는 별도 `multiprocessing` 작업자에 격리한다. 상속된 로컬 큐만 쓰며 제품은 HTTP 서버나 외부 수신 포트를 열지 않는다. 큐 상한을 넘기면 연결을 중단한다.
-- SQLite: 계정·로비·연결 구간, 앱 UUID, 수신 순번, UTC 수신 시각, 송신 상태를 보관한다. 100개 단위 페이지 조회와 본문 부분 문자열 검색을 제공한다. 별도 검색 인덱스의 복제 원문은 만들지 않는다.
+- SQLite: 계정·로비·연결 구간, 앱 UUID, 수신 순번, UTC 수신 시각, 송신 상태를 보관한다. 처음에는 최신 100개를 조회하고, 위로 스크롤하면 이전 100개를 이어 붙인다. 화면의 저장 기록은 최대 1,000개 범위로 다시 조회하며 본문 부분 문자열 검색을 제공한다. 별도 검색 인덱스의 복제 원문은 만들지 않는다.
 - PyInstaller `onedir` 앱과 `onefile` 실행기: Python·Qt를 포함하며 버전 폴더를 전환해 [자동 업데이트](automatic-updates.md)를 적용한다. 업데이트 manifest 서명은 구현했지만 Windows Authenticode 서명과 공개 배포용 설치 마법사는 포함하지 않는다.
 
 이미지 추출용 UnityPy는 texture 모듈을 열 때 오디오 변환 모듈도 import한다. 공개된 `0.1.0.dev6` 묶음은 그 간접 의존성인 FMOD를 포함했다. 이번 SignPath 준비 빌드는 오디오 변환 진입점을 명시적으로 비활성화하고 FMOD와 불필요한 Qt QML/GPL 플러그인을 제외한다. 사용자가 설치한 게임 그림은 계속 로컬에서 읽으며 오디오 기능을 제공하지 않는다. `archspec` CPU 데이터와 Widgets/WebEngine 의존성은 유지하고 다른 도구의 DLL이 섞이지 않도록 빌드 PATH를 제한한다. [라이선스 검토](license-review.md)와 [준비 검증](signpath-validation.md)을 참고한다.
@@ -99,6 +99,16 @@ UTF-8 JSON `Channel=3`, 문자열 `Message`만 처리한다. 반환 길이·발�
 
 ## 검사와 빌드
 
+### 기록 스크롤
+
+새 메시지가 와도 읽던 메시지와 화면 내 위치를 유지한다. 실제 최신 구간의 맨 아래에 있을 때만 자동으로 새 메시지를 따라간다. 위로 스크롤하면 이전 기록을 자동으로 불러오며 수동 버튼도 제공한다. 이전 기록의 존재 여부는 실제 행으로 판정하므로 정확히 100개인 마지막 구간에서 빈 페이지로 이동하지 않는다.
+
+`맨 아래로`·`최근 대화로`·`새 메시지 보기` 버튼은 대화 영역의 오른쪽 아래에 고정된다. 수동으로 실제 최신 메시지까지 내려가면 새 메시지 표시가 사라진다. 과거 구간을 읽는 중에도 새 수신을 표시하며, 내 메시지를 보내면 최신 구간으로 이동해 전송 상태를 보여 준다. 새 메시지 표시는 앱 내부의 미확인 표시이며 상대방의 읽음 확인이 아니다.
+
+방을 다시 선택하거나 검색을 지우면 기록 범위와 읽던 메시지 위치를 함께 복원한다. 검색 결과의 `대화에서 보기`는 대상 전후의 기록을 보여 준다. 최대 1,000개 범위의 끝에 도달하면 최근 100개를 겹쳐 다음 범위로 이어 간다. 미저장 수신의 기존 최대 200개 제한은 유지한다.
+
+조회마다 계정·로비·30일 보관·숨김 허용 목록·Meow 제외 정책을 적용한다. 이전 화면의 대화 원문을 합쳐 보관하는 별도 캐시는 없으며, 새 메시지 판정에도 같은 표시 정책을 적용한다. 화면 위치는 실행 중에만 기억하고 DB schema·보관 기간·송신 계약은 변경하지 않는다.
+
 ```powershell
 .venv/Scripts/python -m pytest -q
 node --check src/bongo_chat/ui/app.js
@@ -115,6 +125,12 @@ dist/BongoCatChat/BongoCatChat.exe --offline
 `probe_startup.py`는 실제 작업자에서 로비 발견·현재 로비 검증·숨김 동기화까지 걸린 시간과 상태 갱신 간격을 출력한다. 읽기 전용이며 콜백 본문 해석과 DB 생성도 차단한다. Qt 창 시작 시간은 포함하지 않는다. 기본 제한은 150초이고 `--avatars`로 제품과 같은 이미지 작업을 함께 실행할 수 있다.
 
 브라우저 보조 검사는 `tests/browser_check.py`다. 실제 제품 HTML에 테스트 전용 로컬 QWebChannel 대역을 연결한다. 실제 Qt·QWebChannel·SQLite 검사는 `tests/test_desktop.py`에서 따로 수행한다. 두 검사 모두 실제 게임 송신의 증거가 아니다.
+
+스크롤 회귀 검사는 `tests/browser_scroll_check.py`, 네이티브 브리지 검사는 `tests/test_scroll_desktop.py`, 조회 범위·경계·숨김 메타데이터 검사는 `tests/test_scroll_service.py`다. Browser 플러그인이 없는 환경에서는 설치된 Playwright Chromium으로 가상 대화만 검증한다.
+
+```powershell
+.venv/Scripts/python tests/browser_scroll_check.py --browser <로컬-Chromium.exe> --output <외부-검증-폴더>
+```
 
 완성된 EXE에는 오프라인 `--smoke-report <경로>`와 송신을 금지하는 `--read-only --connection-report <경로>` 진단 실행이 있다. 후자는 연결 후 일정 시간 관찰하고 건수·오류 종류만 기록한 뒤 종료한다. 계정·방 ID나 원문은 진단 JSON에 쓰지 않는다. 연결 시험의 대화 DB는 `--data-dir`로 비공개 시험 폴더를 지정한다.
 

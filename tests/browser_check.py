@@ -123,7 +123,7 @@ def main():
             service.receive(dict(id=f'fixture-{index}',sender='fixture-peer',text=text,context=service.context()))
         def request(raw):
             args=json.loads(raw);action=args['action']
-            if action=='view':result=service.view(args.get('lobby'),args.get('query',''),args.get('before'))
+            if action=='view':result=service.view(args.get('lobby'),args.get('query',''),args.get('before'),args.get('start'),args.get('seen'),args.get('limit',100))
             elif action=='setting':store.setting(args['key'],args['value']);result={'ok':True}
             elif action=='draft':store.draft(args['account'],args['lobby'],args['text']);result={'ok':True}
             elif action=='refresh':result={'ok':True}

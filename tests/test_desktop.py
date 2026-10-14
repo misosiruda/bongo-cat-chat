@@ -5,6 +5,7 @@ import time
 import pytest
 import sqlite3
 
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEventLoop, QLockFile, QTimer
@@ -188,17 +189,17 @@ def test_unsaved_first_message_keeps_search_jump_and_older_page(qt_chat, monkeyp
     monkeypatch.setattr(controller.store, 'add', original)
     for i in range(100):
         received(controller.service, f'복구 뒤 기록 {i}')
-    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 101)
-    assert js(app, page, "document.querySelector('.message-bubble').textContent") == '미저장 검색 대상'
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 107)
+    assert js(app, page, "document.querySelector('.message-bubble').textContent") == '보존할 기록'
     assert js(app, page, "document.querySelector('.message-status').textContent") == '이 기록은 저장되지 않았어요'
     js(app, page, "document.querySelector('#message-search').value='미저장';document.querySelector('#message-search').dispatchEvent(new Event('input'))")
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 1)
     js(app, page, "document.querySelector('.message-content .page-button').click()")
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 101)
     js(app, page, "document.querySelector('#older').click()")
-    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 6)
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 107)
     assert js(app, page, "document.querySelector('.message-bubble').textContent") == '보존할 기록'
-    assert js(app, page, "document.querySelectorAll('.message-status').length") == 0
+    assert js(app, page, "document.querySelectorAll('.message-status').length") == 1
     js(app, page, "document.querySelector('#latest').click()")
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 101)
 

@@ -6,10 +6,10 @@
   const narrow = matchMedia('(max-width: 760px)');
   let bridge, model = null, selected = '', account = '', query = '', before = null;
   let theme = 'system', collapsed = false, composing = false, sending = false, switching = 0;
-  let refreshing = false, requestVersion = 0, draftVersion = 0, draftTimer, signature = '';
+  let refreshing = 0, requestVersion = 0, draftVersion = 0, draftTimer, signature = '';
   let deleteScope = null;
-  let renderedIds = new Set();
-  let newVisibleIds = new Set();
+  let start = null, seenSeq = null, loadingHistory = false, restoring = false;
+  let seenVolatile = new Set(), searchPosition = null, pendingPosition = {bottom:true};
   const positions = new Map();
   const notices = {
     checking: 'Steam과 게임의 채팅·숨김 연동 구조를 확인하고 있어요.',
@@ -111,33 +111,117 @@
     const info = node('span', 'room-info'); info.append(node('span','room-name',room.name),node('span','room-detail', live ? '현재 게임 로비' : `${room.segments}개 연결 구간 · 보관 기록`));
     button.append(info); button.addEventListener('click', () => changeRoom(room.lobby)); return button;
   }
+  function atBottom() {
+    const scroll = $('message-scroll');
+    return scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 2;
+  }
+  function capturePosition() {
+    const scroll = $('message-scroll'), rect = scroll.getBoundingClientRect();
+    const row = [...$('message-list').children].find(el => el.classList.contains('message') && el.getBoundingClientRect().bottom > rect.top);
+    return {id:row?.id, offset:row ? row.getBoundingClientRect().top - rect.top : 0,
+      top:scroll.scrollTop, bottom:atBottom() && !model?.has_newer && !query};
+  }
+  function captureTimeline() {
+    return {start, position:capturePosition(), seenSeq, seenVolatile:[...seenVolatile]};
+  }
+  function resetTimeline(saved) {
+    start=saved?.start ?? null; before=null; seenSeq=saved?.seenSeq ?? null;
+    seenVolatile=new Set(saved?.seenVolatile || []);
+    pendingPosition=saved?.position || {bottom:true}; signature=''; searchPosition=null;
+  }
+  function viewArgs(extra={}) {
+    return {lobby:selected, account, query, before:query ? before : null,
+      start:query ? null : start, seen:seenSeq, limit:query || start===null ? 100 : 1000, ...extra};
+  }
+  function updateNavigation() {
+    if (!model) return;
+    const latestBottom = atBottom() && !model.has_newer && !query;
+    if (latestBottom) {
+      seenSeq=Math.max(seenSeq || 0, model.latest_seq || 0);
+      seenVolatile=new Set(model.volatile_peer_ids || []); model.unseen=false; model.unseen_seq=0;
+    }
+    const unread = !query && ((model.unseen_seq || 0) > (seenSeq || 0) || (model.volatile_peer_ids || []).some(id => !seenVolatile.has(id)));
+    $('new-messages').hidden=latestBottom || !unread;
+    $('latest').hidden=latestBottom || unread;
+    $('latest').textContent=query || model.has_newer ? '최근 대화로' : '맨 아래로';
+    $('older').hidden=!model.has_more;
+    $('older').disabled=loadingHistory;
+    $('older').textContent=loadingHistory ? '이전 대화 불러오는 중…' : '이전 대화 불러오기';
+  }
+  function restorePosition(position) {
+    const scroll=$('message-scroll'); restoring=true;
+    const row=position.id && document.getElementById(position.id);
+    if (position.bottom && !query) scroll.scrollTop=scroll.scrollHeight;
+    else if (row) scroll.scrollTop += row.getBoundingClientRect().top - scroll.getBoundingClientRect().top - position.offset;
+    else scroll.scrollTop=position.top || 0;
+    restoring=false; updateNavigation();
+  }
+  async function loadOlder() {
+    if (loadingHistory || switching || !model?.has_more) return;
+    const first=model.messages.find(message => Number.isInteger(message.seq))?.seq;
+    if (!first) return;
+    const version=++requestVersion; loadingHistory=true; updateNavigation();
+    try {
+      if (query) {before=first; pendingPosition={top:0}; signature=''; await refresh(true);}
+      else {
+        const page=await rpc('view',viewArgs({before:first,start:null,limit:100}));
+        if (version!==requestVersion) return;
+        const older=page.messages.find(message => Number.isInteger(message.seq));
+        if (older) start=older.seq;
+        pendingPosition=capturePosition(); signature=''; await refresh(true);
+      }
+    } catch(e) {showError(e);}
+    finally {loadingHistory=false; updateNavigation();}
+  }
+  async function loadNewer() {
+    if (loadingHistory || switching || query || !model?.has_newer) return;
+    const rows=model.messages.filter(message => Number.isInteger(message.seq));
+    if (!rows.length) return;
+    loadingHistory=true; requestVersion++;
+    start=rows[Math.max(0,rows.length-100)].seq;
+    pendingPosition={...capturePosition(),bottom:false}; signature='';
+    try {await refresh(true);} finally {loadingHistory=false; updateNavigation();}
+  }
+  async function goLatest() {
+    requestVersion++; query=''; $('message-search').value=''; resetTimeline();
+    await refresh(true);
+  }
+  function changeSearch(value) {
+    if (value && !query) searchPosition=captureTimeline();
+    if (!value) {const saved=searchPosition; query=''; resetTimeline(saved);}
+    else {query=value; before=null; pendingPosition={top:0}; signature='';}
+    requestVersion++; refresh(true);
+  }
+  async function jumpToMessage(message) {
+    const version=++requestVersion;
+    try {
+      const page=Number.isInteger(message.seq) ? await rpc('view',viewArgs({query:'',before:message.seq+1,start:null,limit:100})) : null;
+      if (version!==requestVersion) return;
+      const previousSeen=seenSeq, previousVolatile=seenVolatile;
+      query=''; $('message-search').value=''; resetTimeline();
+      seenSeq=previousSeen; seenVolatile=previousVolatile;
+      start=page?.messages.find(row => Number.isInteger(row.seq))?.seq ?? null;
+      pendingPosition={id:`message-${message.id}`,offset:$('message-scroll').clientHeight/2-50,top:0};
+      await refresh(true);
+    } catch(e) {showError(e);}
+  }
   async function changeRoom(lobby) {
     if (switching) return;
     switching++; updateSend(); requestVersion++;
-    positions.set(selected, $('message-scroll').scrollTop);
+    positions.set(selected, query && searchPosition ? searchPosition : captureTimeline());
     clearTimeout(draftTimer);
     try {
       await saveDraft();
-      selected = lobby; before = null; signature = '';
+      selected = lobby; resetTimeline(positions.get(lobby));
       query = ''; $('message-search').value = ''; $('message-input').value = '';
       drawer(false); await refresh(true);
-      $('message-scroll').scrollTop = positions.get(lobby) ?? $('message-scroll').scrollHeight;
     } catch (e) { showError(e); }
     finally { switching--; updateSend(); }
   }
-  function renderMessages(data) {
-    const scroll = $('message-scroll');
-    const bottom = scroll.scrollHeight-scroll.scrollTop-scroll.clientHeight < 60;
-    const top = scroll.scrollTop;
+  function renderMessages(data, position) {
     const nextSignature = JSON.stringify([data.messages,data.profiles,data.hidden_ok,query]);
-    if (signature === nextSignature) return;
-    const changed = signature !== ''; signature = nextSignature;
-    const added = data.messages.filter(message => !message.own && !renderedIds.has(message.id));
-    renderedIds = new Set(data.messages.map(message => message.id));
-    newVisibleIds = new Set([...newVisibleIds].filter(id => renderedIds.has(id)));
-    if (!changed || bottom || before !== null || query) newVisibleIds.clear();
-    else for (const message of added) newVisibleIds.add(message.id);
-    $('new-messages').hidden = newVisibleIds.size === 0;
+    if (signature === nextSignature) {if (pendingPosition) restorePosition(position); pendingPosition=null; updateNavigation(); return;}
+    signature = nextSignature;
     $('message-list').replaceChildren();
     let day = '', segment = '';
     for (const message of data.messages) {
@@ -161,7 +245,7 @@
       if (statuses[message.status] || message.unsaved) content.append(node('span','message-status',message.unsaved ? '이 기록은 저장되지 않았어요' : statuses[message.status]));
       if (query) {
         const jump = node('button','page-button','대화에서 보기');
-        jump.addEventListener('click',async () => { query=''; $('message-search').value=''; before=Number.isInteger(message.seq)?message.seq+1:null; signature=''; requestVersion++; await refresh(true); document.getElementById(row.id)?.scrollIntoView({block:'center'}); });
+        jump.addEventListener('click',() => jumpToMessage(message));
         content.append(jump);
       }
       row.append(content); $('message-list').append(row);
@@ -169,11 +253,13 @@
     $('empty-state').hidden = data.messages.length > 0;
     $('empty-title').textContent = query ? '검색 결과가 없어요' : '대화를 기다리고 있어요';
     $('empty-description').textContent = data.hidden_ok ? '앱이 연결된 동안 받은 대화만 표시합니다.' : '게임의 숨김 상태를 확인하면 상대 대화를 표시합니다.';
-    if (bottom && before === null && !query) { scroll.scrollTop=scroll.scrollHeight; $('new-messages').hidden=true; }
-    else scroll.scrollTop=top;
+    restorePosition(position); pendingPosition=null;
   }
   function render(data, resetDraft) {
+    const position=pendingPosition || capturePosition();
     model = data;
+    if (seenSeq===null) {seenSeq=data.latest_seq || 0; seenVolatile=new Set(data.volatile_peer_ids || []);}
+    if (!query && start===null) start=data.messages.find(message => Number.isInteger(message.seq))?.seq ?? null;
     const update = data.update || {state:'development',current:''};
     $('app-version').textContent = update.current ? `v${update.current}` : '';
     $('update-status').textContent = updateStatuses[update.state] || updateStatuses.verification_failed;
@@ -216,16 +302,17 @@
     if (resetDraft) $('message-input').value = data.draft;
     $('message-input').placeholder = selected === data.context.lobby ? '메시지 입력' : '이 로비에 남겨 둘 초안';
     $('search-status').hidden=!query; $('search-summary').textContent=`현재 페이지 ${data.messages.length}개 결과`;
-    $('older').hidden = !data.has_more; $('latest').hidden = before === null;
-    renderMessages(data); updateSend();
+    // The history control changes the content height; settle it before restoring the anchor.
+    $('older').hidden=!data.has_more;
+    renderMessages(data,position); updateSend();
   }
   async function refresh(force=false) {
     if (refreshing && !force) return;
     const version = requestVersion, editing = draftVersion;
     let lockedEditor = false;
-    refreshing = true;
+    refreshing++;
     try {
-      let data = await rpc('view',{lobby:selected,query,before,account});
+      let data = await rpc('view',viewArgs());
       if (version !== requestVersion) return;
       let reset = !model || data.lobby !== model.lobby;
       if (account !== data.context.account || model && model.context.lobby !== data.context.lobby && data.context.lobby) {
@@ -235,18 +322,19 @@
         await saveDraft();
         if (version !== requestVersion) return;
         if (account !== data.context.account) positions.clear();
-        account=data.context.account; selected=data.context.lobby; before=null; query='';
+        else positions.set(selected,query && searchPosition ? searchPosition : captureTimeline());
+        account=data.context.account; selected=data.context.lobby; query=''; resetTimeline(positions.get(selected));
         $('message-search').value=''; $('message-input').value=''; signature=''; reset=true;
-        data=await rpc('view',{lobby:selected,query,before,account});
+        data=await rpc('view',viewArgs());
       } else if (!selected && data.context.lobby) {selected=data.context.lobby; reset=true;}
       if (version !== requestVersion) return;
       render(data,reset && (switching || editing === draftVersion));
     } catch (e) {
       if (version === requestVersion) {
-        if (model) render({...model,state:'unavailable',notice:'view_unavailable',connected:false,lobby_verified:false,privacy_ready:false,hidden_ok:false,can_send:false,messages:[],profiles:{},has_more:false},false);
+        if (model) render({...model,state:'unavailable',notice:'view_unavailable',connected:false,lobby_verified:false,privacy_ready:false,hidden_ok:false,can_send:false,messages:[],profiles:{},has_more:false,has_newer:false,unseen:false,unseen_seq:0,volatile_peer_ids:[]},false);
         showError(e); $('send-button').disabled=true;
       }
-    } finally {refreshing=false; if (lockedEditor) switching--; updateSend();}
+    } finally {refreshing--; if (lockedEditor) switching--; updateSend();}
   }
   async function send(event) {
     event?.preventDefault();
@@ -258,7 +346,7 @@
       await rpc('send',{context,text});
       await saveDraft('',room,context.account);
       if (selected===room && account===context.account && $('message-input').value===text) $('message-input').value='';
-      signature=''; await refresh();
+      if (selected===room && account===context.account) await goLatest();
     } catch(e) {showError(e);} finally {sending=false;updateSend();$('message-input').focus();}
   }
   function connect(value) {
@@ -268,11 +356,18 @@
     $('message-input').addEventListener('compositionend',()=>{composing=false;updateSend();});
     $('message-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!composing&&e.keyCode!==229){e.preventDefault();send();}});
     $('message-input').addEventListener('input',()=>{draftVersion++; updateSend(); clearTimeout(draftTimer); const text=$('message-input').value,room=selected,owner=account; draftTimer=setTimeout(()=>saveDraft(text,room,owner).catch(showError),150);});
-    $('message-search').addEventListener('input',()=>{query=$('message-search').value;before=null;requestVersion++;refresh(true);});
-    $('clear-search').addEventListener('click',()=>{query='';$('message-search').value='';before=null;requestVersion++;refresh(true);});
-    $('older').addEventListener('click',()=>{before=model.messages.find(message=>Number.isInteger(message.seq))?.seq;signature='';requestVersion++;refresh(true);});
-    $('latest').addEventListener('click',()=>{before=null;signature='';requestVersion++;refresh(true);});
-    $('new-messages').addEventListener('click',()=>{$('message-scroll').scrollTop=$('message-scroll').scrollHeight;newVisibleIds.clear();$('new-messages').hidden=true;});
+    $('message-search').addEventListener('input',()=>changeSearch($('message-search').value));
+    $('clear-search').addEventListener('click',()=>{$('message-search').value='';changeSearch('');});
+    $('older').addEventListener('click',loadOlder);
+    $('latest').addEventListener('click',goLatest);
+    $('new-messages').addEventListener('click',goLatest);
+    $('message-scroll').addEventListener('scroll',()=>{
+      updateNavigation();
+      if (!restoring && !loadingHistory && !query) {
+        if ($('message-scroll').scrollTop<40) loadOlder();
+        else if (atBottom()) loadNewer();
+      }
+    },{passive:true});
     $('sidebar-toggle').addEventListener('click',()=>{if(narrow.matches)drawer(false);else{collapsed=!collapsed;applySidebar();rpc('setting',{key:'collapsed',value:collapsed}).catch(showError);}});
     $('mobile-menu').addEventListener('click',()=>drawer(true)); $('drawer-backdrop').addEventListener('click',()=>drawer(false));
     ['header-search','sidebar-search-button'].forEach(id=>$(id).addEventListener('click',focusSearch));
@@ -294,7 +389,8 @@
       const scope={...deleteScope}; clearTimeout(draftTimer); requestVersion++;
       await rpc('delete',scope); $('delete-confirm').hidden=true;
       if (scope.account===account && (scope.lobby===null || scope.lobby===selected)) {
-        $('message-input').value=''; selected=''; before=null; query=''; $('message-search').value='';
+        if (scope.lobby===null) positions.clear(); else positions.delete(scope.lobby);
+        $('message-input').value=''; selected=''; query=''; resetTimeline(); $('message-search').value='';
       }
       signature='';await refresh(true);toast('선택한 기록을 삭제했어요.');
     }catch(e){showError(e);}});
