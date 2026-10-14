@@ -332,7 +332,7 @@ def test_installer_update_choice_is_shared_and_preserved(nsis_project, monkeypat
     key = 'Software\\' + app_id
     uninstall_key = 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + app_id
     engine = bundle / 'install.ps1'
-    engine.write_text(engine.read_text(encoding='utf-8-sig').replace('Write-Output $_.Exception.Message', 'Write-Output $_.Exception.ToString(); Write-Output $_.ScriptStackTrace'), encoding='utf-8-sig')
+    engine.write_text(engine.read_text(encoding='utf-8-sig').replace('Write-Output $_.Exception.Message', 'Write-Output $_.InvocationInfo.Line; Write-Output $_.ScriptStackTrace; Write-Output $destinationPath; Write-Output $shortcutPath; Write-Output $_.Exception.Message'), encoding='utf-8-sig')
     shutil.copyfile(engine, project / 'packaging/install.ps1')
     source = project / 'packaging/installer.nsi'
     text = source.read_text(encoding='utf-8').replace('!define APP_ID "BongoCatChat"', f'!define APP_ID "{app_id}"').replace('!define APP_NAME "Bongo Cat Chat"', f'!define APP_NAME "{app_id}"')
@@ -345,7 +345,7 @@ def test_installer_update_choice_is_shared_and_preserved(nsis_project, monkeypat
     # runneradmin's longer pytest root otherwise exercises path length, not consent.
     test_root = project.parents[1] / ('privacy-' + uuid4().hex[:8])
     test_root.mkdir()
-    target = test_root / '설치 폴더'
+    target = test_root / '설치 폴더 🐱'
     env = dict(os.environ, LOCALAPPDATA=str(test_root / 'local'), APPDATA=str(test_root / 'roaming'))
     monkeypatch.setattr(privacy, 'KEY', key)
     try:

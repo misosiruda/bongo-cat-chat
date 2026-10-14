@@ -85,7 +85,7 @@ Build/signing: The review candidate is built by GitHub Actions on GitHub-hosted 
 | GitHub App / trusted build link | SignPath에서 해당 저장소만 연결 | 미설치·미연결 |
 | GitHub / SignPath MFA | 각 계정 | 소유자 확인 필요 |
 
-`packaging/signpath/application-artifact.xml`은 네 개의 자체 EXE와 제품명·제품 버전을 제한한 초안이다. `submit-step.example.yml`은 공식 v3 action 사용 예시이며 자동 실행되지 않는다. action 참조는 조사 시 확인한 커밋으로 고정했다. 실제 서비스 스키마 검증과 인증서 검증은 아직 하지 않았다. [공식 GitHub 연결](https://docs.signpath.io/trusted-build-systems/github), [artifact 예시](https://docs.signpath.io/artifact-configuration/examples).
+`packaging/signpath/application-artifact.xml`은 CI artifact의 `signpath-preflight/BongoCatChat/` 아래 네 개 자체 EXE와 제품명·제품 버전을 제한한 초안이다. `submit-step.example.yml`은 공식 v3 action 사용 예시이며 자동 실행되지 않는다. action 참조는 조사 시 확인한 커밋으로 고정했다. 실제 서비스 스키마 검증과 인증서 검증은 아직 하지 않았다. [공식 GitHub 연결](https://docs.signpath.io/trusted-build-systems/github), [artifact 예시](https://docs.signpath.io/artifact-configuration/examples).
 
 ## NSIS 설치·제거 서명 연결
 

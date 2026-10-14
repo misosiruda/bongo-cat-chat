@@ -6,19 +6,19 @@
     <parameter name="version" required="true" />
   </parameters>
   <zip-file>
-    <pe-file path="BongoCatChat/BongoCatChat.exe"
+    <pe-file path="signpath-preflight/BongoCatChat/BongoCatChat.exe"
              product-name="Bongo Cat Chat" product-version="${version}">
       <authenticode-sign />
     </pe-file>
-    <pe-file path="BongoCatChat/versions/${version}/BongoCatChatApp/BongoCatChatApp.exe"
+    <pe-file path="signpath-preflight/BongoCatChat/versions/${version}/BongoCatChatApp/BongoCatChatApp.exe"
              product-name="Bongo Cat Chat" product-version="${version}">
       <authenticode-sign />
     </pe-file>
-    <pe-file path="BongoCatChat/versions/${version}/BongoCatChatApp/_internal/bongo_chat/compatibility/FeatureProbe.exe"
+    <pe-file path="signpath-preflight/BongoCatChat/versions/${version}/BongoCatChatApp/_internal/bongo_chat/compatibility/FeatureProbe.exe"
              product-name="Bongo Cat Chat" product-version="${version}">
       <authenticode-sign />
     </pe-file>
-    <pe-file path="BongoCatChat/versions/${version}/BongoCatChatApp/_internal/bongo_chat/compatibility/MemoryScan.exe"
+    <pe-file path="signpath-preflight/BongoCatChat/versions/${version}/BongoCatChatApp/_internal/bongo_chat/compatibility/MemoryScan.exe"
              product-name="Bongo Cat Chat" product-version="${version}">
       <authenticode-sign />
     </pe-file>

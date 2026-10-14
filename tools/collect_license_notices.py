@@ -9,10 +9,10 @@ import sys
 
 from audit_distribution import ROOT, dependencies
 
-# These are not shipped by the application; PyInstaller's bootloader is shipped.
-BUILD_ONLY = {"fmod-toolkit", "pyfmodex", "pytest", "playwright", "greenlet",
-              "pyee", "pluggy", "iniconfig", "pygments", "colorama", "altgraph",
-              "pefile", "pyinstaller-hooks-contrib", "setuptools", "pywin32-ctypes"}
+# Explicitly excluded by the audio runtime hook and PyInstaller arguments.
+# Keep all other locked package notices: optional imports can cause PyInstaller
+# to include helpers from packages that are otherwise used only for development.
+EXCLUDED_AUDIO = {"fmod-toolkit", "pyfmodex"}
 
 
 def collect(output):
@@ -31,7 +31,7 @@ def collect(output):
         "This collection includes Python package notices, Qt/PySide upstream source notices, "
         "and the standard GNU licence texts. Chromium notices are in CHROMIUM-LICENSES.html. "
         "SOURCES.md and sources.lock.json identify corresponding archives and replacement instructions. "
-        "Upstream source notices include a superset of build/test/platform components, not a runtime SBOM.\n",
+        "Package and upstream source notices include a superset of build/test/platform components, not a runtime SBOM.\n",
         "Qt/PySide6 are used through their open-source licensing options, not under a "
         "purchased commercial licence. A packaged commercial-licence reference is not evidence "
         "that this project has purchased one.\n",
@@ -40,7 +40,7 @@ def collect(output):
     for row in dependencies():
         if not row.get("version_matches"):
             raise ValueError(f"Missing or mismatched dependency: {row['name']}")
-        if row["name"].lower().replace("_", "-") in BUILD_ONLY:
+        if row["name"].lower().replace("_", "-") in EXCLUDED_AUDIO:
             continue
         dist = metadata.distribution(row["name"])
         sections.append(f"\n{'=' * 70}\n{row['name']} {row['installed_version']}\n")

@@ -3,7 +3,7 @@ name: Windows SignPath preflight
 on:
   workflow_dispatch:
   push:
-    branches: [build/windows-code-signing]
+    branches: [main]
   pull_request:
     branches: [main]
 
