@@ -2,7 +2,7 @@
 
 일반 이용자는 설치 파일 하나로 설치한다. Python, Git, PowerShell 명령어 입력이나 관리자 권한은 필요하지 않다.
 
-현재 공개 개발판은 **0.1.0.dev6**이다. [Windows 설치 파일을 바로 다운로드](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev6/BongoCatChat-0.1.0.dev6-windows-x64-Setup.exe)하거나 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `Setup.exe`를 받는다. `Source code` ZIP과 `bongo-cat-chat-windows-x64.zip`은 일반 이용자용 설치 파일이 아니다. 후자는 기존 앱의 자동 업데이트용이다.
+[최신 개발판 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받는다. `Source code` ZIP과 `bongo-cat-chat-windows-x64.zip`은 일반 이용자용 설치 파일이 아니다. 후자는 기존 앱의 자동 업데이트용이다. `0.1.0.dev7`에는 [고양이 프로필 모자 위치 수정](releases/0.1.0.dev7.md)이 포함된다.
 
 ## 설치와 시작
 
