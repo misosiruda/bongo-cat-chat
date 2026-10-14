@@ -330,6 +330,23 @@ def test_read_only_mode_cannot_send():
     assert live.send({})=="failed"
 
 
+def test_game_update_blocks_send_before_any_native_transmission():
+    class Verification:
+        changed = False
+        def check(self):
+            if self.changed:
+                raise RuntimeError('game_files_changed')
+    verification = Verification()
+    steam = FakeSteam()
+    live = LiveConnection(FakeGame(), FakeMemory(), steam, compatibility=verification)
+    state, _, _ = live.snapshot()
+    context = {key: state[key] for key in ('account', 'lobby', 'generation')}
+    verification.changed = True
+    with pytest.raises(RuntimeError, match='game_files_changed'):
+        live.send(dict(context=context, text='synthetic message', queued=time.monotonic()))
+    assert not steam.sent
+
+
 def test_process_restart_identity_changes_generation():
     game=FakeGame();live=LiveConnection(game,FakeMemory(),FakeSteam())
     first,_,_=live.snapshot();game.created=2

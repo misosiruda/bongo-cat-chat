@@ -1,79 +1,82 @@
-"""Complete build tuples, editable Steam metadata, and fail-closed catalog loading."""
+"""Feature contracts accept unrelated updates and block unverified semantics."""
 import hashlib
 import json
-
 import pytest
-
 from bongo_chat import environment as env
 
+FEATURES = {key: hashlib.sha256(key.encode()).hexdigest() for key in ('chat', 'privacy', 'lobby', 'profiles')}
 
 @pytest.fixture
 def game_files(tmp_path, monkeypatch):
     root = tmp_path / 'steamapps/common/BongoCat'
-    builds = []
-    for build in ('100', '200'):
-        hashes = {name: hashlib.sha256((build + name).encode()).hexdigest() for name in env.BUILD_FILES}
-        builds.append({'build': build, 'sha256': hashes})
-    path = tmp_path / 'supported-build.json'
-    path.write_text(json.dumps({'schema': 1, 'builds': builds}))
+    native = {name: [hashlib.sha256(name.encode()).hexdigest()] for name in env.BUILD_FILES[1:3]}
+    spec = {'schema': 1, 'assemblies': ['Assembly-CSharp.dll', 'Heathen.Steamworks.dll'],
+            'features': {key: {} for key in FEATURES}, 'native': native, 'profiles': [FEATURES]}
+    path = tmp_path / 'feature-contract.json'
+    path.write_text(json.dumps(spec))
     monkeypatch.setattr(env, 'SUPPORT_PATH', path)
+    monkeypatch.setattr(env, 'probe_features', lambda root, stop=None: dict(FEATURES))
     for name in env.BUILD_FILES:
         file = root / name
         file.parent.mkdir(parents=True, exist_ok=True)
-        file.write_bytes(('100' + name).encode())
+        file.write_bytes(name.encode())
     manifest = root.parent.parent / 'appmanifest_3419430.acf'
     manifest.write_text('"AppState" { "appid" "3419430" "buildid" "200" }')
     return root, path, manifest
 
-
-def test_known_complete_tuples_ignore_display_build_id(game_files):
-    root, _, _ = game_files
-    assert env.installed_build(root) == '200'
-    assert env.verify_build(root) == '100'
-    for name in env.BUILD_FILES:
-        (root / name).write_bytes(('200' + name).encode())
+def test_unknown_build_and_changed_managed_files_are_allowed_when_features_match(game_files):
+    root, _, manifest = game_files
     assert env.verify_build(root) == '200'
+    (root / env.BUILD_FILES[0]).write_bytes(b'new unrelated code')
+    (root / env.BUILD_FILES[3]).write_bytes(b'new unrelated cosmetic slot')
+    manifest.write_text('"appid" "3419430" "buildid" "999"')
+    assert env.verify_build(root) == '999'
 
-
-@pytest.mark.parametrize('change', ['mixed', 'missing', 'modified'])
-def test_known_build_number_cannot_approve_changed_or_mixed_files(game_files, change):
+@pytest.mark.parametrize('feature', list(FEATURES))
+def test_changed_feature_is_blocked_even_with_a_familiar_build(game_files, monkeypatch, feature):
     root, _, _ = game_files
-    file = root / env.BUILD_FILES[0]
-    if change == 'missing':
-        file.unlink()
-    else:
-        file.write_bytes(('200' + env.BUILD_FILES[0]).encode() if change == 'mixed' else b'unverified patch')
+    monkeypatch.setattr(env, 'probe_features', lambda root, stop=None: dict(FEATURES, **{feature: '0' * 64}))
     with pytest.raises(env.UnsupportedGameBuild) as result:
         env.verify_build(root)
-    assert result.value.build == '200'
-    assert len(result.value.fingerprint) == 64
-    assert str(result.value) == 'unsupported_game_build'
+    assert result.value.build == '200' and len(result.value.fingerprint) == 64
 
+@pytest.mark.parametrize('change', ['missing', 'native', 'probe_failure'])
+def test_incomplete_or_unreadable_contract_cannot_be_accepted(game_files, monkeypatch, change):
+    root, _, _ = game_files
+    if change == 'missing':
+        (root / env.BUILD_FILES[0]).unlink()
+    elif change == 'native':
+        (root / env.BUILD_FILES[2]).write_bytes(b'unknown native ABI')
+    else:
+        def fail(*_): raise ValueError('broken metadata')
+        monkeypatch.setattr(env, 'probe_features', fail)
+    with pytest.raises(env.UnsupportedGameBuild): env.verify_build(root)
 
-@pytest.mark.parametrize('catalog', [
-    {}, {'schema': 1, 'builds': []},
-    {'schema': 1, 'builds': [{'build': '100', 'sha256': {}}]},
-    {'schema': 1, 'builds': [None]},
-    {'schema': 2, 'builds': []},
-])
-def test_bad_catalog_never_allows_an_empty_match(game_files, catalog):
+@pytest.mark.parametrize('catalog', [{}, {'schema': 1, 'profiles': []}, {'schema': 1, 'profiles': [{}]}, {'schema': 2}])
+def test_bad_contract_never_allows_empty_match(game_files, catalog):
     root, path, _ = game_files
     path.write_text(json.dumps(catalog))
-    with pytest.raises(RuntimeError, match='unsupported_build_catalog'):
-        env.verify_build(root)
-
+    with pytest.raises(RuntimeError, match='unsupported_feature_contract'): env.verify_build(root)
 
 @pytest.mark.parametrize('raw', [b'not a manifest', b'"appid" "3419430" "buildid" "<markup>"',
-    b'"appid" "999" "buildid" "200"', b'"appid" "3419430" "buildid" "1" "buildid" "2"',
-    b'x' * 65537, b'\xff'], ids=['missing', 'markup', 'other_app', 'duplicate', 'oversize', 'encoding'])
-def test_bad_diagnostic_manifest_never_blocks_known_hash_match(game_files, raw):
+    b'"appid" "999" "buildid" "200"', b'"appid" "3419430" "buildid" "1" "buildid" "2"', b'x' * 65537, b'\xff'],
+    ids=['missing', 'markup', 'other_app', 'duplicate', 'oversize', 'encoding'])
+def test_bad_diagnostic_manifest_does_not_block_compatible_features(game_files, raw):
     root, _, manifest = game_files
     manifest.write_bytes(raw)
-    assert env.installed_build(root) == ''
-    assert env.verify_build(root) == '100'
+    assert env.installed_build(root) == '' and env.verify_build(root) == ''
 
+def test_updates_during_verification_or_active_connection_require_recheck(game_files, monkeypatch):
+    root, _, _ = game_files
+    verified = env.verify_compatibility(root)
+    (root / env.BUILD_FILES[0]).write_bytes(b'another unrelated update')
+    with pytest.raises(RuntimeError, match='game_files_changed'): verified.check()
+    def changing_probe(root, stop=None):
+        (root / env.BUILD_FILES[0]).write_bytes(b'update while the probe is running')
+        return dict(FEATURES)
+    monkeypatch.setattr(env, 'probe_features', changing_probe)
+    with pytest.raises(RuntimeError, match='game_files_changed'): env.verify_compatibility(root)
 
-def test_real_catalog_is_complete_and_has_no_ambiguous_tuple():
-    builds = env.supported_builds()
-    tuples = {tuple(row['sha256'][name] for name in env.BUILD_FILES) for row in builds}
-    assert len(tuples) == len(builds)
+def test_real_contract_has_complete_feature_profiles():
+    catalog = env.compatibility_contract()
+    assert all(set(profile) == set(FEATURES) for profile in catalog['profiles'])

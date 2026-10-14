@@ -1,4 +1,4 @@
-"""Experimental Mono reader for an exact, hash-checked development build.
+"""Experimental reader behind a feature contract and a known Mono ABI.
 
 Only OpenProcess(QUERY_INFORMATION | VM_READ), ReadProcessMemory and query APIs.
 No saved addresses, remote calls, process writes, injection or file mutations.

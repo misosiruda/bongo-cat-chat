@@ -12,12 +12,15 @@
   let newVisibleIds = new Set();
   const positions = new Map();
   const notices = {
-    checking: 'Steam과 실행 중인 게임을 확인하고 있어요.',
+    checking: 'Steam과 게임의 채팅·숨김 연동 구조를 확인하고 있어요.',
     discovering: '게임의 숨김 상태를 확인하고 있어요. 최초 연결에는 시간이 걸릴 수 있어요.',
     read_only: '읽기 전용으로 실행 중입니다. 메시지를 전송하지 않습니다.',
     no_lobby: '현재 게임 로비를 확인할 수 없어요. 게임에서 로비에 참여해 주세요.',
     hidden_unavailable: '게임의 숨김 상태를 확인할 수 없어 상대 대화 표시·신규 저장과 전송을 중단했어요.',
-    unsupported_game_build: '현재 게임 파일의 호환성을 확인해야 해요. 연결 가능한 앱 업데이트를 기다리고 있습니다.',
+    unsupported_game_build: '채팅·숨김 연동 구조의 호환성을 확인하지 못했어요. 대응 앱 업데이트를 확인하고 있습니다.',
+    game_files_changed: '게임 업데이트를 감지했어요. 연동 구조를 다시 확인하고 있습니다.',
+    compatibility_tool_missing: '호환성 검사 파일이 없어 연결할 수 없어요. 앱을 다시 설치해 주세요.',
+    compatibility_timeout: '호환성 검사에 시간이 걸리고 있어요. 연결을 보류하고 다시 확인합니다.',
     game_missing_or_ambiguous: '실행 중인 Bongo Cat 하나를 확인해야 연결할 수 있어요.',
     worker_stopped: '연결 작업자가 종료됐어요. 전송 결과가 불명확한 메시지는 다시 보내지 않습니다.',
     view_unavailable: '대화 상태를 조회하지 못해 표시와 전송을 중단했어요. 다시 확인하고 있습니다.',

@@ -18,10 +18,11 @@ $originalPath = $env:PATH
 $env:PATH = (Join-Path $env:SystemRoot 'System32') + ';' + $env:SystemRoot + ';' + (Split-Path $python)
 Push-Location $projectRoot
 try {
+    & (Join-Path $projectRoot 'tools/prepare-compatibility.ps1')
     $version = (& $python -c "import sys; sys.path.insert(0, 'src'); from bongo_chat import __version__; print(__version__)").Trim()
     if ($version -notmatch '^\d+\.\d+\.\d+(\.dev\d+)?$') { throw 'Invalid app version' }
     $versionPath = Join-Path $bundle "versions/$version"
-    & $python -m PyInstaller --clean --noconfirm --windowed --onedir --distpath $versionPath --name BongoCatChatApp --paths src --collect-data bongo_chat --collect-data UnityPy --collect-data archspec --collect-binaries fmod_toolkit --copy-metadata UnityPy tools/launch.py
+    & $python -m PyInstaller --clean --noconfirm --windowed --onedir --distpath $versionPath --name BongoCatChatApp --paths src --collect-data bongo_chat --collect-data UnityPy --collect-data archspec --collect-binaries fmod_toolkit --copy-metadata UnityPy --add-data 'artifacts/compatibility/FeatureProbe.exe;bongo_chat/compatibility' --add-data 'artifacts/compatibility/Mono.Cecil.dll;bongo_chat/compatibility' --add-data 'tools/compatibility/Mono.Cecil.LICENSE.txt;bongo_chat/compatibility' tools/launch.py
     if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed' }
     & $python -m PyInstaller --clean --noconfirm --windowed --onefile --distpath $bundle --name BongoCatChat --paths src --add-data 'src/bongo_chat/update-config.json;bongo_chat' tools/launch_bootstrap.py
     if ($LASTEXITCODE -ne 0) { throw 'Launcher build failed' }

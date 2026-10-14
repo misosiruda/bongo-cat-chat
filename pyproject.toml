@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bongo-cat-chat"
-version = "0.1.0.dev5"
+version = "0.1.0.dev6"
 description = "Windows messenger for the existing Bongo Cat lobby"
 requires-python = ">=3.13,<3.14"
 dependencies = ["PySide6==6.12.0", "psutil==7.2.2", "UnityPy==1.25.4", "cryptography==50.0.2"]
@@ -19,7 +19,7 @@ bongo-cat-chat = "bongo_chat.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-bongo_chat = ["ui/*", "supported-build.json", "update-config.json"]
+bongo_chat = ["ui/*", "feature-contract.json", "update-config.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

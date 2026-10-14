@@ -3,7 +3,7 @@ import queue
 import time
 from uuid import uuid4
 
-from .environment import UnsupportedGameBuild, running_game, verify_build
+from .environment import UnsupportedGameBuild, running_game, verify_compatibility
 from .memory import GameMemory
 from .steam import APP_ID, Steam
 
@@ -14,9 +14,10 @@ def unavailable(notice):
 
 
 class LiveConnection:
-    def __init__(self, game, memory, steam, read_only=False, avatars=None):
+    def __init__(self, game, memory, steam, read_only=False, avatars=None, compatibility=None):
         self.game, self.memory, self.steam = game, memory, steam
         self.read_only, self.avatars = read_only, avatars
+        self.compatibility = compatibility
         self.identity = None
         self.generation = ""
         self.state = unavailable("checking")
@@ -25,6 +26,8 @@ class LiveConnection:
         self.last_send = 0
 
     def snapshot(self):
+        if self.compatibility:
+            self.compatibility.check()
         if not self.game.alive():
             raise RuntimeError("process_changed")
         account = self.steam.account()
@@ -84,6 +87,8 @@ class LiveConnection:
             return "failed"
         if self.steam.reported_game(current["account"]) != (APP_ID, current["lobby"]):
             return "failed"
+        if self.compatibility:
+            self.compatibility.check()
         self.last_send = time.monotonic()
         try:
             return "accepted" if self.steam.send(current["lobby"], command["text"]) else "failed"
@@ -105,16 +110,18 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
         try:
             emit(unavailable("checking"))
             game = running_game()
-            verify_build(game.root)
+            compatibility = verify_compatibility(game.root, stop)
             memory = GameMemory(game, stop)
             emit(unavailable("discovering"))
             memory.discover()
+            compatibility.check()
             steam = Steam(game.root)
             steam.start()
             if render_avatars:
                 from .avatars import Avatars
                 avatars = Avatars(game.root)
-            live = LiveConnection(game, memory, steam, read_only, avatars)
+            compatibility.check()
+            live = LiveConnection(game, memory, steam, read_only, avatars, compatibility)
             last_state, last_emit, receive_context = None, 0, None
             while not stop.is_set():
                 state, members, changed = live.snapshot()
