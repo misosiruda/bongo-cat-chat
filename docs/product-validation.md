@@ -69,7 +69,7 @@ Windows Qt WebEngine에서 `backdrop-filter: blur()`를 사용하는 화면이 �
 
 ### 2026-10-14 스크롤 회귀 수정
 
-`fix/chat-scroll-history` 워크트리에서 다음 동작을 가상 메시지와 제품 렌더러로 검증했다. 실제 게임 송수신·상대 화면·설치된 개발판 인수를 뜻하지 않는다.
+main `2cc8348`을 기준으로 정렬한 `fix/chat-scroll-history` 워크트리에서 다음 동작을 가상 메시지와 제품 렌더러로 검증했다. 기존 연결 초기화·Meow 필터를 유지했다. 실제 게임 송수신·상대 화면·설치된 개발판 인수를 뜻하지 않는다.
 
 | 항목 | 결과와 검증 범위 |
 | --- | --- |
@@ -80,14 +80,13 @@ Windows Qt WebEngine에서 `backdrop-filter: blur()`를 사용하는 화면이 �
 | 연속 기록 | 위로 스크롤하면 이전 기록 추가, 1,000개 범위의 아래쪽에서 다음 범위 연결 |
 | 과거 열람 중 수신·전송 | 범위 밖의 새 수신 안내, 내 전송 후 최신 구간과 상태 표시 |
 | 방·검색 | 방 복귀·검색 해제의 범위와 메시지 위치 복원, 검색 대상 뒤의 대화 표시 |
-| 숨김·격리 | 대화와 신규 표시에서 숨김 상대 제외. 다른 계정·로비·만료 기록을 메타데이터에서도 제외 |
+| 숨김·격리 | 대화와 신규 표시에서 숨김 상대 제외. 다른 계정·로비·만료 기록·기존 Meow 기록을 메타데이터에서도 제외 |
 
 실행한 검사:
 
-- `python -m pytest -q`: **172개 통과**. 실제 Qt WebEngine·QWebChannel의 새 스크롤 검사와 기존 제품 검사를 포함한다. `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`인 오프스크린 환경에서 GPU mailbox 진단이 출력됐으며 테스트 실패나 제품 JavaScript 오류로 판정하지 않았다.
-- `python -m pytest tests/test_scroll_service.py tests/test_scroll_desktop.py -q`: 마지막 코드 변경 후 **18개 통과**.
+- `python -m pytest -q`: 최신 main과 결합한 전체 **305개 통과**. 실제 Qt WebEngine·QWebChannel의 새 스크롤 검사, Meow 메타데이터 회귀 검사와 기존 제품 검사를 포함한다. `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`인 오프스크린 환경에서 실행했다. 초기 기준의 별도 실행에서 GPU mailbox 진단이 출력됐으며 테스트 실패나 제품 JavaScript 오류로 판정하지 않았다.
 - `python tests/browser_scroll_check.py --browser <로컬 Chromium> --output <외부 검증 폴더>`: 가상 기록 최대 1,250개로 **7개 흐름 통과**, 콘솔 오류·경고 없음.
-- `python tests/browser_check.py --browser <로컬 Chromium> --output <외부 검증 폴더>`: 기존 1,536×1,024·480×800 화면 검사 통과.
+- `python tests/browser_check.py --browser <로컬 Chromium> --output <외부 검증 폴더>`: 기존 1,536×1,024·480×800·1,240×840·960×540·400×500 화면 검사, 설정 배치 6개 경우·모달 갱신 12개 표본 통과.
 - `node --check src/bongo_chat/ui/app.js`, `git diff --check`: 통과.
 
 새 창 크기·긴 메시지·실제 Windows 입력·설치 패키지와 실사용 Steam 연결의 조합은 추가 인수 범위다. DB schema와 송신 API 변경이 없어 이전 코드로 복귀해도 저장 기록을 변환할 필요는 없다. 화면 정책과 조회 계약은 같은 앱 묶음으로 반영해야 한다.

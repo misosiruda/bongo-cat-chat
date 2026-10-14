@@ -83,3 +83,12 @@ def test_unsaved_peer_indicator_respects_hidden_filter(service, store, monkeypat
     assert service.view()['volatile_peer_ids'] == ['fixture-unsaved']
     service.update(state(hidden={'fixture-peer': True}))
     assert service.view()['volatile_peer_ids'] == []
+
+
+def test_legacy_meow_rows_do_not_affect_paging_or_unread_metadata(service, store):
+    received(service, '이전 저장 형식의 가상 기록')
+    store.db.execute("UPDATE messages SET body='Meow Meow'")
+    page = service.view(start=0, seen=0)
+    assert page['messages'] == []
+    assert not page['has_more'] and not page['has_newer'] and not page['unseen']
+    assert page['latest_seq'] == 0
