@@ -4,7 +4,7 @@ import sqlite3
 import time
 from uuid import uuid4
 
-from .protocol import encode
+from .protocol import encode, is_meow_message
 
 
 class ChatService:
@@ -130,6 +130,8 @@ class ChatService:
         # The adapter already copied the payload and assigned this app UUID.
         if event["context"] != self.context() or not self.session:
             return
+        if is_meow_message(event["text"]):
+            return
         receipt = event["id"]
         if receipt in self.receipts:
             return
@@ -182,6 +184,7 @@ class ChatService:
             rows, rooms, draft = [], [], ""
         volatile = [dict(r, unsaved=True) for r in self.volatile.values() if r["account"] == account
                     and r["lobby"] == lobby and r["sender"] in allowed | {account}
+                    and not is_meow_message(r["body"])
                     and query.lower() in r["body"].lower() and before is None]
         messages = sorted(rows + volatile, key=lambda r: (
             r.get('seq', r.get('_before_seq', float('inf'))), not r.get('unsaved', False)))
