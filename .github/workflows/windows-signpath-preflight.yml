@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: windows-preflight-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-2022
@@ -85,7 +89,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-results-${{ github.sha }}
-          path: dist/test-results.xml
+          path: |
+            dist/test-results.xml
+            dist/signpath-preflight/evidence/*.json
+            build/BongoCatChatApp/warn-BongoCatChatApp.txt
           if-no-files-found: ignore
           retention-days: 7
 

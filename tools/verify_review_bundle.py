@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from audit_distribution import inspect_bundle
+from audit_distribution import ROOT, inspect_bundle
 
 
 def main():
@@ -19,6 +19,10 @@ def main():
     version = json.loads((bundle / '.bongo-cat-chat-install').read_text(encoding='utf-8-sig'))['active']
     app = bundle / 'versions' / version / 'BongoCatChatApp'
     legal = app / '_internal/bongo_chat/legal'
+    # A developer's editable install must never supply stale UI/config assets.
+    for relative in ('ui/index.html', 'ui/app.js', 'ui/messenger.css', 'update-config.json', 'feature-contract.json'):
+        if (app / '_internal/bongo_chat' / relative).read_bytes() != (ROOT / 'src/bongo_chat' / relative).read_bytes():
+            raise ValueError('Packaged resource differs from this checkout: ' + relative)
     expected = ['LICENSE.txt', 'PRIVACY.md', 'THIRD-PARTY-NOTICES.txt', 'CHROMIUM-LICENSES.html', 'SOURCES.md', 'sources.lock.json']
     hashes = {}
     for name in expected:
