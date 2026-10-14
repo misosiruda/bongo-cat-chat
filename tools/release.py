@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import zipfile
 
@@ -54,7 +55,21 @@ def keygen(private_key, public_config):
     print('Public key configured. Private key is protected for this Windows user; no release published.')
 
 
-def pack(bundle, private_key, output):
+def verify_windows_signatures(bundle, signing_config):
+    """Check the exact input EXEs before creating the separately signed update ZIP."""
+    if os.name != 'nt':
+        raise RuntimeError('Windows signature verification requires Windows')
+    powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+    script = Path(__file__).resolve().parents[1] / 'packaging/sign-bundle.ps1'
+    subprocess.run([str(powershell), '-NoLogo', '-NoProfile', '-NonInteractive',
+                    '-ExecutionPolicy', 'Bypass', '-File', str(script),
+                    '-Bundle', str(bundle), '-SigningConfig', str(signing_config.resolve()),
+                    '-VerifyOnly'], check=True, creationflags=subprocess.CREATE_NO_WINDOW)
+
+
+def pack(bundle, private_key, output, *, signing_config=None, allow_unsigned=False):
+    if (signing_config is not None) == bool(allow_unsigned):
+        raise ValueError('Choose a Windows signing config or explicitly allow unsigned development assets')
     bundle, output = no_links(bundle), no_links(output)
     if output.is_relative_to(bundle):
         raise ValueError('Release assets must be outside the source bundle')
@@ -62,6 +77,10 @@ def pack(bundle, private_key, output):
     marker = installation(bundle)
     current = marker['active']
     version(current)
+    if signing_config is not None:
+        verify_windows_signatures(bundle, signing_config)
+    else:
+        print('WARNING: unsigned Windows development assets; update signatures do not authenticate the Windows publisher.', file=sys.stderr)
     key = Ed25519PrivateKey.from_private_bytes(protect(no_links(private_key).read_bytes(), decrypt=True))
     if base64.b64encode(key.public_key().public_bytes_raw()).decode('ascii') != settings['public_key']:
         raise ValueError('Signing key does not match the pinned public key')
@@ -99,11 +118,15 @@ def main():
     package.add_argument('--bundle', type=Path, required=True)
     package.add_argument('--private-key', type=Path, required=True)
     package.add_argument('--output', type=Path, required=True)
+    signing = package.add_mutually_exclusive_group(required=True)
+    signing.add_argument('--signing-config', type=Path, help='Windows Authenticode settings used to verify the bundle')
+    signing.add_argument('--allow-unsigned', action='store_true', help='Explicitly create unsigned Windows development assets')
     args = parser.parse_args()
     if args.action == 'keygen':
         keygen(args.private_key, args.public_config)
     else:
-        pack(args.bundle, args.private_key, args.output)
+        pack(args.bundle, args.private_key, args.output,
+             signing_config=args.signing_config, allow_unsigned=args.allow_unsigned)
 
 
 if __name__ == '__main__':

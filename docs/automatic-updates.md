@@ -51,6 +51,8 @@ BongoCatChat/
 
 ## 릴리스 작성자 절차
 
+Windows 게시자 인증은 아래 Ed25519 서명과 별개다. 배포용 묶음은 먼저 [Windows 코드 서명](windows-code-signing.md)을 적용하고 `pack --signing-config <설정-파일>`로 다시 검사한다. 아래 예시는 인증서 없는 로컬 개발 검사이며 `--allow-unsigned`를 명시한다. Windows 경고 제거 검증으로 사용하지 않는다.
+
 개인키는 Git·앱·릴리스에 포함하지 않는다. 개발 PC의 키는 Git 제외 경로 `research/private/update-signing-key.dpapi`에 Windows 사용자 범위 [DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata)로 암호화했다. 공개키만 `src/bongo_chat/update-config.json`에 고정한다. 다른 계정·PC에서의 배포, 키 백업·복구는 별도 준비가 필요하다. 임의로 키를 교체하면 기존 이용자가 새 서명을 검증할 수 없다.
 
 아래 초기화는 처음 한 번만 실행한다. 기존 개인키나 공개키가 있으면 덮어쓰지 않는다.
@@ -62,8 +64,8 @@ BongoCatChat/
 `src/bongo_chat/__init__.py`와 `pyproject.toml`의 버전을 맞춘다. 정식 배포는 `0.1.0`, 검증용 빌드는 `.devN` 형식을 사용한다.
 
 ```powershell
-pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/automatic-updates
-.venv/Scripts/python tools/release.py pack --bundle dist/automatic-updates/BongoCatChat --private-key research/private/update-signing-key.dpapi --output dist/release-assets
+pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/automatic-updates -AllowUnsigned
+.venv/Scripts/python tools/release.py pack --bundle dist/automatic-updates/BongoCatChat --private-key research/private/update-signing-key.dpapi --output dist/release-assets --allow-unsigned
 ```
 
 생성 자산은 `bongo-cat-chat-windows-x64.zip`, `update-manifest.json`, `update-manifest.sig`다. 도구는 로컬 파일만 만들며 GitHub에 게시하지 않는다. 첫 설치에는 실행기·버전 폴더·설치 스크립트를 갖춘 전체 설치 묶음이 필요하다. 위 ZIP은 기존 실행기가 받는 업데이트 페이로드다.

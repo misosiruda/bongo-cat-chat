@@ -16,12 +16,18 @@ BrandingText "Bongo Cat Chat"
 OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\${APP_ID}"
 RequestExecutionLevel user
+!ifdef SIGNING_ENABLED
+  ; Sign the generated uninstaller before NSIS embeds it in Setup.exe.
+  ; The config stays in the parent process environment, outside the command string.
+  !uninstfinalize '"$%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "packaging\sign-file.ps1" -Path "%1"' = 0
+!endif
 ManifestDPIAware true
 SetCompressor /SOLID zlib
 ShowInstDetails nevershow
 ShowUninstDetails nevershow
 VIProductVersion "${NUMERIC_VERSION}"
 VIAddVersionKey /LANG=1042 "ProductName" "${APP_NAME}"
+VIAddVersionKey /LANG=1042 "ProductVersion" "${APP_VERSION}"
 VIAddVersionKey /LANG=1042 "FileDescription" "${APP_NAME} 설치"
 VIAddVersionKey /LANG=1042 "FileVersion" "${APP_VERSION}"
 VIAddVersionKey /LANG=1042 "LegalCopyright" ""

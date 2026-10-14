@@ -1,0 +1,17 @@
+# Reference only: not a complete workflow, not loaded by GitHub Actions.
+# Insert into the trusted build job only after SignPath approves the project.
+# `unsigned` is the upload-artifact step; `version` must be read from source,
+# not accepted as an unchecked dispatch input. These variables are not set yet.
+- name: Request application signatures
+  uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+  with:
+    api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+    organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+    project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+    signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+    artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+    github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+    wait-for-completion: true
+    output-artifact-directory: dist/signpath-signed
+    parameters: |
+      version: ${{ toJSON(steps.version.outputs.version) }}

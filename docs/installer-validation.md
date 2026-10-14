@@ -77,6 +77,23 @@ PR #6의 최초 코드·보안 리뷰는 `f0a0b8e`에서 완료됐다. 코드 �
 
 동시에 여러 Qt 검사를 실행한 중간 시험에는 GPU context 오류 후 종료가 한 번 있었다. 같은 파일의 단독 재검사는 통과했으며, 이 결과를 정상 GUI의 장시간 안정성 인수로 확대하지 않는다. 검사 수치와 한계는 [dev6 근거](evidence/2026-10-14-feature-compatibility.json)에 구분한다. Windows 코드 서명·다른 PC·첫 공개 릴리스는 미완료다.
 
+## Windows 코드 서명 빌드 경로 검사
+
+2026-10-14 `origin/main`의 `45e7d1e`에서 분리한 `build/windows-code-signing` 워크트리에 [서명·검증 경로](windows-code-signing.md)를 구현했다. 개인 명의 인증서는 아직 없으며 실제 서명이나 새 릴리스 게시를 수행한 기록은 아니다.
+
+새 워크트리를 작업 디렉터리로 하고 기존 Python 환경을 사용했다. `BONGO_TEST_NSIS_PATH`에는 기존 로컬 도구인 NSIS 3.13 폴더를 지정했다. 실행 명령과 결과:
+
+```powershell
+& 'C:\Project\bongo-cat-chat\.venv\Scripts\python.exe' -m pytest -q tests/test_windows_signing.py tests/test_packaging.py tests/test_updates.py
+```
+
+- **91개 통과, 115.12초**. 서명 관련 34개와 기존 설치·업데이트 회귀 57개다. 앱 전체 테스트나 실제 게임 검사를 수행한 수치는 아니다.
+- 서명 설정 누락, 잘못된 인증서, 미서명·변조·타임스탬프 누락, SignTool 실패·경고 종료를 거부한다. Python/NSIS가 Windows PowerShell 5.1을 실행할 때 상위 PowerShell 7의 모듈 경로가 섞이는 경우도 호스트의 기본 모듈을 명시적으로 불러오도록 수정하고 재검사했다.
+- 실제 NSIS 컴파일러와 소형 합성 묶음으로 제거 프로그램의 서명 콜백을 확인했다. 제거 프로그램·설치 프로그램의 서명 실패 대역은 최종 EXE·체크섬을 만들지 않았고, 성공 대역은 서명 단계 이후의 파일 해시를 기록했다. 기존 설치·제거 EXE를 실행하거나 Windows 인증서 저장소를 변경하지 않았다.
+- 임시 테스트 키로 업데이트 ZIP의 최종 바이트·SHA-256·Ed25519 서명을 확인했다. 제품의 업데이트 개인키를 사용하거나 회전하지 않았다.
+- 기존 dev6 Setup의 SHA-256이 위 기록과 일치하고 Authenticode 상태가 `NotSigned`임을 다시 확인했다. 새 `sign-bundle.ps1 -VerifyOnly`는 기존 dev6 묶음을 종료 코드 1로 거부했다. 기존 산출물은 읽기 전용으로 검사했다.
+- PowerShell 구문 분석과 `git diff --check` 통과. 실제 인증서 발급·서명, 전체 PyInstaller 재빌드, 다른 PC의 게시자 표시·SmartScreen·Smart App Control, 서명된 실제 업데이트 적용은 미검증이다.
+
 ## 남은 인수
 
 - 개발 도구 없는 별도 Windows PC의 설치·실행·제거
