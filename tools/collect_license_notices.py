@@ -1,6 +1,8 @@
-"""Collect available licence texts without claiming a complete native SBOM."""
+"""Collect package, native and corresponding-source notices for this build."""
 import argparse
+import hashlib
 from importlib import metadata
+import json
 from pathlib import Path
 import shutil
 import sys
@@ -14,13 +16,22 @@ BUILD_ONLY = {"fmod-toolkit", "pyfmodex", "pytest", "playwright", "greenlet",
 
 
 def collect(output):
+    manifest = json.loads((ROOT / 'packaging/licenses/sources.lock.json').read_text())
+    from PySide6.QtCore import qVersion
+    from PySide6.QtWebEngineCore import qWebEngineVersion, qWebEngineChromiumVersion
+    if (qVersion(), qWebEngineVersion(), qWebEngineChromiumVersion()) != (manifest['qt'], manifest['webengine'], manifest['chromium']):
+        raise ValueError('Qt/Chromium changed: update corresponding sources and notices')
+    for name, expected in manifest['notices'].items():
+        if hashlib.sha256((ROOT / 'packaging/licenses' / name).read_bytes()).hexdigest() != expected:
+            raise ValueError('Native notice checksum mismatch: ' + name)
     output.mkdir(parents=True, exist_ok=True)
     sections = [
         "Bongo Cat Chat - third-party licence texts\n",
         "Project-owned source is MIT licensed; see LICENSE.txt.\n",
-        "This collection preserves available package notices and standard GNU licence texts. "
-        "It is not a complete native-component SBOM or a legal clearance. "
-        "Qt/Chromium corresponding-source and native attribution review remains required.\n",
+        "This collection includes Python package notices, Qt/PySide upstream source notices, "
+        "and the standard GNU licence texts. Chromium notices are in CHROMIUM-LICENSES.html. "
+        "SOURCES.md and sources.lock.json identify corresponding archives and replacement instructions. "
+        "Upstream source notices include a superset of build/test/platform components, not a runtime SBOM.\n",
         "Qt/PySide6 are used through their open-source licensing options, not under a "
         "purchased commercial licence. A packaged commercial-licence reference is not evidence "
         "that this project has purchased one.\n",
@@ -48,11 +59,18 @@ def collect(output):
     if not python_license.is_file():
         raise ValueError("CPython licence text missing from the Windows build environment")
     sections.extend([f"\nCPython {sys.version.split()[0]}", python_license.read_text(encoding="utf-8")])
-    for name in ("GPL-3.0.txt", "LGPL-3.0.txt", "LGPL-2.1.txt"):
+    extra = json.loads((ROOT / 'packaging/licenses/additional-notices.json').read_text())
+    for name, source in extra.items():
+        if hashlib.sha256((ROOT / 'packaging/licenses' / name).read_bytes()).hexdigest() != source['sha256']:
+            raise ValueError('Additional notice checksum mismatch: ' + name)
+    for name in ("GPL-3.0.txt", "LGPL-3.0.txt", "LGPL-2.1.txt", "QT-NOTICES.txt", *extra):
         path = ROOT / "packaging/licenses" / name
         sections.extend([path.name, path.read_text(encoding="utf-8")])
     shutil.copyfile(ROOT / "LICENSE", output / "LICENSE.txt")
     shutil.copyfile(ROOT / "docs/privacy-policy.md", output / "PRIVACY.md")
+    shutil.copyfile(ROOT / "docs/licensing/SOURCES.md", output / "SOURCES.md")
+    for name in ('sources.lock.json', 'CHROMIUM-LICENSES.html'):
+        shutil.copyfile(ROOT / 'packaging/licenses' / name, output / name)
     (output / "THIRD-PARTY-NOTICES.txt").write_text("\n\n".join(sections) + "\n", encoding="utf-8")
 
 
@@ -61,4 +79,4 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     collect(args.output)
-    print(f"Collected available licence texts in {args.output}; native review is still required.")
+    print(f"Collected package/native notices and corresponding-source information in {args.output}.")

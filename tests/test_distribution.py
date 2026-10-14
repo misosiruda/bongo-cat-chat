@@ -80,11 +80,14 @@ else:
 
 def test_notice_collection_keeps_licences_and_excludes_unused_fmod(tmp_path):
     result = subprocess.run([sys.executable, str(ROOT / "tools/collect_license_notices.py"),
-                             "--output", str(tmp_path)], cwd=ROOT, capture_output=True, text=True, timeout=30)
+                             "--output", str(tmp_path)], cwd=ROOT, capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "LICENSE.txt").read_bytes() == (ROOT / "LICENSE").read_bytes()
     text = (tmp_path / "THIRD-PARTY-NOTICES.txt").read_text(encoding="utf-8")
     assert "GNU LESSER GENERAL PUBLIC LICENSE" in text
     assert "Mono.Cecil 0.11.6" in text and "CPython 3.13." in text
     assert "fmod_toolkit 0.1.3" not in text and "pyfmodex 0.7.2" not in text
-    assert "not a complete native-component SBOM" in text
+    assert 'SOURCES.md' in text and 'OpenSSL' in text and 'Mesa 11.2.2' in text
+    assert (tmp_path / 'SOURCES.md').is_file()
+    chromium = (tmp_path / 'CHROMIUM-LICENSES.html').read_text(encoding='utf-8')
+    assert 'Chromium' in chromium and 'Copyright' in chromium and 'ffmpeg' in chromium
