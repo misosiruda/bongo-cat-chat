@@ -40,7 +40,9 @@ $env:QTWEBENGINE_CHROMIUM_FLAGS = '--disable-gpu'
 ./packaging/build-setup.ps1 -Bundle dist/signpath-final-v3/BongoCatChat -NsisPath 'C:/Project/bongo-cat-chat/research/private/tooling/nsis-3.13' -OutputRoot dist/signpath-final-v3-setup -AllowUnsigned
 ```
 
-로컬 Setup.exe는 215,960,408 bytes, SHA-256 `75e5c94db0aa1f54984df17fcc4ebd051581e892c388a0c1113a6c2a509a40ab`이다. 현재 후보의 설치 컴파일 확인이며 실제 인증서로 서명하지 않았다.
+바로가기 경로 후속 수정 전 로컬 Setup.exe는 215,960,408 bytes, SHA-256 `75e5c94db0aa1f54984df17fcc4ebd051581e892c388a0c1113a6c2a509a40ab`이다. 해당 시점 후보의 설치 컴파일 확인이며 실제 인증서로 서명하지 않았다.
+
+설치 바로가기 후속 검사: 한글·공백·이모지 경로 설치와 기존 바로가기 충돌/제거 보호 4개 검사는 `4 passed in 42.82s`다. 실제 저장된 바로가기의 대상 경로도 검사한다. 원격 최종 결과는 위 PR의 CI 실행을 기준으로 한다.
 
 ## 준비 과정에서 발견하고 수정한 사항
 
@@ -48,6 +50,7 @@ $env:QTWEBENGINE_CHROMIUM_FLAGS = '--disable-gpu'
 - NSIS 일반 다운로드 URL이 HTML을 반환해 해시 검사가 실패했다. 공식 다운로드 URL과 미러를 사용하되 기대 크기·해시를 검증한 파일만 사용하도록 했다.
 - 개발 환경의 editable install이 다른 checkout의 리소스를 공급할 수 있었고 깨끗한 CI에서는 패키지 데이터가 빠졌다. 현재 소스 경로를 명시하고 빌드 후 바이트 대조를 추가했다.
 - 네이티브 고지만으로 Python의 선택적 개발 도구 import까지 빠짐없이 설명할 수 없어, FMOD 래퍼를 제외한 잠금 패키지 고지를 보수적으로 보존한다. 전체 고지 모음이 실제 runtime SBOM이라는 뜻은 아니다.
+- CI의 바로가기 대상 설정에서 발생한 오류에 대해 파일 경로를 명시적으로 인용하고, 실제 설치·재설치 후 바로가기 대상 일치 검사를 추가했다.
 - 과거 dev6 로컬 후보의 빌드·서명 대역 검사와 `NotSigned` 확인은 이력이다. 최신 신청 후보로 재사용하지 않는다.
 
 ## 이 검증으로 확인하지 않은 것

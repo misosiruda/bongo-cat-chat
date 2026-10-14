@@ -332,7 +332,7 @@ def test_installer_update_choice_is_shared_and_preserved(nsis_project, monkeypat
     key = 'Software\\' + app_id
     uninstall_key = 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + app_id
     engine = bundle / 'install.ps1'
-    engine.write_text(engine.read_text(encoding='utf-8-sig').replace('Write-Output $_.Exception.Message', 'Write-Output $_.InvocationInfo.Line; Write-Output $_.ScriptStackTrace; Write-Output $destinationPath; Write-Output $shortcutPath; Write-Output $_.Exception.Message'), encoding='utf-8-sig')
+    engine.write_text(engine.read_text(encoding='utf-8-sig').replace('Write-Output $_.Exception.Message', 'Write-Output $_.InvocationInfo.Line; Write-Output $_.ScriptStackTrace; Write-Output $destinationPath; Write-Output (([int[]][char[]][IO.Path]::GetFileName($destinationPath)) -join [char]44); Write-Output $shortcutPath; Write-Output $_.Exception.Message'), encoding='utf-8-sig')
     shutil.copyfile(engine, project / 'packaging/install.ps1')
     source = project / 'packaging/installer.nsi'
     text = source.read_text(encoding='utf-8').replace('!define APP_ID "BongoCatChat"', f'!define APP_ID "{app_id}"').replace('!define APP_NAME "Bongo Cat Chat"', f'!define APP_NAME "{app_id}"')
@@ -355,6 +355,11 @@ def test_installer_update_choice_is_shared_and_preserved(nsis_project, monkeypat
             installed = subprocess.run(args, env=env, capture_output=True, timeout=60, creationflags=subprocess.CREATE_NO_WINDOW)
             diagnostic = setup.parent / 'engine-diagnostic.txt'
             assert installed.returncode == 0, diagnostic.read_text(encoding='utf-16-le') if diagnostic.exists() else installed.stdout + installed.stderr
+            assert (target / 'BongoCatChat.exe').is_file()
+            shortcut = Path(env['APPDATA']) / f'Microsoft/Windows/Start Menu/Programs/{app_id}.lnk'
+            inspected = ps(test_root, f'(New-Object -ComObject WScript.Shell).CreateShortcut({quote(shortcut)}).TargetPath | ConvertTo-Json')
+            assert inspected.returncode == 0, inspected.stdout + inspected.stderr
+            assert json.loads(inspected.stdout) == str(target / 'BongoCatChat.exe')
             assert privacy.update_checks_allowed() is expected
         privacy.set_update_checks_allowed(False)
         # The app choice survives repair, then the same removal engine preserves it.

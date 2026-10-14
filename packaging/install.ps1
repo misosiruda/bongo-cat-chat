@@ -120,7 +120,9 @@ try {
     if (-not $NoShortcut) {
         New-Item -ItemType Directory -Path (Split-Path $shortcutPath -Parent) -Force | Out-Null
         $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
-        $shortcut.TargetPath = Join-Path $destinationPath 'BongoCatChat.exe'
+        # WSH parses this property as a target; preserve paths with spaces and
+        # non-ASCII characters as one quoted filename (arguments stay separate).
+        $shortcut.TargetPath = '"' + (Join-Path $destinationPath 'BongoCatChat.exe') + '"'
         $shortcut.WorkingDirectory = $destinationPath
         $shortcut.Save()
     }
