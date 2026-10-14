@@ -46,16 +46,19 @@ try {
     $lock.Lock(0, 1)
     $resultCode = 40
     if ((Get-Content -LiteralPath $marker -Raw) -cne $observedMarker) { throw 'Installation changed during preparation; retry uninstall' }
-    foreach ($name in $members) {
-        $item = Join-Path $target $name
-        if (Test-Path -LiteralPath $item) { Remove-Item -LiteralPath $item -Recurse -Force }
-    }
+    # Shortcut inspection/deletion can fail independently. Preserve the app and
+    # its verification marker until this succeeds so native removal is retryable.
     if (-not $NoShortcut) {
         $shortcutPath = Join-Path $env:APPDATA "Microsoft/Windows/Start Menu/Programs/$ShortcutName.lnk"
         if (Test-Path -LiteralPath $shortcutPath) {
             $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
+            if (-not $shortcut.TargetPath) { throw 'Cannot inspect the Start Menu shortcut; retry uninstall' }
             if ($shortcut.TargetPath -eq (Join-Path $target 'BongoCatChat.exe')) { Remove-Item -LiteralPath $shortcutPath }
         }
+    }
+    foreach ($name in $members) {
+        $item = Join-Path $target $name
+        if (Test-Path -LiteralPath $item) { Remove-Item -LiteralPath $item -Recurse -Force }
     }
     $resultCode = 0
     Write-Output 'App removed. Chat history and settings are retained.'

@@ -101,6 +101,25 @@ def test_shortcut_registration_collision_and_removal(installation):
     assert not shortcut.exists()
 
 
+@pytest.mark.parametrize('share', [0, 1], ids=['inspection', 'deletion'])
+def test_shortcut_failure_preserves_installation_for_uninstall_retry(installation, share):
+    root, env, data = installation
+    source = bundle(root)
+    target = root / 'installed'
+    shortcut = Path(env['APPDATA']) / 'Microsoft/Windows/Start Menu/Programs/Bongo Cat Chat.lnk'
+    assert run(source / 'install.ps1', target, env, shortcut=True).returncode == 0
+    before = manifest(target)
+    with exclusive_file(shortcut, share=share):
+        result = run(REPO / 'packaging/uninstall.ps1', target, env, shortcut=True)
+        assert result.returncode == 40, result.stdout
+    assert (target / 'BongoCatChat.exe').exists()
+    assert manifest(target) == before
+    assert (target / 'versions/0.1.0.dev4/BongoCatChatApp/BongoCatChatApp.exe').exists()
+    assert run(REPO / 'packaging/uninstall.ps1', target, env, shortcut=True).returncode == 0
+    assert not shortcut.exists() and not (target / '.bongo-cat-chat-install').exists()
+    assert (data / 'history.sqlite3').read_bytes() == b'synthetic history sentinel'
+
+
 def test_legacy_install_migrates_without_manual_removal(installation):
     root, env, data = installation
     source = bundle(root)
@@ -138,7 +157,7 @@ def test_launcher_lock_prevents_mutation(installation, operation):
 
 
 @contextmanager
-def exclusive_file(path):
+def exclusive_file(path, share=0):
     import ctypes
     from ctypes import wintypes
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -146,7 +165,7 @@ def exclusive_file(path):
                                   ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
     kernel.CreateFileW.restype = wintypes.HANDLE
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
-    handle = kernel.CreateFileW(str(path), 0x80000000, 0, None, 3, 0, None)
+    handle = kernel.CreateFileW(str(path), 0x80000000, share, None, 3, 0, None)
     assert handle != ctypes.c_void_p(-1).value
     try:
         yield
