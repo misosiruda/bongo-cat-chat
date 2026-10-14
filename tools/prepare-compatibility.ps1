@@ -29,5 +29,7 @@ if ((Hash-File (Join-Path $output 'Mono.Cecil.dll')) -ne $dllHash) { throw 'Unex
 $compiler = Join-Path $env:SystemRoot 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
 & $compiler /nologo /optimize+ /target:exe /out:"$output/FeatureProbe.exe" /reference:"$output/Mono.Cecil.dll" /reference:System.Web.Extensions.dll (Join-Path $PSScriptRoot 'compatibility/FeatureProbe.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Compatibility helper build failed' }
+& $compiler /nologo /optimize+ /unsafe /platform:x64 /target:exe /out:"$output/MemoryScan.exe" /reference:System.Web.Extensions.dll (Join-Path $PSScriptRoot 'compatibility/MemoryScan.cs')
+if ($LASTEXITCODE -ne 0) { throw 'Memory scan helper build failed' }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'compatibility/Mono.Cecil.LICENSE.txt') -Destination $output
 Write-Output 'Read-only compatibility helper prepared.'

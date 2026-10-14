@@ -21,6 +21,7 @@ def store(tmp_path):
 
 def state(**changes):
     return dict(dict(state="ready", account="fixture-self", lobby="fixture-room-a", generation="fixture-segment-a",
+        connected=True, lobby_verified=True, privacy_ready=changes.get("hidden_ok", True),
         hidden_ok=True, hidden={"fixture-peer":False}, profiles={}, send_enabled=True, name="테스트 로비"), **changes)
 
 
@@ -306,7 +307,7 @@ class FakeMemory:
 
 
 class FakeSteam:
-    sent=[]
+    def __init__(self):self.sent=[]
     def account(self):return "fixture-self"
     def reported_game(self, account):return 3419430, "fixture-room-a"
     def members(self,lobby):return {"fixture-self","fixture-peer"}
@@ -360,3 +361,98 @@ def test_membership_alone_does_not_confirm_current_game():
     live=LiveConnection(FakeGame(),FakeMemory(),steam)
     snapshot,_,_=live.snapshot()
     assert not snapshot["send_enabled"] and snapshot["state"] == "no_lobby"
+
+
+def test_discovery_pending_exposes_room_but_cannot_send_or_accept_chat(store):
+    steam = FakeSteam()
+    steam.sent = []
+    live = LiveConnection(FakeGame(), None, steam)
+    snapshot, _, _ = live.snapshot()
+    assert snapshot['connected'] and snapshot['lobby'] == 'fixture-room-a'
+    assert snapshot['state'] == 'syncing' and not snapshot['lobby_verified']
+    assert not snapshot['send_enabled'] and not snapshot['privacy_ready']
+    service = ChatService(store)
+    service.update(snapshot)
+    session, context = service.session, service.context()
+    store.draft(context['account'], context['lobby'], '먼저 작성한 초안')
+    received(service, '확인 전 상대 메시지')
+    received(service, '확인 전 내 메시지', 'fixture-self')
+    assert store.db.execute('SELECT count(*) FROM messages').fetchone()[0] == 0
+    assert service.view()['rooms'] and service.view()['draft'] == '먼저 작성한 초안'
+    assert not service.can_send()
+    assert live.send(dict(context=context, text='전송 금지', queued=time.monotonic())) == 'failed'
+    live.memory = FakeMemory()
+    snapshot, _, changed = live.snapshot()
+    service.update(snapshot)
+    assert not changed and service.context() == context and service.session == session
+    assert service.can_send() and service.view()['draft'] == '먼저 작성한 초안'
+    assert not steam.sent
+
+
+def test_privacy_read_failure_does_not_block_verified_send(service):
+    from bongo_chat.memory import MemoryUnavailable
+    memory, steam = FakeMemory(), FakeSteam()
+    steam.sent = []
+    def fail():
+        raise MemoryUnavailable('cache_changed_during_read')
+    memory.hidden = fail
+    live = LiveConnection(FakeGame(), memory, steam)
+    snapshot, _, _ = live.snapshot()
+    assert snapshot['lobby_verified'] and snapshot['send_enabled']
+    assert not snapshot['privacy_ready'] and snapshot['notice'] == 'hidden_unavailable'
+    service.update(snapshot)
+    received(service, '미확인 상대 메시지')
+    assert not service.view()['messages']
+    command = service.prepare(service.context(), '내 메시지')
+    command['queued'] = time.monotonic()
+    assert live.send(command) == 'accepted'
+    assert steam.sent == [('fixture-room-a', '내 메시지')]
+    received(service, '내 메시지', 'fixture-self')
+    assert len(service.view()['messages']) == 1 and service.view()['messages'][0]['echo'] == 1
+
+
+def test_partial_privacy_allows_only_confirmed_visible_peers(service):
+    memory, steam = FakeMemory(), FakeSteam()
+    memory.hidden = lambda: {'fixture-peer': False, 'fixture-hidden': True}
+    steam.members = lambda lobby: {'fixture-self', 'fixture-peer', 'fixture-hidden', 'fixture-unknown'}
+    live = LiveConnection(FakeGame(), memory, steam)
+    snapshot, _, _ = live.snapshot()
+    assert snapshot['privacy_ready'] and not snapshot['hidden_ok'] and snapshot['send_enabled']
+    service.update(snapshot)
+    received(service, '보이는 발언')
+    received(service, '감춘 발언', 'fixture-hidden')
+    received(service, '미확인 발언', 'fixture-unknown')
+    assert [row['body'] for row in service.view()['messages']] == ['보이는 발언']
+    assert service.store.db.execute('SELECT count(*) FROM messages').fetchone()[0] == 1
+    assert set(service.view()['profiles']) == {'fixture-self', 'fixture-peer'}
+    assert service.can_send()
+    service.update(state(privacy_ready=False, hidden_ok=False))
+    assert not service.view()['messages']
+
+
+@pytest.mark.parametrize('reported', [(0, '0'), (3419430, '0'), (999, 'fixture-room-a')])
+def test_early_steam_connection_without_game_lobby_stays_unavailable(reported):
+    steam = FakeSteam()
+    steam.reported_game = lambda account: reported
+    live = LiveConnection(FakeGame(), None, steam)
+    snapshot, _, _ = live.snapshot()
+    assert snapshot['state'] == 'no_lobby' and not snapshot['connected']
+    assert not snapshot['lobby'] and not snapshot['send_enabled']
+
+
+def test_lobby_move_during_discovery_invalidates_provisional_context(service):
+    steam = FakeSteam()
+    live = LiveConnection(FakeGame(), None, steam)
+    first, _, _ = live.snapshot()
+    service.update(first)
+    old = service.context()
+    steam.reported_game = lambda account: (3419430, 'fixture-room-b')
+    memory = FakeMemory()
+    memory.room = 'fixture-room-b'
+    live.memory = memory
+    current, _, changed = live.snapshot()
+    service.update(current)
+    assert changed and service.context()['generation'] != old['generation']
+    assert live.send(dict(context=old, text='이전 로비 초안', queued=time.monotonic())) == 'failed'
+    received(service, '늦은 이전 로비 메시지', context=old)
+    assert not service.view()['messages']

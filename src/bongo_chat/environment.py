@@ -137,10 +137,21 @@ class GameProcess:
 
 def running_game():
     games = []
-    for process in psutil.process_iter(["name", "exe", "create_time"]):
-        if (process.info["name"] or "").lower() == "bongocat.exe" and process.info["exe"]:
-            path = Path(process.info["exe"]).resolve()
-            games.append(GameProcess(process.pid, process.info["create_time"], path.parent))
+    # Reading executable paths for every Windows process can take seconds.
+    # Resolve the path and lifetime only for matching game processes.
+    for process in psutil.process_iter(["name"]):
+        if (process.info["name"] or "").lower() != "bongocat.exe":
+            continue
+        try:
+            with process.oneshot():
+                executable = process.exe()
+                if not executable:
+                    continue
+                path = Path(executable).resolve()
+                created = process.create_time()
+            games.append(GameProcess(process.pid, created, path.parent))
+        except (psutil.Error, OSError):
+            continue
     if len(games) != 1:
         raise RuntimeError("game_missing_or_ambiguous")
     return games[0]

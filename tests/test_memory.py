@@ -1,7 +1,6 @@
 """No real process access; fail-closed metadata and process lifetime contracts."""
 import pytest
-import ctypes as C
-from bongo_chat.memory import GameMemory, MemoryUnavailable, Reader, Region, fields
+from bongo_chat.memory import GameMemory, MemoryUnavailable, Reader, fields
 
 
 class FakeGame:
@@ -40,58 +39,6 @@ def test_declared_generic_field_count_excludes_adjacent_memory():
     assert len(fields(Metadata(),10000))==4
 
 
-def scanner(payload):
-    class Game:
-        def alive(self): return True
-    class Kernel:
-        def VirtualQueryEx(self, handle, address, target, size):
-            if address: return 0
-            region = C.cast(target, C.POINTER(Region)).contents
-            region.BaseAddress = 0x10000
-            region.RegionSize = len(payload)
-            region.State, region.Type, region.Protect = 0x1000, 0x20000, 4
-            return size
-    reader = Reader.__new__(Reader)
-    reader.game, reader.stop, reader.k, reader.handle = Game(), None, Kernel(), 1
-    reader.read = lambda address, size: payload[address-0x10000:address-0x10000+size]
-    return reader
-
-
-def test_pointer_scan_handles_many_patterns_aliases_and_chunk_overlap():
-    boundary = 4 * 1024 * 1024
-    payload = b'.' * (boundary-4) + b'abcdefgh' + b'--abcdefgh--'
-    patterns = {'a': b'abcdefgh', 'alias': b'abcdefgh', 'overlap': b'cdef',
-                'missing1': b'not here', 'missing2': b'absent', 'tail': b'gh--'}
-    result = scanner(payload).scan(patterns)
-    assert result['a'] == result['alias'] == {0x10000+boundary-4, 0x10000+boundary+6}
-    assert result['overlap'] == {p+2 for p in result['a']}
-    assert not result['missing1'] and not result['missing2']
-    assert len(result['tail']) == 2
-
-
-def test_pointer_scan_keeps_ambiguity_and_cancel_limits():
-    with pytest.raises(MemoryUnavailable, match='ambiguous_metadata'):
-        scanner(b'x' * 4097).scan({'repeated': b'x'})
-    reader = scanner(b'fixture')
-    class Stop:
-        def is_set(self): return True
-    reader.stop = Stop()
-    with pytest.raises(MemoryUnavailable, match='discovery_cancelled_or_budget'):
-        reader.scan({'metadata': b'fixture'})
-
-
-def test_aligned_pointer_scan_ignores_unaligned_decoys_and_keeps_aliases():
-    import struct
-    pointer = struct.pack('<Q', 0x1234567887654321)
-    payload = pointer + b'X' + pointer + b'.' * 7 + pointer
-    patterns = {'pointer': pointer, 'same': pointer, **{str(i): struct.pack('<Q', i) for i in range(80)}}
-    result = scanner(payload).scan(patterns, pointer_aligned=True)
-    assert result['pointer'] == result['same'] == {0x10000, 0x10000+24}
-    assert sum(len(hits) for hits in result.values()) == 4
-    with pytest.raises(MemoryUnavailable, match='unsupported_pointer_pattern'):
-        scanner(payload).scan({'invalid': b'abc'}, pointer_aligned=True)
-
-
 @pytest.mark.parametrize('flag,expected', [(b'\x00', False), (b'\x01', True), (b'\x02', None)])
 def test_hidden_cache_decodes_boolean_and_rejects_invalid_values(monkeypatch, flag, expected):
     from bongo_chat import memory as module
@@ -118,3 +65,116 @@ def test_hidden_cache_decodes_boolean_and_rejects_invalid_values(monkeypatch, fl
             memory.hidden()
     else:
         assert memory.hidden() == {uid: expected}
+
+
+def test_background_discovery_cancel_closes_unpublished_reader(monkeypatch):
+    import threading
+    from bongo_chat import memory as module
+    started, release = threading.Event(), threading.Event()
+    closed = []
+    class Memory:
+        def __init__(self, game, stop):
+            self.stop = stop
+        def discover(self):
+            started.set()
+            assert release.wait(3)
+        def close(self):
+            closed.append(True)
+    monkeypatch.setattr(module, 'GameMemory', Memory)
+    discovery = module.MemoryDiscovery(object(), threading.Event())
+    try:
+        assert started.wait(2)
+        discovery.close()
+        release.set()
+        assert discovery.done.wait(2)
+        assert discovery.memory is None and closed == [True]
+    finally:
+        release.set()
+        discovery.close()
+
+
+def test_background_discovery_hands_off_and_closes_reader_once(monkeypatch):
+    import threading
+    from bongo_chat import memory as module
+    closed = []
+    class Memory:
+        def __init__(self, game, stop):pass
+        def discover(self):pass
+        def close(self):closed.append(True)
+    monkeypatch.setattr(module, 'GameMemory', Memory)
+    discovery = module.MemoryDiscovery(object(), threading.Event())
+    assert discovery.done.wait(2)
+    assert isinstance(discovery.memory, Memory) and not discovery.failed
+    discovery.close()
+    discovery.close()
+    assert closed == [True]
+
+
+@pytest.fixture
+def native_reader(tmp_path, monkeypatch):
+    import json
+    import threading
+    from types import SimpleNamespace
+    from bongo_chat import memory as module
+    class Process:
+        returncode = 0
+        output = json.dumps({'metadata': [0x10000]}).encode()
+        killed = False
+        inputs = []
+        def communicate(self, input=None, timeout=None):
+            if input is not None:
+                self.inputs.append(json.loads(input))
+            return self.output, None
+        def poll(self):return self.returncode
+        def kill(self):self.killed = True; self.returncode = -9
+    process = Process()
+    helper = tmp_path / 'synthetic-tool.exe'
+    helper.touch()
+    reader = Reader.__new__(Reader)
+    reader.scan_helper = helper
+    reader.game = SimpleNamespace(pid=123, alive=lambda: True)
+    reader.stop = threading.Event()
+    monkeypatch.setattr(module.subprocess, 'Popen', lambda *args, **kwargs: process)
+    return reader, process
+
+
+@pytest.mark.parametrize('result', [b'not json', b'[]', b'{"other":[]}', b'{"metadata":[true]}',
+                                  b'{"metadata":[0]}', b'{"metadata":[65537]}', b'{"metadata":["65536"]}'])
+def test_native_result_validation_rejects_bad_or_unaligned_addresses(native_reader, result):
+    reader, process = native_reader
+    process.output = result
+    with pytest.raises(MemoryUnavailable, match='memory_scan_failed'):
+        reader.scan({'metadata': b'abcdefgh'}, pointer_aligned=True)
+
+
+def test_native_scan_contract_and_process_lifetime(native_reader):
+    reader, process = native_reader
+    assert reader.scan({'metadata': b'abcdefgh'}, pointer_aligned=True) == {'metadata': {0x10000}}
+    assert process.inputs[-1] == dict(pid=123, private_only=True, pointer_aligned=True,
+                                      patterns={'metadata': 'YWJjZGVmZ2g='})
+    calls = iter([True, False])
+    reader.game.alive = lambda: next(calls)
+    with pytest.raises(MemoryUnavailable, match='process_changed'):
+        reader.scan({'metadata': b'abcdefgh'})
+
+
+def test_native_scan_cancellation_kills_only_owned_helper(native_reader):
+    import subprocess
+    reader, process = native_reader
+    process.returncode = None
+    def communicate(input=None, timeout=None):
+        if process.killed:
+            return b'', None
+        reader.stop.set()
+        raise subprocess.TimeoutExpired('synthetic-tool', 0.1)
+    process.communicate = communicate
+    with pytest.raises(MemoryUnavailable, match='discovery_cancelled_or_budget'):
+        reader.scan({'metadata': b'abcdefgh'})
+    assert process.killed
+
+
+def test_missing_scanner_fails_closed(native_reader):
+    reader, _ = native_reader
+    reader.scan_helper.unlink()
+    with pytest.raises(MemoryUnavailable, match='memory_scan_tool_missing'):
+        reader.scan({'metadata': b'abcdefgh'})

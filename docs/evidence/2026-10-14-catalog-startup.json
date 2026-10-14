@@ -1,0 +1,158 @@
+{
+  "date": "2026-10-14",
+  "scope": "source implementation and local read-only validation; not a new installer or release",
+  "baseline_worker_verified_seconds": 33.4095,
+  "discovery_profile_before": {
+    "discovery_seconds": 28.2351,
+    "stages": [
+      {
+        "query_seconds": 0.0390089,
+        "read_seconds": 8.0643027,
+        "match_seconds": 1.7738596,
+        "queries": 3926,
+        "reads": 2538,
+        "mib": 1995.458023071289
+      },
+      {
+        "query_seconds": 0.0442073,
+        "read_seconds": 7.9345544,
+        "match_seconds": 1.4917732,
+        "queries": 3934,
+        "reads": 1635,
+        "mib": 1645.548973083496
+      },
+      {
+        "query_seconds": 0.0374864,
+        "read_seconds": 6.834699,
+        "match_seconds": 1.3334094,
+        "queries": 3934,
+        "reads": 1635,
+        "mib": 1645.548973083496
+      }
+    ]
+  },
+  "direct_vs_scan": {
+    "same_process": true,
+    "same_class_pointers": true,
+    "same_vtable_pointers": true,
+    "hidden_count": 34,
+    "game_still_running": true,
+    "persisted_addresses": false
+  },
+  "worker_probe": {
+    "command": ".venv/Scripts/python tools/probe_startup.py --timeout 60 --avatars",
+    "measurement": "three new worker processes; same running game and PC; excludes Qt startup",
+    "runs": [
+      {
+        "first_seconds": {
+          "connected": 0.6122,
+          "lobby_verified": 0.7915,
+          "privacy_ready": 0.7915,
+          "hidden_ok": 0.7915,
+          "receive_eligible": 0.9947
+        },
+        "scan_seconds": [],
+        "discoveries": [
+          {
+            "method": "catalog",
+            "seconds": 0.0307
+          }
+        ],
+        "maximum_state_gap_seconds": 0.778,
+        "avatars_enabled": true,
+        "ready": true,
+        "sends": 0,
+        "decoded_messages": 0,
+        "chat_database_opened": false,
+        "lobby_mutations": 0,
+        "game_writes": 0,
+        "game_still_running": true
+      },
+      {
+        "first_seconds": {
+          "connected": 0.5262,
+          "lobby_verified": 0.7162,
+          "privacy_ready": 0.7162,
+          "hidden_ok": 0.7162,
+          "receive_eligible": 0.9185
+        },
+        "scan_seconds": [],
+        "discoveries": [
+          {
+            "method": "catalog",
+            "seconds": 0.0267
+          }
+        ],
+        "maximum_state_gap_seconds": 0.707,
+        "avatars_enabled": true,
+        "ready": true,
+        "sends": 0,
+        "decoded_messages": 0,
+        "chat_database_opened": false,
+        "lobby_mutations": 0,
+        "game_writes": 0,
+        "game_still_running": true
+      },
+      {
+        "first_seconds": {
+          "connected": 0.5307,
+          "lobby_verified": 0.7131,
+          "privacy_ready": 0.7131,
+          "hidden_ok": 0.7131,
+          "receive_eligible": 0.9227
+        },
+        "scan_seconds": [],
+        "discoveries": [
+          {
+            "method": "catalog",
+            "seconds": 0.0297
+          }
+        ],
+        "maximum_state_gap_seconds": 0.7589,
+        "avatars_enabled": true,
+        "ready": true,
+        "sends": 0,
+        "decoded_messages": 0,
+        "chat_database_opened": false,
+        "lobby_mutations": 0,
+        "game_writes": 0,
+        "game_still_running": true
+      }
+    ]
+  },
+  "source_qt": {
+    "measurement": "one offscreen source app run from before imports to verified ready renderer; read-only Steam adapter discards callbacks without decoding; isolated data directory",
+    "ready_seconds": 2.811,
+    "lobby_verified": true,
+    "privacy_ready": true,
+    "hidden_ok": true,
+    "renderer_ready": true,
+    "read_only": true,
+    "sends": 0,
+    "decoded_messages": 0,
+    "stored_messages": 0,
+    "console_errors": 0
+  },
+  "tests": {
+    "command": ".venv/Scripts/python -m pytest -q",
+    "passed": 208,
+    "seconds": 81.88
+  },
+  "source_sha256": {
+    "src/bongo_chat/memory.py": "7d6b47e58809c60494939d5d10072a82e1a8edf412203b2827322c78c03bd1ef",
+    "src/bongo_chat/worker.py": "dc56b6b87eec882d8b70bbd90d92ac151cd50874fca3ea0b2883ae9e432d3a33",
+    "tools/probe_startup.py": "b44fa2c7db61e27458ff98591daf467f14943cd8c1a4fa4c8f1cd95e9b8e81b4",
+    "tests/test_mono_catalog.py": "7410c6da9d1149e352999eb011484b580af23c1412ba3c5adf14d2108a524b5e",
+    "tests/test_worker.py": "6e6ae4af0081d643da381764030be67427245b12cbbd8fd23404ef7845b79784"
+  },
+  "not_verified": [
+    "new frozen bundle performance",
+    "actual outgoing messages or peer display",
+    "game restart and cold start performance",
+    "actual lobby/account/hide transitions",
+    "other PC and clean game installation"
+  ],
+  "existing_installation_replaced": false,
+  "new_bundle_built": false,
+  "release_created": false
+}

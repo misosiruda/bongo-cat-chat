@@ -5,16 +5,16 @@ No saved addresses, remote calls, process writes, injection or file mutations.
 """
 import ctypes as C
 from ctypes import wintypes as W
-from array import array
+import base64
+import json
+import os
+from pathlib import Path
 import re
 import struct
+import subprocess
+import sys
+import threading
 import time
-
-
-class Region(C.Structure):
-    _fields_ = [("BaseAddress", C.c_void_p), ("AllocationBase", C.c_void_p),
-                ("AllocationProtect", W.DWORD), ("PartitionId", W.WORD),
-                ("RegionSize", C.c_size_t), ("State", W.DWORD), ("Protect", W.DWORD), ("Type", W.DWORD)]
 
 
 class MemoryUnavailable(RuntimeError):
@@ -29,12 +29,12 @@ class Reader:
         self.k.OpenProcess.restype = W.HANDLE
         self.k.ReadProcessMemory.argtypes = [W.HANDLE, C.c_void_p, C.c_void_p, C.c_size_t, C.POINTER(C.c_size_t)]
         self.k.ReadProcessMemory.restype = W.BOOL
-        self.k.VirtualQueryEx.argtypes = [W.HANDLE, C.c_void_p, C.POINTER(Region), C.c_size_t]
-        self.k.VirtualQueryEx.restype = C.c_size_t
         self.k.CloseHandle.argtypes = [W.HANDLE]
         self.handle = self.k.OpenProcess(0x0400 | 0x0010, False, game.pid)
         if not self.handle:
             raise MemoryUnavailable("process_read_denied")
+        self.scan_helper = ((Path(__file__).with_name("compatibility") if getattr(sys, "frozen", False)
+                             else Path(__file__).resolve().parents[2] / "artifacts/compatibility") / "MemoryScan.exe")
 
     def close(self):
         if self.handle:
@@ -71,62 +71,80 @@ class Reader:
         except UnicodeError:
             return None
 
+    def module(self, relative):
+        """Locate the loaded image in this process, never load or invoke it."""
+        api = C.WinDLL("psapi", use_last_error=True)
+        api.EnumProcessModulesEx.argtypes = [W.HANDLE, C.POINTER(W.HMODULE), W.DWORD, C.POINTER(W.DWORD), W.DWORD]
+        api.EnumProcessModulesEx.restype = W.BOOL
+        api.GetModuleFileNameExW.argtypes = [W.HANDLE, W.HMODULE, W.LPWSTR, W.DWORD]
+        api.GetModuleFileNameExW.restype = W.DWORD
+        modules, needed = (W.HMODULE * 2048)(), W.DWORD()
+        if (not api.EnumProcessModulesEx(self.handle, modules, C.sizeof(modules), C.byref(needed), 3)
+                or not 0 < needed.value <= C.sizeof(modules) or needed.value % C.sizeof(W.HMODULE)):
+            raise MemoryUnavailable("module_list_unavailable")
+        expected, matches = self.game.root / relative, []
+        for module in modules[:needed.value // C.sizeof(W.HMODULE)]:
+            path = C.create_unicode_buffer(32768)
+            size = api.GetModuleFileNameExW(self.handle, module, path, len(path))
+            if 0 < size < len(path) and Path(path.value) == expected:
+                matches.append(module)
+        if len(matches) != 1:
+            raise MemoryUnavailable("module_not_unique")
+        return matches[0]
+
     def scan(self, patterns, private_only=True, pointer_aligned=False):
         if not patterns or len(patterns) > 500:
             raise MemoryUnavailable("unsupported_metadata_candidates")
-        hits = {name: set() for name in patterns}
-        by_pattern = {}
-        for name, pattern in patterns.items():
-            by_pattern.setdefault(pattern, []).append(name)
-        pointers = None
-        if pointer_aligned:
-            if any(len(pattern) != 8 for pattern in by_pattern):
-                raise MemoryUnavailable("unsupported_pointer_pattern")
-            pointers = {int.from_bytes(pattern, "little"): keys for pattern, keys in by_pattern.items()}
-        address, started, read_total = 0, time.monotonic(), 0
-        overlap = max(map(len, patterns.values()))
-        while address < 0x7fffffffffff:
-            region = Region()
-            if not self.k.VirtualQueryEx(self.handle, address, C.byref(region), C.sizeof(region)):
-                break
-            next_address = (region.BaseAddress or 0) + region.RegionSize
-            if next_address <= address:
-                break
-            if region.State == 0x1000 and (not private_only or region.Type == 0x20000) and not region.Protect & (0x100 | 1):
-                for offset in range(0, region.RegionSize, 4*1024*1024):
-                    if (self.stop and self.stop.is_set()) or time.monotonic()-started > 120 or read_total > 4*1024**3:
-                        raise MemoryUnavailable("discovery_cancelled_or_budget")
-                    start = region.BaseAddress + offset
-                    chunk = self.read(start, min(region.RegionSize-offset, 4*1024*1024+overlap))
-                    read_total += len(chunk)
-                    if pointers is not None:
-                        # Mono class-name fields and vtables are 8-byte aligned.
-                        # Read each aligned word once instead of rescanning the
-                        # entire heap for every candidate string address.
-                        skip = (-start) % 8
-                        words = array('Q', chunk[skip:skip + (len(chunk)-skip)//8*8])
-                        for index, value in enumerate(words):
-                            keys = pointers.get(value)
-                            if keys:
-                                for key in keys:
-                                    hits[key].add(start+skip+index*8)
-                                    if len(hits[key]) > 4096:
-                                        raise MemoryUnavailable("ambiguous_metadata")
-                        continue
-                    for pattern, keys in by_pattern.items():
-                        if (self.stop and self.stop.is_set()) or time.monotonic()-started > 120:
-                            raise MemoryUnavailable("discovery_cancelled_or_budget")
-                        pos = chunk.find(pattern)
-                        while pos >= 0:
-                            for key in keys:
-                                hits[key].add(start+pos)
-                                if len(hits[key]) > 4096:
-                                    raise MemoryUnavailable("ambiguous_metadata")
-                            pos = chunk.find(pattern, pos+1)
-            address = next_address
+        if not self.scan_helper.is_file():
+            raise MemoryUnavailable("memory_scan_tool_missing")
         if not self.game.alive():
             raise MemoryUnavailable("process_changed")
-        return hits
+        if self.stop and self.stop.is_set():
+            raise MemoryUnavailable("discovery_cancelled_or_budget")
+        payload = json.dumps(dict(pid=self.game.pid, private_only=private_only, pointer_aligned=pointer_aligned,
+                                  patterns={key: base64.b64encode(value).decode("ascii") for key, value in patterns.items()})).encode("ascii")
+        if len(payload) > 65536:
+            raise MemoryUnavailable("unsupported_metadata_candidates")
+        process = subprocess.Popen([str(self.scan_helper)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=subprocess.DEVNULL,
+                                   creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+        started = time.monotonic()
+        try:
+            while True:
+                if (self.stop and self.stop.is_set()) or time.monotonic()-started > 120:
+                    raise MemoryUnavailable("discovery_cancelled_or_budget")
+                try:
+                    output, _ = process.communicate(input=payload, timeout=0.1)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+                finally:
+                    payload = None
+            if len(output) > 16*1024*1024:
+                raise MemoryUnavailable("memory_scan_failed")
+            try:
+                result = json.loads(output)
+            except (ValueError, UnicodeError):
+                raise MemoryUnavailable("memory_scan_failed") from None
+            if process.returncode != 0:
+                code = result.get("error") if isinstance(result, dict) else None
+                known = {"unsupported_metadata_candidates", "unsupported_pointer_pattern", "ambiguous_metadata",
+                         "discovery_cancelled_or_budget", "process_read_denied", "memory_read_failed"}
+                raise MemoryUnavailable(code if code in known else "memory_scan_failed")
+            if not isinstance(result, dict) or result.keys() != patterns.keys():
+                raise MemoryUnavailable("memory_scan_failed")
+            for values in result.values():
+                if (not isinstance(values, list) or len(values) > 4096
+                        or any(type(value) is not int or not 0x10000 <= value < 0x7fffffffffff
+                               or pointer_aligned and value % 8 for value in values)):
+                    raise MemoryUnavailable("memory_scan_failed")
+            if not self.game.alive():
+                raise MemoryUnavailable("process_changed")
+            return {key: set(values) for key, values in result.items()}
+        finally:
+            if process.poll() is None:
+                process.kill()  # Our scan helper only; never the game or Steam.
+            process.communicate()
 
 
 def class_name(r, cls):
@@ -167,6 +185,126 @@ def fields(r, cls):
     return result
 
 
+class MonoCatalog:
+    """Read the already-loaded class catalog of the hash-pinned Mono ABI.
+
+    The RVAs/layouts are derived from that binary's assembly enumeration,
+    class-cache lookup and class-vtable lookup code. No remote functions run.
+    All pointers are resolved anew; malformed/changing lists fail closed.
+    """
+
+    def __init__(self, reader):
+        self.r = reader
+        self.started = time.monotonic()
+
+    def check(self):
+        if self.r.stop and self.r.stop.is_set():
+            raise MemoryUnavailable("discovery_cancelled_or_budget")
+        if time.monotonic() - self.started > 5:
+            raise MemoryUnavailable("catalog_unavailable")
+
+    def images(self):
+        r = self.r
+        self.check()
+        if not r.game.alive():
+            raise MemoryUnavailable("process_changed")
+        base = r.module("MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll")
+        # Verify the loaded accessors as well as the caller's native file hash.
+        signatures = {0xb4ef8: "488b0d91c06800", 0xb51d0: "488b4160c3",
+                      0x14d420: "488b4130c3", 0xc4f93: "498d8dd0040000",
+                      0x147340: "488d8108010000c3", 0x1c5f97: "488b9fd0000000"}
+        for offset, value in signatures.items():
+            expected = bytes.fromhex(value)
+            if r.exact(base + offset, len(expected)) != expected:
+                raise MemoryUnavailable("unsupported_catalog_layout")
+        head = r.pointer(base + 0x740f90)
+        node, links, images = head, {}, {}
+        while node:
+            self.check()
+            if node in links or len(links) >= 512:
+                raise MemoryUnavailable("assembly_list_invalid")
+            link = r.exact(node, 16)
+            assembly, next_node = struct.unpack("<QQ", link)
+            links[node] = link
+            image = r.pointer(assembly + 0x60)
+            name = r.cstring(r.pointer(image + 0x30))
+            if name in ("Assembly-CSharp", "Heathen.Steamworks"):
+                if name in images or r.pointer(image + 0x4c0) != assembly:
+                    raise MemoryUnavailable("assembly_not_unique")
+                images[name] = image
+            node = next_node
+        if (head != r.pointer(base + 0x740f90)
+                or any(r.exact(node, 16) != link for node, link in links.items())):
+            raise MemoryUnavailable("assembly_list_changed")
+        if set(images) != {"Assembly-CSharp", "Heathen.Steamworks"}:
+            raise MemoryUnavailable("assembly_missing")
+        self.base = base
+        return images
+
+    def klass(self, image, name, ns):
+        r = self.r
+        table = image + 0x4d0
+        header = r.exact(table, 40)
+        count, entries, buckets = struct.unpack_from("<iiQ", header, 24)
+        if (not 0 < count <= 16384 or not 0 < entries <= 16384
+                or struct.unpack_from("<Q", header, 16)[0] != self.base + 0x147340):
+            raise MemoryUnavailable("class_catalog_invalid")
+        bucket_data = r.exact(buckets, count * 8)
+        links, matches = {}, set()
+        for (cls,) in struct.iter_unpack("<Q", bucket_data):
+            while cls:
+                self.check()
+                if cls in links or len(links) >= entries:
+                    raise MemoryUnavailable("class_catalog_invalid")
+                data = r.exact(cls, 0x110)
+                next_cls = struct.unpack_from("<Q", data, 0x108)[0]
+                if struct.unpack_from("<Q", data, 0x40)[0] != image:
+                    raise MemoryUnavailable("class_image_mismatch")
+                links[cls] = next_cls
+                if (r.cstring(struct.unpack_from("<Q", data, 0x48)[0]) == name
+                        and r.cstring(struct.unpack_from("<Q", data, 0x50)[0]) == ns):
+                    matches.add(cls)
+                cls = next_cls
+        if (len(links) != entries or r.exact(table, 40) != header
+                or r.exact(buckets, count * 8) != bucket_data
+                or any(r.pointer(cls + 0x108) != link for cls, link in links.items())):
+            raise MemoryUnavailable("class_catalog_changed")
+        if len(matches) != 1:
+            raise MemoryUnavailable("metadata_not_unique")
+        return next(iter(matches))
+
+    def vtables(self, cls):
+        r = self.r
+        self.check()
+        info = r.pointer(cls + 0xd0)
+        maximum = struct.unpack("<H", r.exact(info, 2))[0]
+        if maximum >= 64:
+            raise MemoryUnavailable("unsupported_domains")
+        data = r.exact(info + 8, (maximum + 1) * 8)
+        result = set()
+        for index, (vtable,) in enumerate(struct.iter_unpack("<Q", data)):
+            if not vtable:
+                continue
+            if (vtable in result or r.pointer(vtable) != cls
+                    or r.i32(r.pointer(vtable + 0x10) + 0x94) != index):
+                raise MemoryUnavailable("invalid_catalog_vtable")
+            result.add(vtable)
+        if (r.pointer(cls + 0xd0) != info or r.exact(info, 2) != struct.pack("<H", maximum)
+                or r.exact(info + 8, len(data)) != data):
+            raise MemoryUnavailable("catalog_vtable_changed")
+        return result
+
+    def locate(self, specifications):
+        images = self.images()
+        classes = {key: self.klass(images["Assembly-CSharp" if key == "cache" else "Heathen.Steamworks"], name, ns)
+                   for key, (name, ns, _) in specifications.items()}
+        vtables = {key: self.vtables(cls) for key, cls in classes.items()}
+        self.check()
+        if not self.r.game.alive():
+            raise MemoryUnavailable("process_changed")
+        return classes, vtables
+
+
 class GameMemory:
     def __init__(self, game, stop=None):
         self.reader = Reader(game, stop)
@@ -174,9 +312,25 @@ class GameMemory:
         self.diagnostics = {}
 
     def discover(self):
-        r = self.reader
         specifications = {"cache": ("PlayerDataCache", "", "_playerDataCache"),
                           "lobby": ("LobbyData", "Heathen.SteamworksIntegration", "Current")}
+        try:
+            pointers, vtables = MonoCatalog(self.reader).locate(specifications)
+            self.resolve_roots(specifications, pointers, vtables)
+            self.diagnostics["discovery_method"] = "catalog"
+            return
+        except MemoryUnavailable as error:
+            self.roots.clear()
+            # Catalog initialization/races may prevent the fast lookup. The
+            # existing bounded scan still has to pass the same root validation.
+            if (str(error) in {"unsupported_catalog_layout", "process_changed"}
+                    or self.reader.stop and self.reader.stop.is_set()):
+                raise
+        self.discover_scan(specifications)
+        self.diagnostics["discovery_method"] = "scan"
+
+    def discover_scan(self, specifications):
+        r = self.reader
         names = r.scan({key: (s[0]+"\0").encode() for key, s in specifications.items()}, private_only=False)
         references = r.scan({f"{key}:{addr}": struct.pack("<Q", addr) for key, values in names.items() for addr in values}, pointer_aligned=True)
         classes = {key: set() for key in specifications}
@@ -196,7 +350,13 @@ class GameMemory:
             raise MemoryUnavailable("metadata_not_unique")
         pointers = {key: next(iter(values)) for key, values in classes.items()}
         vtables = r.scan({key: struct.pack("<Q", cls) for key, cls in pointers.items()}, pointer_aligned=True)
+        self.resolve_roots(specifications, pointers, vtables)
+
+    def resolve_roots(self, specifications, pointers, vtables):
+        r = self.reader
         for key, cls in pointers.items():
+            if (class_name(r, cls), namespace(r, cls)) != specifications[key][:2]:
+                raise MemoryUnavailable("stale_class")
             slots = r.i32(cls+0x5c)
             if slots is None or not 0 < slots < 128:
                 raise MemoryUnavailable("unsupported_vtable")
@@ -230,7 +390,8 @@ class GameMemory:
                 raise MemoryUnavailable("static_root_not_unique")
             self.roots[key] = (cls, *next(iter(candidates)))
         self.lobby()
-        self.hidden()
+        # The shared Mono domain/root validation above is still required for
+        # lobby identity. Reading the hidden list is a separate, retryable step.
 
     def root(self, key):
         r = self.reader
@@ -308,3 +469,44 @@ class GameMemory:
     def close(self):
         self.roots.clear()
         self.reader.close()
+
+
+class MemoryDiscovery:
+    """Find roots without blocking Steam callbacks; hand off one owned reader."""
+
+    def __init__(self, game, stop):
+        self.game, self.stop = game, stop
+        self.cancelled = threading.Event()
+        self.done = threading.Event()
+        self.lock = threading.Lock()
+        self.memory = None
+        self.failed = False
+        self.thread = threading.Thread(target=self.run, daemon=True, name="game-memory-discovery")
+        self.thread.start()
+
+    def is_set(self):
+        return self.cancelled.is_set() or self.stop.is_set()
+
+    def run(self):
+        memory = None
+        try:
+            memory = GameMemory(self.game, self)
+            memory.discover()
+            with self.lock:
+                if not self.is_set():
+                    self.memory, memory = memory, None
+        except Exception:
+            self.failed = True  # Never publish addresses, identifiers or raw errors.
+        finally:
+            if memory:
+                memory.close()
+            self.done.set()
+
+    def close(self):
+        self.cancelled.set()
+        with self.lock:
+            memory, self.memory = self.memory, None
+        if memory:
+            memory.close()
+        # A cancelled in-flight scan closes its own reader before finishing.
+        self.thread.join(1)
