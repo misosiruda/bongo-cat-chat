@@ -81,6 +81,17 @@ PR #4의 최초 코드·보안 자동 리뷰는 `57dd8c2`를 대상으로 모두
 
 수정 후 `.venv/Scripts/python -m pytest -q tests/test_core.py tests/test_desktop.py` **50개**와 JavaScript 문법·Python 컴파일 검사가 통과했다. 변경하지 않은 콜백·메모리 검사 4개는 앞선 결과를 재사용해 현재 고유 사례는 **54개**다. 오프스크린 Qt 종료 중 GPU context 경고와 JavaScript 콘솔 오류 검사는 구분한다. 수정 커밋의 검증은 로컬 재검증이며 최초 자동 리뷰가 최신 수정본까지 검사했다고 표현하지 않는다.
 
+## 2026-10-14 클릭 울음 제외
+
+사용자의 클릭 울음 숨김 요청에 따라 신규 수신·저장과 기존 대화·검색·미저장 표시에서 해당 문구를 제외했다. 기존 저장 행과 DB 스키마는 유지한다. 게시된 dev6 설치본에 반영된 결과로 해석하지 않는다.
+
+- **게임 정적 분석:** 설치 빌드 `25902419`의 `Vfx.CatSpeech.get_MeowText`, `SendSpeech`, `SteamMultiplayer.SendSpeech`, `LobbyMessage` 필드를 읽었다. 빈 입력이 번역된 울음으로 바뀌며 일반 채팅과 같은 채널·본문만 전달되고 자동 울음 표시가 없음을 확인했다. 게임 DLL을 실행하거나 변경하지 않았다.
+- **번역 리소스:** 설치된 `BongoCat` 테이블의 항목 `4796346370`에서 27개 언어·원문 19개·대소문자 통합 후 18개 문구를 확인했다. 장면과 고양이 프리팹의 `CatSpeech` 직렬화 데이터에서도 같은 항목 키를 확인했다. 필요한 울음 문구·빌드·DLL 해시만 [번역 기준 파일](../tests/fixtures/meow-localizations.json)에 기록하며 게임 바이너리·이용자 대화·식별자는 포함하지 않았다.
+- **회귀 검사:** [울음 필터 검사](../tests/test_meow_filter.py)는 전체 언어, 일반 문장의 보존, 자기/상대 콜백 해제와 정상 수신 연속 처리, 저장 실패 시 미저장 노출 방지, 기존 DB 재열기·검색·100개 페이지 경계를 확인한다. 실제 Steam 호출은 사용하지 않는다.
+- **실행:** `.venv/Scripts/python -m pytest -q tests/test_meow_filter.py tests/test_core.py tests/test_callback.py tests/test_desktop.py` → **114 passed**. Qt WebEngine GPU context 경고가 출력됐으며 검사 실패는 없었다.
+- **출하 후보 재검증:** 최신 `main`의 `845c264`를 기준으로 울음 필터 변경만 옮긴 워크트리에서 Python 3.13.3으로 `C:/Project/bongo-cat-chat/.venv/Scripts/python -B -m pytest -q tests/test_meow_filter.py tests/test_core.py tests/test_callback.py tests/test_desktop.py`를 실행해 **114 passed (25.09s)**를 확인했다. 병행 중인 연결 초기화 변경은 포함하지 않았으며 Qt GPU 경고와 실제 화면 인수는 구분한다.
+- **미검증:** 실제 게임 클릭·언어 전환·새 설치 파일 빌드/배포는 실행하지 않았다. 자동과 동일한 문구를 직접 입력하면 함께 숨겨지며, 이후 게임의 번역 변경은 목록 재확인이 필요하다.
+
 ## 패키징과 남은 인수
 
 PyInstaller 묶음의 첫 실행은 `QtCore` DLL 로딩 오류로 실패했다. 진단용 콘솔 빌드에서 실제 오류를 확인했고, 빌드 PATH의 다른 도구가 제공한 ICU DLL이 잘못 수집된 것을 찾았다. 이 파일을 제외한 실행은 통과했다. 최종 빌드는 Windows와 빌드 Python 경로만 사용해 다시 분석하며, 예상하지 않은 ICU·게임 바이너리 동봉을 검사한다. 일반 배포 의존성 이용 조건 검토는 별도다.

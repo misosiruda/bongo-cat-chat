@@ -6,6 +6,21 @@ MAX_PACKET = 4096
 # Development guard from the PoC; not a claim about the game's input limit.
 MAX_SEND_UNITS = 50
 
+# BongoCat localization entry 4796346370, inspected in build 25902419.
+# These 18 case-folded values cover all 27 shipped locales. See the source
+# snapshot in tests/fixtures/meow-localizations.json; never guess translations.
+_MEOW_MESSAGES = frozenset(text.casefold() for text in (
+    "Meow Meow", "야옹 야옹", "にゃんにゃ～ん", "喵~喵~", "喵嗚～",
+    "Miaou Miaou", "Mňau Mňau", "Mjav Mjau", "Miauw Miauw", "Miu Mau",
+    "Miau Miau", "Νιάου Νιάου", "מיאו מיאו", "Miao Miao", "Mjau Mjau",
+    "Мяу Мяу", "Miyav Miyav", "Няв Няв",
+))
+
+
+def is_meow_message(text: str) -> bool:
+    """Match a whole click-meow text; the wire format cannot prove its source."""
+    return unicodedata.normalize("NFC", text).strip().casefold() in _MEOW_MESSAGES
+
 
 class InvalidMessage(ValueError):
     pass
@@ -52,4 +67,5 @@ def decode(raw: bytes) -> str | None:
         raise InvalidMessage("invalid_channel")
     if envelope["Channel"] != 3:
         return None
-    return validate_text(envelope.get("Message"))
+    text = validate_text(envelope.get("Message"))
+    return None if is_meow_message(text) else text
