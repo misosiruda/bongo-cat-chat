@@ -151,7 +151,7 @@ def clean_cache(root):
                     pass  # A bootloader may still be finishing its own cleanup.
 
 
-def run_app(root, data, offline=False, read_only=False, smoke_report=None, connection_report=None, update_smoke_dir=None):
+def run_app(root, data, offline=False, read_only=False, smoke_report=None, connection_report=None, update_smoke_dir=None, restart_supported=True):
     marker = installation(root)
     command = [str(child(root, 'versions', marker['active'], APP)), '--install-root', str(root), '--data-dir', str(data)]
     if offline:
@@ -169,7 +169,7 @@ def run_app(root, data, offline=False, read_only=False, smoke_report=None, conne
         # An environment capability is ignored by old apps, including rollback
         # slots. A new CLI argument would make their argument parser fail.
         code = subprocess.call(command, cwd=root,
-                               env={**os.environ, RESTART_CAPABILITY: '1'}, **process_options())
+                               env={**os.environ, RESTART_CAPABILITY: '1' if restart_supported else '0'}, **process_options())
     except OSError:
         if not marker.get('previous'):
             raise
@@ -275,7 +275,14 @@ def main():
                 # The app has closed its worker, database and profile lock.
                 # Reuse the existing handoff so even a running onefile helper
                 # releases its executable and install lock before replacement.
-                handoff(root, data, args)
+                try:
+                    handoff(root, data, args)
+                except (OSError, ValueError, psutil.Error):
+                    # The current app has already closed. Restore its window
+                    # without another automatic attempt in this session if a
+                    # full disk or antivirus prevented the helper starting.
+                    return run_app(root, data, args.offline, args.read_only, args.smoke_report,
+                                   args.connection_report, args.update_smoke_dir, restart_supported=False)
                 return 0
             return code
     except (OSError, ValueError, psutil.Error) as exc:

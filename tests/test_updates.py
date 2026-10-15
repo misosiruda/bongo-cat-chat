@@ -392,6 +392,34 @@ def test_normal_app_close_does_not_relaunch(installed, monkeypatch):
     assert bootstrap.main() == 0
 
 
+@pytest.mark.parametrize('failure', ['copy', 'launch'])
+def test_failed_restart_handoff_reopens_current_app_without_retry(installed, signing, monkeypatch, failure):
+    launches = []
+    assets = package(signing)
+    monkeypatch.setattr(bootstrap.sys, 'executable', str(installed / 'BongoCatChat.exe'))
+    monkeypatch.setattr(bootstrap.sys, 'argv', ['launcher', '--data-dir', str(installed.parent / 'data'), '--read-only'])
+    monkeypatch.setattr(bootstrap, 'config', lambda: signing[1])
+    def launch(command, **kwargs):
+        launches.append(command)
+        assert '--read-only' in command
+        assert kwargs['env'][RESTART_CAPABILITY] == ('1' if len(launches) == 1 else '0')
+        if len(launches) == 1:
+            check_and_stage(installed, '0.1.0', signing[1], FixtureTransport(assets), lambda *args: None)
+            return RESTART_FOR_UPDATE
+        assert command[0] == str(installed / 'versions/0.1.0' / bootstrap.APP)
+        return 0
+    def fail(*args, **kwargs):
+        raise OSError('synthetic disk or executable failure')
+    monkeypatch.setattr(bootstrap.subprocess, 'call', launch)
+    monkeypatch.setattr(bootstrap.shutil if failure == 'copy' else bootstrap.subprocess,
+                        'copyfile' if failure == 'copy' else 'Popen', fail)
+    assert bootstrap.main() == 0
+    assert len(launches) == 2
+    assert installation(installed)['active'] == '0.1.0'
+    assert (installed / '.updates/pending' / ARCHIVE).exists()
+    assert (installed.parent / 'history.sqlite3').read_bytes() == b'fixture history never opened'
+
+
 @pytest.mark.parametrize('corrupt', [False, True])
 def test_background_check_resumes_or_repairs_pending(installed, signing, corrupt):
     assets = package(signing)
