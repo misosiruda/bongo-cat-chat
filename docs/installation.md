@@ -4,6 +4,8 @@
 
 [최신 개발판 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받는다. `Source code` ZIP과 `bongo-cat-chat-windows-x64.zip`은 일반 이용자용 설치 파일이 아니다. 후자는 기존 앱의 자동 업데이트용이다. `0.1.0.dev7`에는 [고양이 프로필 모자 위치 수정](releases/0.1.0.dev7.md)이 포함된다.
 
+`0.1.0.dev9`에는 [고양이와 말풍선 아이콘](releases/0.1.0.dev9.md)이 적용된다. 새 버전 실행 후 창·작업 표시줄·시작 메뉴에서 확인할 수 있으며 Windows의 기존 바로가기 아이콘 캐시에 따라 표시 갱신이 늦을 수 있다.
+
 ## 설치와 시작
 
 1. 릴리스에서 받은 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 더블클릭한다.

@@ -37,7 +37,8 @@ def main():
             raise ValueError(f'Incorrect signing metadata: {target.name}: {product}')
         products[str(target.relative_to(bundle))] = product
     # A developer's editable install must never supply stale UI/config assets.
-    for relative in ('ui/index.html', 'ui/app.js', 'ui/messenger.css', 'update-config.json', 'feature-contract.json'):
+    for relative in ('ui/index.html', 'ui/app.js', 'ui/messenger.css', 'ui/app-icon.png',
+                     'ui/app-icon.ico', 'ui/favicon.ico', 'update-config.json', 'feature-contract.json'):
         if (app / '_internal/bongo_chat' / relative).read_bytes() != (ROOT / 'src/bongo_chat' / relative).read_bytes():
             raise ValueError('Packaged resource differs from this checkout: ' + relative)
     expected = ['LICENSE.txt', 'PRIVACY.md', 'THIRD-PARTY-NOTICES.txt', 'CHROMIUM-LICENSES.html', 'SOURCES.md', 'sources.lock.json']

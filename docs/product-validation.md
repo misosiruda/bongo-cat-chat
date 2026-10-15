@@ -4,6 +4,18 @@
 
 PR #3의 `db78bda`에서 시작해 실제 저장소·원본 PoC·프로필 관찰 자료를 확인했다. 이 문서는 디자인 시안의 38개 UI 검사와 별개다. 게임·Steam 재시작, 로비 변경, 게임 파일 수정, DLL 주입·패치, 게임 메모리 쓰기는 하지 않았다. 순정 환경 인수나 일반 배포 승인을 의미하지 않는다.
 
+## 2026-10-15: 앱 아이콘과 파비콘
+
+원작 고양이에 보라색 말풍선을 더한 투명 마스터와 앱 로고·Windows ICO·파비콘을 추가했다. [디자인·참조·재생성](design/app-icon.md)에 파일과 생성 프롬프트를 기록했다. 이 검증은 로컬 오프라인 UI와 미서명 검토용 빌드에 한정한다.
+
+- 실제 Qt WebEngine에서 로고 PNG와 파비콘을 로드하고, 창 아이콘의 16·20·24·32·40·48·64·96·128·256px 프레임을 확인했다. 라이트·다크 화면과 16~128px 크기별 밝은/어두운 배경을 캡처해 확인했다. 최초 offscreen GPU 캡처는 context lost로 빈 화면이었으며 검사 프로세스에만 `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`를 지정해 다시 캡처했다. 제품 GPU 설정은 변경하지 않았다.
+- WebEngine 파일 허용 목록은 로고와 파비콘 두 파일만 확장했다. 저장소의 다른 파일 및 외부 HTTPS 이미지 차단 유지, JavaScript 콘솔 오류 0개, Steam 작업자 미실행을 확인했다.
+- 기존 `tests/test_desktop.py -k test_actual_qt_bridge_history_theme_hide_ime` **1개 통과**. `tests/browser_check.py`는 로컬 Chrome에서 5개 화면 크기, 설정 배치 6개 경우와 모달 갱신 12개 표본 검사를 통과했으며 콘솔 오류는 없었다. 브라우저 검사 서버 두 곳에 신규 이미지 MIME·경로를 추가했다. 전체 테스트 묶음과 별도 스크롤 검사 전체를 다시 실행한 것은 아니다.
+- `packaging/build.ps1`로 `dist/icon-preview-20261015/`에 앱·실행기를 빌드하고 `tools/verify_review_bundle.py`로 동봉 자산의 소스 일치·의존성 고지·동결 EXE 오프라인 렌더러를 확인했다. 배포 의존성 감사의 알려진 차단 항목은 0개다.
+- `packaging/build-setup.ps1 -TestIdentity -AllowUnsigned`로 `dist/icon-preview-20261015-setup/`에 NSIS 설치 파일을 생성했다. 앱·실행기·설치 EXE에서 아이콘 10개 프레임의 SHA-256이 소스 ICO 프레임과 일치했다. 설치·제거 프로그램은 동일한 ICO로 컴파일했다. 이번에 설치·제거 실행이나 Explorer·작업 표시줄 캐시 갱신을 검증하지는 않았다.
+
+원본 참조, 크기별 비교 이미지, Qt 화면, 빌드·검사 로그는 Git에서 제외되는 `artifacts/icon-design/`에 보관한다. 설치된 앱 교체·버전 상승·공개 릴리스는 수행하지 않았다.
+
 ## 2026-10-14: 이슈 #9 설정창 스크롤·깜빡임 대응
 
 [이슈 #9](https://github.com/misosiruda/bongo-cat-chat/issues/9)의 영상에서 설정 내용 아래쪽으로 스크롤하면 제목과 닫기 버튼이 보이지 않는 상태를 확인했다. 수정 전 실제 Qt WebEngine에서도 삭제 확인을 화면에 넣으면 제목·닫기 버튼의 표시 영역 검사가 실패했다. 설정 전체를 스크롤하던 구조를 고정 헤더와 내부 스크롤 영역으로 나누고, 다시 열 때 스크롤·삭제 확인을 초기화했다.

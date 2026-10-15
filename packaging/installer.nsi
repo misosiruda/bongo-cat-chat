@@ -36,6 +36,8 @@ VIAddVersionKey /LANG=1042 "FileDescription" "${APP_NAME} 설치"
 VIAddVersionKey /LANG=1042 "FileVersion" "${APP_VERSION}"
 VIAddVersionKey /LANG=1042 "LegalCopyright" ""
 !define MUI_ABORTWARNING
+!define MUI_ICON "${APP_ICON}"
+!define MUI_UNICON "${APP_ICON}"
 !define MUI_WELCOMEPAGE_TITLE "${APP_NAME} 설치"
 !define MUI_WELCOMEPAGE_TEXT "Bongo Cat의 로비 채팅을 별도 창에서 읽고 입력하는 메신저입니다.$\r$\n$\r$\n현재 Windows 사용자에게 설치합니다. Python이나 개발 도구를 따로 준비할 필요가 없습니다.$\r$\n$\r$\n실행 중인 Bongo Cat Chat을 닫은 뒤 계속하세요. 기존 대화 기록과 설정은 유지됩니다.$\r$\n$\r$\n버전 ${APP_VERSION} · 개발판"
 !define MUI_DIRECTORYPAGE_TEXT_TOP "설치할 폴더를 선택하세요. 기존 버전이 있으면 같은 폴더에 설치합니다."

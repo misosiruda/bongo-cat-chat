@@ -102,12 +102,13 @@ def main():
             if self.path == "/channel.js":
                 body=b"window.qt={webChannelTransport:{}}; window.QWebChannel=function(t,cb){cb({objects:{bridge:{request:(raw,done)=>window.fixtureRequest(raw).then(done)}}})};"
                 mime="text/javascript"
-            elif self.path in ("/","/index.html","/app.js","/messenger.css"):
+            elif self.path in ("/","/index.html","/app.js","/messenger.css","/app-icon.png","/favicon.ico"):
                 name=self.path.lstrip('/') or 'index.html';body=(root/name).read_bytes()
                 if name=='index.html':body=body.replace(b'qrc:///qtwebchannel/qwebchannel.js',b'/channel.js')
-                mime='text/html' if name.endswith('html') else 'text/css' if name.endswith('css') else 'text/javascript'
+                mime={'.html':'text/html', '.css':'text/css', '.js':'text/javascript',
+                      '.png':'image/png', '.ico':'image/x-icon'}[Path(name).suffix]
             else:self.send_error(404);return
-            self.send_response(200);self.send_header('Content-Type',mime+'; charset=utf-8');self.end_headers();self.wfile.write(body)
+            self.send_response(200);self.send_header('Content-Type',mime);self.end_headers();self.wfile.write(body)
     server=HTTPServer(('127.0.0.1',0),Handler)
     thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
     url=f'http://127.0.0.1:{server.server_port}/'

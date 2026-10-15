@@ -14,6 +14,8 @@ Bongo Cat의 기존 로비 채팅을 메신저처럼 읽고 입력하며, 수신
 
 [자동 업데이트](docs/automatic-updates.md)는 새 정식 GitHub Release를 내려받고 다음 앱 실행에 적용한다. 서명·해시와 후보 화면을 확인하며 대화 기록은 유지한다. 저장소는 2026-10-14 공개 전환을 완료했다.
 
+`0.1.0.dev9`는 고양이와 보라색 말풍선을 결합한 [새 앱 아이콘·파비콘](docs/design/app-icon.md)을 적용한다. 앱·Windows 실행 파일·설치 프로그램과 디자인 미리보기에서 같은 그림을 사용한다. [dev9 릴리스 노트](docs/releases/0.1.0.dev9.md)를 참고한다.
+
 - 기존 Bongo Cat 게임 채팅과 양방향으로 연동한다. 상대방은 이 프로그램을 설치하지 않아도 된다.
 - 내가 보낸 메시지와 다른 이용자의 메시지를 하나의 메신저 UI에서 읽는다.
 - 실행 중 수신한 대화를 로컬에 저장하고, 스크롤·검색으로 다시 확인한다.
@@ -94,4 +96,4 @@ Python 송신은 상대방에게 전달되지만, 게임 자체의 로컬 말풍
 4. 실제 Windows IME·게임 고양이 화면 대조·개발 도구 없는 PC의 설치와 실행·삭제를 검증한다.
 5. 개발자에게 설명할 자료와 배포 조건을 정리한 뒤 일반 배포 여부를 결정한다.
 
-자체 소스와 문서는 [MIT License](LICENSE)를 사용한다. 외부 의존성·게임 이름·이미지의 권리는 각 권리자에게 남는다. 첫 공개 개발판은 [v0.1.0.dev6](https://github.com/misosiruda/bongo-cat-chat/releases/tag/v0.1.0.dev6)이며, 이번 라이선스·서명 준비 변경을 포함한 새 릴리스는 아직 게시하지 않았다. 일반 배포 조건과 의존성 고지 검토는 [별도 기록](docs/license-review.md)을 따른다.
+자체 소스와 문서는 [MIT License](LICENSE)를 사용한다. 외부 의존성·게임 이름·이미지의 권리는 각 권리자에게 남는다. 첫 공개 개발판은 [v0.1.0.dev6](https://github.com/misosiruda/bongo-cat-chat/releases/tag/v0.1.0.dev6)이며, 현재 게시 상태와 설치 자산은 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 확인한다. 일반 배포 조건과 의존성 고지 검토는 [별도 기록](docs/license-review.md)을 따른다.
