@@ -62,6 +62,8 @@ Windows 게시자 인증은 아래 Ed25519 서명과 별개다. 배포용 묶음
 
 개인키는 Git·앱·릴리스에 포함하지 않는다. 개발 PC의 키는 Git 제외 경로 `research/private/update-signing-key.dpapi`에 Windows 사용자 범위 [DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata)로 암호화했다. 공개키만 `src/bongo_chat/update-config.json`에 고정한다. 다른 계정·PC에서의 배포, 키 백업·복구는 별도 준비가 필요하다. 임의로 키를 교체하면 기존 이용자가 새 서명을 검증할 수 없다.
 
+2026-10-15 사용자 승인으로 두 번째 Windows PC에도 같은 기존 키를 해당 사용자 범위 DPAPI로 보호해 보관했다. 원본 PC의 키와 고정 공개키는 유지하며 두 PC의 같은 manifest 서명이 일치함을 확인했다. 두 PC는 각자의 로컬 키로 직접 서명할 수 있다. 작업 시작 시 키와 원격 소스·최신 릴리스를 확인하는 [두 PC 배포 절차](release-workstations.md)를 따른다. 이 구성은 키 재발급이나 별도 재해 복구용 백업이 아니다.
+
 아래 초기화는 처음 한 번만 실행한다. 기존 개인키나 공개키가 있으면 덮어쓰지 않는다.
 
 ```powershell
