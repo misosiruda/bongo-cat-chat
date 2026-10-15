@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "date": "2026-10-15",
+  "timezone": "Asia/Seoul",
+  "scenario": "Bongo Cat and Marvels Spider-Man Remastered already running concurrently",
+  "baseline_commit": "6ff190985cca23bac67b158c514cef0005f14fda",
+  "other_game_identity": {
+    "app_id": 1817070,
+    "game_name_from_installed_manifest": "Marvel’s Spider-Man Remastered",
+    "executable": "Spider-Man.exe"
+  },
+  "baseline_observation_limit_seconds": 10,
+  "baseline": {
+    "mode": "baseline",
+    "source_sha256": "97bddc111eb63c9755135943ce7c84643d813aace15fa7e64256672c6634b74b",
+    "actual_games": [
+      "BongoCat.exe",
+      "Spider-Man.exe"
+    ],
+    "same_games_alive_after": true,
+    "presence_overridden": false,
+    "presence_app_ids": [
+      1817070
+    ],
+    "first_verified_seconds": null,
+    "verified_observation_seconds": 0,
+    "states_after_verification": 0,
+    "failures_after_verification": 0,
+    "verified_context_count": 0,
+    "steam_starts": 1,
+    "callback_pumps": 62,
+    "forbidden_call_attempts": 0,
+    "sends": 0,
+    "decoded_messages": 0,
+    "chat_database_opened": false,
+    "lobby_mutations": 0,
+    "game_writes": 0,
+    "observations": [
+      {
+        "seconds": 0.0008,
+        "status": {
+          "state": "unavailable",
+          "notice": "checking",
+          "connected": false,
+          "lobby_verified": false,
+          "privacy_ready": false,
+          "hidden_ok": false,
+          "send_enabled": false
+        }
+      },
+      {
+        "seconds": 0.4029,
+        "status": {
+          "state": "no_lobby",
+          "notice": "no_lobby",
+          "connected": false,
+          "lobby_verified": false,
+          "privacy_ready": false,
+          "hidden_ok": false,
+          "send_enabled": false
+        }
+      }
+    ]
+  },
+  "fixed": {
+    "mode": "fixed",
+    "source_sha256": "46390beacad4672701734b9f609fc853a32cce925c9866d5f594e06071cbe696",
+    "actual_games": [
+      "BongoCat.exe",
+      "Spider-Man.exe"
+    ],
+    "same_games_alive_after": true,
+    "presence_overridden": false,
+    "presence_app_ids": [
+      1817070
+    ],
+    "first_verified_seconds": 0.5746,
+    "verified_observation_seconds": 30.4313,
+    "states_after_verification": 59,
+    "failures_after_verification": 0,
+    "verified_context_count": 1,
+    "steam_starts": 1,
+    "callback_pumps": 181,
+    "forbidden_call_attempts": 0,
+    "sends": 0,
+    "decoded_messages": 0,
+    "chat_database_opened": false,
+    "lobby_mutations": 0,
+    "game_writes": 0,
+    "observations": [
+      {
+        "seconds": 0.0006,
+        "status": {
+          "state": "unavailable",
+          "notice": "checking",
+          "connected": false,
+          "lobby_verified": false,
+          "privacy_ready": false,
+          "hidden_ok": false,
+          "send_enabled": false
+        }
+      },
+      {
+        "seconds": 0.4039,
+        "status": {
+          "state": "syncing",
+          "notice": "searching_lobby",
+          "connected": false,
+          "lobby_verified": false,
+          "privacy_ready": false,
+          "hidden_ok": false,
+          "send_enabled": false
+        }
+      },
+      {
+        "seconds": 0.5746,
+        "status": {
+          "state": "ready",
+          "notice": "read_only",
+          "connected": true,
+          "lobby_verified": true,
+          "privacy_ready": true,
+          "hidden_ok": true,
+          "send_enabled": false
+        }
+      }
+    ]
+  },
+  "scope": {
+    "actual_game_processes": true,
+    "actual_steam_presence": true,
+    "actual_bongo_memory": true,
+    "actual_steam_membership": true,
+    "read_only": true,
+    "qt_ui_tested": false,
+    "avatars_enabled": false,
+    "actual_message_delivery_tested": false,
+    "game_launch_and_exit_order_tested": false,
+    "installer_built_or_deployed": false
+  }
+}

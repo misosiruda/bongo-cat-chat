@@ -104,6 +104,7 @@ class Steam:
         return {str(self.member_at(self.matchmaking, int(lobby), i)) for i in range(count)}
 
     def reported_game(self, account):
+        """Friends presence hint, not an inventory of all running Steam games."""
         info = GameInfo()
         ok = self.bind("ISteamFriends_GetFriendGamePlayed", C.c_bool, C.c_void_p, C.c_uint64, C.POINTER(GameInfo))(
             self.friends, int(account), C.byref(info))

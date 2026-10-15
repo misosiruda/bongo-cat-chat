@@ -14,6 +14,7 @@
   const positions = new Map();
   const notices = {
     checking: 'Steam과 게임의 채팅·숨김 연동 구조를 확인하고 있어요.',
+    searching_lobby: 'Bongo Cat의 현재 로비를 확인하고 있어요. 연결이 확인되면 대화를 불러옵니다.',
     discovering: '로비를 찾았어요. 현재 로비와 숨김 설정을 확인하는 동안 메시지를 미리 작성할 수 있어요.',
     discovery_failed: 'Steam 연결은 유지 중이에요. 현재 로비 검증을 다시 시도하고 있어요. 전송은 확인 후 사용할 수 있어요.',
     read_only: '읽기 전용으로 실행 중입니다. 메시지를 전송하지 않습니다.',
