@@ -13,7 +13,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from bongo_chat import bootstrap
-from bongo_chat.exit_codes import PROFILE_IN_USE
+from bongo_chat.exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY, UPDATE_DIAGNOSTIC_FAILED
 from bongo_chat.updates import (ARCHIVE, MANIFEST, SIGNATURE, MARKER, GitHubRedirect,
     UpdateError, UpdateManager, atomic_json, check_and_stage, extract_archive,
     installation, staged_manifest, trusted_url, verify_manifest, version)
@@ -312,3 +312,98 @@ def test_cleanup_preserves_active_previous_and_unknown_files(installed, signing)
     bootstrap.clean_old_slots(installed)
     assert (unknown / 'keep.txt').exists()
     assert (installed / 'versions/0.1.0').exists() and (installed / 'versions/0.2.0').exists()
+
+
+@pytest.mark.parametrize('exit_code', [RESTART_FOR_UPDATE, UPDATE_DIAGNOSTIC_FAILED])
+def test_restart_exit_keeps_current_version_and_staged_package(installed, signing, monkeypatch, exit_code):
+    pending(installed, package(signing))
+    bootstrap.apply_pending(installed, signing[1], lambda *args: None)
+    paths = [installed / MARKER, installed / '.updates/attempted.json', installed / '.updates/result.json']
+    before = [path.read_bytes() for path in paths]
+    def launch(command, **kwargs):
+        assert kwargs['env'][RESTART_CAPABILITY] == '1'
+        assert '--read-only' in command
+        return exit_code
+    monkeypatch.setattr(bootstrap.subprocess, 'call', launch)
+    assert bootstrap.run_app(installed, installed.parent / 'data', read_only=True) == exit_code
+    assert [path.read_bytes() for path in paths] == before
+    assert (installed / '.updates/pending' / ARCHIVE).exists()
+
+
+@pytest.mark.parametrize('probe_fails', [False, True])
+def test_automatic_restart_handoff_applies_or_keeps_old_app(installed, signing, monkeypatch, probe_fails):
+    data = installed.parent / '기록 폴더'
+    assets = package(signing)
+    launches, handoffs = [], []
+    monkeypatch.setattr(bootstrap.sys, 'executable', str(installed / 'BongoCatChat.exe'))
+    monkeypatch.setattr(bootstrap.sys, 'argv', ['launcher', '--data-dir', str(data), '--read-only'])
+    monkeypatch.setattr(bootstrap, 'config', lambda: signing[1])
+    def launch(command, **kwargs):
+        launches.append(command)
+        assert kwargs['env'][RESTART_CAPABILITY] == '1'
+        assert command[command.index('--data-dir')+1] == str(data)
+        assert '--read-only' in command
+        if len(launches) == 1:
+            # The running session downloaded a new release before its normal
+            # shutdown. No pointer or launcher is replaced while it is alive.
+            check_and_stage(installed, '0.1.0', signing[1], FixtureTransport(assets), lambda *args: None)
+            assert installation(installed)['active'] == '0.1.0'
+            return RESTART_FOR_UPDATE
+        return 0
+    monkeypatch.setattr(bootstrap.subprocess, 'call', launch)
+    monkeypatch.setattr(bootstrap.subprocess, 'Popen', lambda command, **kwargs: handoffs.append(command))
+    assert bootstrap.main() == 0
+    assert len(handoffs) == 1 and len(launches) == 1
+    assert installation(installed)['active'] == '0.1.0'
+    command = handoffs[0]
+    assert command[command.index('--apply-root')+1] == str(installed)
+    # The next process can acquire the lock after the old launcher returns.
+    with bootstrap.install_lock(installed):
+        pass
+    monkeypatch.setattr(bootstrap.sys, 'executable', command[0])
+    monkeypatch.setattr(bootstrap.sys, 'argv', command)
+    waited = []
+    class Parent:
+        def create_time(self):
+            return float(command[command.index('--parent-created')+1])
+        def wait(self, timeout):
+            waited.append(timeout)
+    monkeypatch.setattr(bootstrap.psutil, 'Process', lambda pid: Parent())
+    apply = bootstrap.apply_pending
+    def probe(*args):
+        assert waited == [30]
+        if probe_fails:
+            raise UpdateError('probe_failed')
+    monkeypatch.setattr(bootstrap, 'apply_pending', lambda root, settings: apply(root, settings, probe))
+    assert bootstrap.main() == 0
+    expected = '0.1.0' if probe_fails else '0.2.0'
+    assert installation(installed)['active'] == expected
+    assert launches[-1][0] == str(installed / 'versions' / expected / bootstrap.APP)
+    assert len(launches) == 2 and len(handoffs) == 1
+    assert (installed.parent / 'history.sqlite3').read_bytes() == b'fixture history never opened'
+    assert (installed / 'unrelated.txt').read_text() == 'preserve'
+
+
+def test_normal_app_close_does_not_relaunch(installed, monkeypatch):
+    monkeypatch.setattr(bootstrap.sys, 'executable', str(installed / 'BongoCatChat.exe'))
+    monkeypatch.setattr(bootstrap.sys, 'argv', ['launcher', '--data-dir', str(installed.parent / 'data')])
+    monkeypatch.setattr(bootstrap.subprocess, 'call', lambda *args, **kwargs: 0)
+    monkeypatch.setattr(bootstrap, 'handoff', lambda *args: pytest.fail('ordinary close must stay closed'))
+    assert bootstrap.main() == 0
+
+
+@pytest.mark.parametrize('corrupt', [False, True])
+def test_background_check_resumes_or_repairs_pending(installed, signing, corrupt):
+    assets = package(signing)
+    pending(installed, assets)
+    if corrupt:
+        (installed / '.updates/pending' / ARCHIVE).write_bytes(b'corrupt')
+    transport = FixtureTransport(assets)
+    manager = UpdateManager(installed, '0.1.0', settings=signing[1], transport=transport)
+    manager.request()
+    manager.thread.join(10)
+    assert not manager.thread.is_alive()
+    assert manager.snapshot()['state'] == 'ready'
+    assert bool(transport.calls) == corrupt
+    assert staged_manifest(installed, signing[1])['version'] == '0.2.0'
+    manager.close()

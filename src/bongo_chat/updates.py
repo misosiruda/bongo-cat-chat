@@ -384,6 +384,20 @@ class UpdateManager:
         self.report('checking')
         def work():
             try:
+                # Resume a fully verified download even when the next network
+                # check is unavailable. Hashing stays on the background thread.
+                pending = child(self.root, '.updates', 'pending')
+                if pending.exists():
+                    try:
+                        manifest = staged_manifest(self.root, self.settings)
+                    except (OSError, ValueError):
+                        manifest = None  # Let the normal download path repair a corrupt cache.
+                    if manifest and version(manifest['version']) > version(self.current):
+                        attempted = child(self.root, '.updates', 'attempted.json')
+                        if attempted.exists() and load_json(attempted.read_bytes()).get('sha256') == manifest['sha256']:
+                            raise UpdateError('previous_apply_failed')
+                        report('ready', manifest['version'])
+                        return
                 check_and_stage(self.root, self.current, self.settings, transport, report)
             except urllib.error.HTTPError as exc:
                 report('unavailable' if exc.code == 404 else 'network_error')
