@@ -27,6 +27,15 @@ class LiveConnection:
         self.last_send = 0
         self.discovery_failed = False
 
+    def _lobby_candidate(self, account):
+        if self.memory is not None:
+            # Bongo Cat's verified process is authoritative, including no lobby
+            # or a failed read. Friends presence may describe another game.
+            return self.memory.lobby()
+        app, lobby = self.steam.reported_game(account)
+        # A provisional hint for early room/draft display, never send authority.
+        return lobby if app == APP_ID else "0"
+
     def destination(self):
         """Verify the destination independently of hidden-list availability."""
         if self.compatibility:
@@ -34,15 +43,13 @@ class LiveConnection:
         if not self.game.alive():
             raise RuntimeError("process_changed")
         account = self.steam.account()
-        reported = self.steam.reported_game(account)
-        app, lobby = reported
-        members = self.steam.members(lobby) if app == APP_ID and lobby != "0" else set()
-        source = self.memory.lobby() if self.memory else None
-        if (self.steam.account() != account or self.steam.reported_game(account) != reported
-                or self.memory and self.memory.lobby() != source):
+        lobby = self._lobby_candidate(account)
+        members = self.steam.members(lobby) if lobby != "0" else set()
+        if (self.steam.account() != account or self._lobby_candidate(account) != lobby
+                or not self.game.alive()):
             raise RuntimeError("connection_changed")
-        valid = lobby != "0" and account in members and app == APP_ID and (source is None or source == lobby)
-        return account, lobby, members, valid, valid and source is not None
+        valid = lobby != "0" and account in members
+        return account, lobby, members, valid, valid and self.memory is not None
 
     def snapshot(self):
         account, lobby, members, valid, verified = self.destination()
@@ -71,20 +78,21 @@ class LiveConnection:
                     row["avatar"] = self.avatars.get(skin.replace(" ", ""), hat.replace(" ", "") if hat else None)
                 profiles[uid] = row
             self.profiles, self.profile_time = profiles, time.monotonic()
-        if (self.steam.account() != account or valid and self.steam.reported_game(account) != (APP_ID, lobby)
-                or verified and self.memory.lobby() != lobby):
-            raise RuntimeError("connection_changed")
         if verified:
             try:
                 hidden = self.memory.hidden()
                 privacy_ready = True
             except (MemoryUnavailable, UnicodeError):
                 hidden, privacy_ready = {}, False
+        if (self.steam.account() != account or self._lobby_candidate(account) != lobby
+                or not self.game.alive()):
+            raise RuntimeError("connection_changed")
         complete = privacy_ready and (members-{account}) <= hidden.keys()
-        if not valid:
+        discovering = self.memory is None
+        if discovering:
+            notice = "discovery_failed" if self.discovery_failed else ("discovering" if valid else "searching_lobby")
+        elif not valid:
             notice = "no_lobby"
-        elif not verified:
-            notice = "discovery_failed" if self.discovery_failed else "discovering"
         elif not privacy_ready:
             notice = "hidden_unavailable"
         elif not complete:
@@ -97,7 +105,7 @@ class LiveConnection:
                  "profiles": self.profiles, "send_enabled": verified and not self.read_only,
                  "avatar_stage": getattr(self.avatars, "stage", "disabled"),
                  "avatar_error": getattr(self.avatars, "error", ""),
-                 "state": "ready" if complete else ("syncing" if valid else "no_lobby"),
+                 "state": "ready" if complete else ("syncing" if valid or discovering else "no_lobby"),
                  "name": self.steam.room_name(lobby) if valid else "",
                  "notice": notice}
         self.state = state
@@ -116,8 +124,6 @@ class LiveConnection:
             return "failed"
         # Bind the original destination. A game move after this check is not atomic.
         if self.memory.lobby() != current["lobby"] or self.steam.account() != current["account"] or not self.game.alive():
-            return "failed"
-        if self.steam.reported_game(current["account"]) != (APP_ID, current["lobby"]):
             return "failed"
         if self.compatibility:
             self.compatibility.check()
@@ -157,6 +163,11 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
                         discovery.close()
                         discovery = None
                         retry_discovery_at = time.monotonic() + 15
+                # Discovery must run even when friends presence reports another
+                # Steam game or no game. It supplies the actual Bongo Cat lobby.
+                if not discovery and time.monotonic() >= retry_discovery_at:
+                    live.discovery_failed = False
+                    discovery = MemoryDiscovery(game, stop)
                 state, members, changed = live.snapshot()
                 context = {k: state[k] for k in ("account", "lobby", "generation")}
                 if state != last_state or time.monotonic()-last_emit >= 0.5:
@@ -173,9 +184,6 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
                                           accept=receive_context == context):
                     emit(message)
                 receive_context, receive_senders = context, allowed
-                if state["connected"] and not discovery and time.monotonic() >= retry_discovery_at:
-                    live.discovery_failed = False
-                    discovery = MemoryDiscovery(game, stop)
                 # Asset decoding competes with discovery for the Python GIL.
                 # Publish verified chat readiness before starting that work.
                 if state["lobby_verified"] and render_avatars and not avatars:

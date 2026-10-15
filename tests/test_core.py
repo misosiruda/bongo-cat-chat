@@ -357,10 +357,111 @@ def test_process_restart_identity_changes_generation():
 
 def test_membership_alone_does_not_confirm_current_game():
     steam=FakeSteam()
-    steam.reported_game=lambda account:(3419430,"fixture-room-other")
-    live=LiveConnection(FakeGame(),FakeMemory(),steam)
+    memory=FakeMemory()
+    memory.room="0"
+    live=LiveConnection(FakeGame(),memory,steam)
     snapshot,_,_=live.snapshot()
     assert not snapshot["send_enabled"] and snapshot["state"] == "no_lobby"
+
+
+@pytest.mark.parametrize('reported', [(999, 'fixture-other-game-room'), (999, '0'),
+                                      (0, '0'), (3419430, 'fixture-stale-room')])
+def test_bongo_lobby_and_send_do_not_depend_on_friends_game_presence(reported):
+    steam = FakeSteam()
+    steam.reported_game = lambda account: reported
+    queried = []
+    def members(lobby):
+        queried.append(lobby)
+        return {'fixture-self', 'fixture-peer'}
+    steam.members = members
+    live = LiveConnection(FakeGame(), FakeMemory(), steam)
+    snapshot, _, _ = live.snapshot()
+    assert snapshot['lobby'] == 'fixture-room-a' and snapshot['lobby_verified']
+    assert snapshot['hidden_ok'] and snapshot['send_enabled']
+    context = {key: snapshot[key] for key in ('account', 'lobby', 'generation')}
+    assert live.send(dict(context=context, text='합성 전송', queued=time.monotonic())) == 'accepted'
+    assert steam.sent == [('fixture-room-a', '합성 전송')]
+    assert set(queried) == {'fixture-room-a'}
+
+
+def test_other_game_presence_changes_preserve_verified_context_and_draft(service):
+    steam = FakeSteam()
+    live = LiveConnection(FakeGame(), FakeMemory(), steam)
+    first, _, _ = live.snapshot()
+    service.update(first)
+    context, session = service.context(), service.session
+    service.store.draft(context['account'], context['lobby'], '작성 중인 초안')
+    for reported in [(999, 'fixture-other-game-room'), (0, '0'), (3419430, 'fixture-room-a')]:
+        steam.reported_game = lambda account: reported
+        current, _, changed = live.snapshot()
+        service.update(current)
+        assert not changed and service.context() == context and service.session == session
+        assert service.can_send() and service.view()['draft'] == '작성 중인 초안'
+
+
+def test_unreadable_game_lobby_never_falls_back_to_friends_presence():
+    from bongo_chat.memory import MemoryUnavailable
+    memory, steam = FakeMemory(), FakeSteam()
+    live = LiveConnection(FakeGame(), memory, steam)
+    snapshot, _, _ = live.snapshot()
+    context = {key: snapshot[key] for key in ('account', 'lobby', 'generation')}
+    def fail():
+        raise MemoryUnavailable('stale_domain')
+    memory.lobby = fail
+    with pytest.raises(MemoryUnavailable, match='stale_domain'):
+        live.snapshot()
+    with pytest.raises(MemoryUnavailable, match='stale_domain'):
+        live.send(dict(context=context, text='차단할 전송', queued=time.monotonic()))
+    assert not steam.sent
+
+
+def test_lost_bongo_membership_blocks_send_even_with_other_game_running():
+    steam = FakeSteam()
+    steam.reported_game = lambda account: (999, 'fixture-other-game-room')
+    live = LiveConnection(FakeGame(), FakeMemory(), steam)
+    snapshot, _, _ = live.snapshot()
+    assert snapshot['lobby_verified']
+    context = {key: snapshot[key] for key in ('account', 'lobby', 'generation')}
+    steam.members = lambda lobby: {'fixture-peer'}
+    assert live.send(dict(context=context, text='차단할 전송', queued=time.monotonic())) == 'failed'
+    current, _, changed = live.snapshot()
+    assert changed and not current['connected'] and not current['send_enabled']
+    assert not steam.sent
+
+
+@pytest.mark.parametrize('change', ['lobby', 'account', 'process'])
+def test_destination_changes_during_membership_read_are_rejected(change):
+    game, memory, steam = FakeGame(), FakeMemory(), FakeSteam()
+    live = LiveConnection(game, memory, steam)
+    snapshot, _, _ = live.snapshot()
+    context = {key: snapshot[key] for key in ('account', 'lobby', 'generation')}
+    def members(lobby):
+        if change == 'lobby':
+            memory.room = 'fixture-room-b'
+        elif change == 'account':
+            steam.account = lambda: 'fixture-other-account'
+        else:
+            game.alive = lambda: False
+        return {'fixture-self', 'fixture-peer'}
+    steam.members = members
+    with pytest.raises(RuntimeError, match='connection_changed'):
+        live.send(dict(context=context, text='차단할 전송', queued=time.monotonic()))
+    assert not steam.sent
+
+
+def test_lobby_move_during_final_privacy_read_does_not_publish_stale_state():
+    memory, steam = FakeMemory(), FakeSteam()
+    live = LiveConnection(FakeGame(), memory, steam)
+    reads = []
+    def hidden():
+        reads.append(True)
+        if len(reads) == 2:
+            memory.room = 'fixture-room-b'
+        return {'fixture-peer': False}
+    memory.hidden = hidden
+    with pytest.raises(RuntimeError, match='connection_changed'):
+        live.snapshot()
+    assert not live.state['send_enabled']
 
 
 def test_discovery_pending_exposes_room_but_cannot_send_or_accept_chat(store):
@@ -436,7 +537,8 @@ def test_early_steam_connection_without_game_lobby_stays_unavailable(reported):
     steam.reported_game = lambda account: reported
     live = LiveConnection(FakeGame(), None, steam)
     snapshot, _, _ = live.snapshot()
-    assert snapshot['state'] == 'no_lobby' and not snapshot['connected']
+    assert snapshot['state'] == 'syncing' and snapshot['notice'] == 'searching_lobby'
+    assert not snapshot['connected'] and not snapshot['lobby_verified']
     assert not snapshot['lobby'] and not snapshot['send_enabled']
 
 
@@ -446,7 +548,7 @@ def test_lobby_move_during_discovery_invalidates_provisional_context(service):
     first, _, _ = live.snapshot()
     service.update(first)
     old = service.context()
-    steam.reported_game = lambda account: (3419430, 'fixture-room-b')
+    # Presence may remain stale while Bongo Cat changes its actual lobby.
     memory = FakeMemory()
     memory.room = 'fixture-room-b'
     live.memory = memory
