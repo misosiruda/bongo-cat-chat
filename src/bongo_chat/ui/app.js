@@ -8,6 +8,7 @@
   let theme = 'system', collapsed = false, composing = false, sending = false, switching = 0;
   let refreshing = 0, requestVersion = 0, draftVersion = 0, draftTimer, signature = '';
   let deleteScope = null;
+  let restartPlan = null, restarting = false, lastEdit = 0;
   let start = null, seenSeq = null, loadingHistory = false, restoring = false;
   let seenVolatile = new Set(), searchPosition = null, pendingPosition = {bottom:true};
   const positions = new Map();
@@ -97,13 +98,53 @@
   }
   function updateSend() {
     const text = $('message-input').value;
-    $('send-button').disabled = !model?.can_send || composing || sending || switching || !text.trim() || text.length > 50;
-    $('message-input').disabled = !selected || sending || switching;
+    $('send-button').disabled = !model?.can_send || composing || sending || switching || restarting || !text.trim() || text.length > 50;
+    $('message-input').disabled = !selected || sending || switching || restarting;
     $('composer-help').textContent = `${text.length}/50 · Enter 전송 · Shift + Enter 줄바꿈`;
     $('message-form').classList.toggle('is-unavailable', !model?.can_send);
   }
   async function saveDraft(text = $('message-input').value, room = selected, owner = account) {
     if (room && owner) await rpc('draft', {account:owner,lobby:room,text});
+  }
+  function updateRestartNotice(update) {
+    const banner = $('update-notice');
+    if (update.state !== 'ready' || !update.can_restart) {
+      restartPlan = null; banner.hidden = true; return;
+    }
+    if (restartPlan?.version !== update.version) {
+      restartPlan = {version:update.version, deadline:Date.now()+30000, retryAt:0, reason:''};
+    }
+    const seconds = Math.max(0, Math.ceil((Math.max(restartPlan.deadline,lastEdit+5000)-Date.now())/1000));
+    let text = `새 버전 준비 완료 · ${seconds}초 후 자동 재시작합니다. 작성 중인 문장은 저장됩니다.`;
+    if (composing || sending || switching || restartPlan.reason === 'sending') text = '새 버전 준비 완료 · 입력·전송이 끝나면 자동으로 재시작합니다.';
+    if (restartPlan.reason === 'storage' || model?.storage_error) text = '저장되지 않은 내용이 있어 자동 재시작을 기다립니다. 저장 상태를 확인해 주세요.';
+    if (restarting) text = '작성 중인 문장을 저장하고 업데이트를 적용하기 위해 재시작합니다.';
+    banner.textContent = text; banner.hidden = false;
+    $('update-status').textContent = text;
+  }
+  async function maybeRestart() {
+    if (!restartPlan || restarting || refreshing || composing || sending || switching || model?.storage_error) return;
+    if (Date.now() < Math.max(restartPlan.deadline,lastEdit+5000,restartPlan.retryAt)) return;
+    restarting = true; document.body.inert = true; updateSend(); clearTimeout(draftTimer);
+    updateRestartNotice(model.update);
+    let accepted = false;
+    try {
+      await saveDraft();
+      const result = await rpc('restart_update');
+      accepted = result.ok === true;
+      if (!accepted && restartPlan) {
+        restartPlan.reason = result.reason;
+        restartPlan.retryAt = Date.now() + (result.reason === 'sending' ? 1000 : 30000);
+      }
+    } catch (error) {
+      if (restartPlan) {restartPlan.reason='storage'; restartPlan.retryAt=Date.now()+30000;}
+      showError(error);
+    } finally {
+      if (!accepted) {
+        restarting = false; document.body.inert = false; updateSend();
+        updateRestartNotice(model.update);
+      }
+    }
   }
   function roomButton(room, live) {
     const button = node('button', `room-button${live ? ' is-live' : ''}`);
@@ -208,7 +249,7 @@
     } catch(e) {showError(e);}
   }
   async function changeRoom(lobby) {
-    if (switching) return;
+    if (switching || restarting) return;
     switching++; updateSend(); requestVersion++;
     positions.set(selected, query && searchPosition ? searchPosition : captureTimeline());
     clearTimeout(draftTimer);
@@ -267,6 +308,7 @@
     $('update-status').textContent = updateStatuses[update.state] || updateStatuses.verification_failed;
     $('check-updates').disabled = ['checking','downloading','offline','development','disabled'].includes(update.state);
     $('allow-update-checks').checked = update.allowed !== false;
+    updateRestartNotice(update);
     theme = data.theme; collapsed = data.collapsed; applyTheme(); applySidebar();
     $('live-rooms').replaceChildren(); $('archived-rooms').replaceChildren();
     for (const room of data.rooms) (room.lobby === data.context.lobby ? $('live-rooms') : $('archived-rooms')).append(roomButton(room,room.lobby === data.context.lobby));
@@ -281,7 +323,7 @@
       const build = /^[0-9]{1,12}$/.test(data.game_build || '') ? `게임 빌드 ${data.game_build}` : '현재 게임 파일';
       const progress = ({checking:'앱 업데이트를 확인하고 있어요.', downloading:'새 앱을 내려받고 있어요.',
         disabled:'GitHub 통신이 꺼져 있습니다. 앱 설정에서 업데이트 확인을 켤 수 있어요.',
-        ready:'새 앱이 준비됐어요. 앱을 다시 실행하면 적용합니다.',
+        ready:data.update?.can_restart ? '새 앱이 준비됐어요. 잠시 후 자동으로 재시작합니다.' : '새 앱이 준비됐어요. 앱을 다시 실행하면 적용합니다.',
         offline:'오프라인 상태입니다.', development:'설치판에서 자동 업데이트를 사용할 수 있어요.',
         network_error:'업데이트 서버에 연결하지 못했어요. 자동으로 다시 확인합니다.',
         verification_failed:'업데이트를 검증하지 못했어요. 기존 앱을 유지합니다.'})[data.update?.state]
@@ -309,7 +351,7 @@
     renderMessages(data,position); updateSend();
   }
   async function refresh(force=false) {
-    if (refreshing && !force) return;
+    if (restarting || refreshing && !force) return;
     const version = requestVersion, editing = draftVersion;
     let lockedEditor = false;
     refreshing++;
@@ -336,7 +378,7 @@
         if (model) render({...model,state:'unavailable',notice:'view_unavailable',connected:false,lobby_verified:false,privacy_ready:false,hidden_ok:false,can_send:false,messages:[],profiles:{},has_more:false,has_newer:false,unseen:false,unseen_seq:0,volatile_peer_ids:[]},false);
         showError(e); $('send-button').disabled=true;
       }
-    } finally {refreshing--; if (lockedEditor) switching--; updateSend();}
+    } finally {refreshing--; if (lockedEditor) switching--; updateSend(); maybeRestart();}
   }
   async function send(event) {
     event?.preventDefault();
@@ -354,10 +396,10 @@
   function connect(value) {
     bridge=value;
     $('message-form').addEventListener('submit',send);
-    $('message-input').addEventListener('compositionstart',()=>{composing=true;updateSend();});
-    $('message-input').addEventListener('compositionend',()=>{composing=false;updateSend();});
+    $('message-input').addEventListener('compositionstart',()=>{composing=true;lastEdit=Date.now();updateSend();});
+    $('message-input').addEventListener('compositionend',()=>{composing=false;lastEdit=Date.now();updateSend();});
     $('message-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!composing&&e.keyCode!==229){e.preventDefault();send();}});
-    $('message-input').addEventListener('input',()=>{draftVersion++; updateSend(); clearTimeout(draftTimer); const text=$('message-input').value,room=selected,owner=account; draftTimer=setTimeout(()=>saveDraft(text,room,owner).catch(showError),150);});
+    $('message-input').addEventListener('input',()=>{lastEdit=Date.now();draftVersion++; updateSend(); clearTimeout(draftTimer); const text=$('message-input').value,room=selected,owner=account; draftTimer=setTimeout(()=>saveDraft(text,room,owner).catch(showError),150);});
     $('message-search').addEventListener('input',()=>changeSearch($('message-search').value));
     $('clear-search').addEventListener('click',()=>{$('message-search').value='';changeSearch('');});
     $('older').addEventListener('click',loadOlder);

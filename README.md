@@ -12,7 +12,7 @@ Bongo Cat의 기존 로비 채팅을 메신저처럼 읽고 입력하며, 수신
 
 [Windows 설치 안내](docs/installation.md): [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받아 더블클릭한다. 개발 도구나 명령어 입력은 필요하지 않다. 첫 공개 개발판은 **0.1.0.dev6**이며 다른 PC 인수와 Windows 코드 서명은 남아 있다.
 
-[자동 업데이트](docs/automatic-updates.md)는 새 정식 GitHub Release를 내려받고 다음 앱 실행에 적용한다. 서명·해시와 후보 화면을 확인하며 대화 기록은 유지한다. 저장소는 2026-10-14 공개 전환을 완료했다.
+[자동 업데이트](docs/automatic-updates.md)는 새 정식 GitHub Release를 내려받는다. `0.1.0.dev10`은 준비 완료 후 30초 안내를 거쳐 앱을 자동으로 재시작해 적용한다. 입력·전송·저장 상태를 확인하고 초안을 보존하며, 서명·해시와 후보 화면을 다시 검사한다. 기존 공개 dev9 이하에서 dev10으로 처음 전환할 때는 직접 앱을 다시 실행해야 하며, dev10 실행기로 시작한 이후부터 자동 재시작한다. [dev10 릴리스 노트](docs/releases/0.1.0.dev10.md)와 [검증 기록](docs/update-validation.md)을 참고한다. 저장소는 2026-10-14 공개 전환을 완료했다.
 
 `0.1.0.dev9`는 고양이와 보라색 말풍선을 결합한 [새 앱 아이콘·파비콘](docs/design/app-icon.md)을 적용한다. 앱·Windows 실행 파일·설치 프로그램과 디자인 미리보기에서 같은 그림을 사용한다. [dev9 릴리스 노트](docs/releases/0.1.0.dev9.md)를 참고한다.
 

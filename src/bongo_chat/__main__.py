@@ -13,11 +13,17 @@ def main():
     parser.add_argument("--install-root", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--smoke-report", type=Path, help="Offline-only renderer smoke report, then exit")
     parser.add_argument("--connection-report", type=Path, help="Read-only native/renderer report, then exit")
+    parser.add_argument('--update-smoke-dir', type=Path, help='Offline-worker installed updater diagnostic; requires --offline and explicit --data-dir')
     args = parser.parse_args()
     if args.smoke_report and not args.offline:
         parser.error("--smoke-report requires --offline")
     if args.connection_report and (not args.read_only or args.offline or args.smoke_report):
         parser.error("--connection-report requires --read-only and an actual connection")
+    if args.update_smoke_dir:
+        import sys
+        if (not args.offline or not args.install_root or args.smoke_report or args.connection_report
+                or not any(value == '--data-dir' or value.startswith('--data-dir=') for value in sys.argv[1:])):
+            parser.error('--update-smoke-dir requires an installed offline app and explicit --data-dir')
     from .desktop import run
     install_root = None
     if args.install_root:
@@ -29,7 +35,8 @@ def main():
         import sys
         if marker['active'] != __version__ or no_links(sys.executable) != expected or args.data_dir.resolve().is_relative_to(install_root):
             parser.error('invalid installation or data directory')
-    return run(args.data_dir.resolve(), args.offline, args.read_only, args.smoke_report, args.connection_report, install_root)
+    return run(args.data_dir.resolve(), args.offline, args.read_only, args.smoke_report, args.connection_report, install_root,
+               update_smoke_dir=args.update_smoke_dir)
 
 
 if __name__ == "__main__":

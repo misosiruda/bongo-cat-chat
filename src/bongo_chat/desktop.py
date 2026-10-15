@@ -1,13 +1,14 @@
 """Qt WebEngine desktop shell with a narrow local bridge and private worker IPC."""
 import json
 import multiprocessing as mp
+import os
 from pathlib import Path
 import queue
 import sqlite3
 import sys
 import time
 
-from PySide6.QtCore import QObject, QLockFile, QTimer, QUrl, Slot
+from PySide6.QtCore import QObject, QLockFile, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QIcon
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings, QWebEngineUrlRequestInterceptor
@@ -18,7 +19,7 @@ from .service import ChatService
 from .store import Store
 from .worker import run_worker, unavailable
 from . import __version__
-from .exit_codes import PROFILE_IN_USE
+from .exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY
 from .updates import UpdateManager
 from .privacy import update_checks_allowed, set_update_checks_allowed
 
@@ -79,14 +80,21 @@ class Page(QWebEnginePage):
 
 
 class Controller(QObject):
-    def __init__(self, data, offline=False, read_only=False, parent=None, install_root=None):
+    restart_requested = Signal()
+
+    def __init__(self, data, offline=False, read_only=False, parent=None, install_root=None, update_smoke=False):
         super().__init__(parent)
         self.store = Store(data / "history.sqlite3")
         self.service = ChatService(self.store)
-        self.updates = UpdateManager(install_root, __version__, offline, allowed=update_checks_allowed())
+        if update_smoke and (not offline or not install_root):
+            raise ValueError('update_diagnostic_requires_offline_installation')
+        self.updates = UpdateManager(install_root, __version__, offline and not update_smoke, allowed=update_checks_allowed())
         self.legal_dialogs = []
         self.worker = None
         self.closed = False
+        self.restarting = False
+        self.restart_supported = bool(install_root and (not offline or update_smoke)
+                                      and os.environ.get(RESTART_CAPABILITY) == '1')
         self.context = mp.get_context("spawn")
         self.commands = self.context.Queue(maxsize=64)
         self.events = self.context.Queue(maxsize=2048)
@@ -165,8 +173,11 @@ class Controller(QObject):
                 raise ValueError("invalid_query")
             result = self.service.view(lobby, query, before, start, seen, limit)
             result['update'] = self.updates.snapshot()
+            result['update']['can_restart'] = self.can_restart()
             return result
         if action == "send":
+            if self.restarting:
+                raise ValueError('restart_in_progress')
             command = self.service.prepare(args["context"], args["text"])
             command["queued"] = time.monotonic()
             try:
@@ -198,6 +209,17 @@ class Controller(QObject):
                 self.commands.put_nowait({"type": "refresh"})
         elif action == 'check_updates':
             self.updates.request()
+        elif action == 'restart_update':
+            if not self.can_restart():
+                return {'ok': False, 'reason': 'unavailable'}
+            if self.service.storage_error or self.service.volatile:
+                return {'ok': False, 'reason': 'storage'}
+            if any(item.get('status', 'pending') == 'pending' for item in self.service.pending):
+                return {'ok': False, 'reason': 'sending'}
+            if not self.restarting:
+                self.restarting = True
+                QTimer.singleShot(0, self.restart_requested.emit)
+            return {'ok': True}
         elif action == 'update_permission':
             try:
                 set_update_checks_allowed(args['allowed'])
@@ -224,6 +246,10 @@ class Controller(QObject):
         else:
             raise ValueError("unknown_action")
         return {"ok": True}
+
+    def can_restart(self):
+        return (self.restart_supported and not self.closed and self.updates.enabled
+                and self.updates.snapshot()['state'] == 'ready')
 
     def close(self):
         if self.closed:
@@ -272,7 +298,7 @@ def window(controller):
     return view
 
 
-def run(data, offline=False, read_only=False, smoke_report=None, connection_report=None, install_root=None):
+def run(data, offline=False, read_only=False, smoke_report=None, connection_report=None, install_root=None, update_smoke_dir=None):
     app = QApplication.instance() or QApplication([])
     app.setWindowIcon(QIcon(str(UI / "app-icon.ico")))
     data.mkdir(parents=True, exist_ok=True)
@@ -287,13 +313,19 @@ def run(data, offline=False, read_only=False, smoke_report=None, connection_repo
             QMessageBox.information(None, "Bongo Cat Chat", "이미 실행 중인 앱이 있습니다.")
         return PROFILE_IN_USE
     try:
-        controller = Controller(data, offline, read_only, install_root=install_root)
+        controller = Controller(data, offline, read_only, install_root=install_root, update_smoke=bool(update_smoke_dir))
     except (sqlite3.Error, OSError, RuntimeError):
         QMessageBox.critical(None, "Bongo Cat Chat", "기록 저장소를 열 수 없습니다. 기존 파일은 보존했습니다.")
         return 1
     view = window(controller)
+    if smoke_report or connection_report:
+        controller.restart_supported = False
+    controller.restart_requested.connect(lambda: app.exit(RESTART_FOR_UPDATE))
     app.aboutToQuit.connect(controller.close)
     view.show()
+    if update_smoke_dir:
+        from .update_diagnostic import observe_update
+        observe_update(app, controller, view, update_smoke_dir)
     if smoke_report:
         def finish():
             def report(result):

@@ -14,7 +14,7 @@ import zipfile
 
 import psutil
 
-from .exit_codes import PROFILE_IN_USE
+from .exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY, UPDATE_DIAGNOSTIC_FAILED
 from .updates import (ARCHIVE, MARKER, UpdateError, atomic_bytes, atomic_json, child,
                       config, extract_archive, installation, load_json, no_links,
                       remove_owned, staged_manifest, version)
@@ -151,7 +151,7 @@ def clean_cache(root):
                     pass  # A bootloader may still be finishing its own cleanup.
 
 
-def run_app(root, data, offline=False, read_only=False, smoke_report=None, connection_report=None):
+def run_app(root, data, offline=False, read_only=False, smoke_report=None, connection_report=None, update_smoke_dir=None, restart_supported=True):
     marker = installation(root)
     command = [str(child(root, 'versions', marker['active'], APP)), '--install-root', str(root), '--data-dir', str(data)]
     if offline:
@@ -162,16 +162,21 @@ def run_app(root, data, offline=False, read_only=False, smoke_report=None, conne
         command.extend(['--smoke-report', str(smoke_report)])
     if connection_report:
         command.extend(['--connection-report', str(connection_report)])
+    if update_smoke_dir:
+        command.extend(['--update-smoke-dir', str(update_smoke_dir)])
     started = time.monotonic()
     try:
-        code = subprocess.call(command, cwd=root, **process_options())
+        # An environment capability is ignored by old apps, including rollback
+        # slots. A new CLI argument would make their argument parser fail.
+        code = subprocess.call(command, cwd=root,
+                               env={**os.environ, RESTART_CAPABILITY: '1' if restart_supported else '0'}, **process_options())
     except OSError:
         if not marker.get('previous'):
             raise
         # The candidate may disappear or become inaccessible after its probe,
         # for example when an antivirus quarantines the executable.
         code = 1
-    if code not in (0, PROFILE_IN_USE) and time.monotonic() - started < 45 and marker.get('previous'):
+    if code not in (0, PROFILE_IN_USE, RESTART_FOR_UPDATE, UPDATE_DIAGNOSTIC_FAILED) and time.monotonic() - started < 45 and marker.get('previous'):
         slot = child(root, 'versions', marker['active'])
         recorded = load_json(child(slot, VERSION_MARKER).read_bytes())
         atomic_json(child(root, '.updates', 'attempted.json'), {'sha256': recorded.get('sha256'), 'version': marker['active']})
@@ -206,6 +211,8 @@ def handoff(root, data, args):
         command.extend(['--smoke-report', str(args.smoke_report)])
     if args.connection_report:
         command.extend(['--connection-report', str(args.connection_report)])
+    if args.update_smoke_dir:
+        command.extend(['--update-smoke-dir', str(args.update_smoke_dir)])
     subprocess.Popen(command, cwd=helper.parent, **process_options())
 
 
@@ -216,6 +223,7 @@ def main():
     parser.add_argument('--data-dir', type=Path, default=Path(os.environ.get('LOCALAPPDATA', '.')) / 'BongoCatChat')
     parser.add_argument('--smoke-report', type=Path)
     parser.add_argument('--connection-report', type=Path)
+    parser.add_argument('--update-smoke-dir', type=Path)
     parser.add_argument('--apply-root', type=Path)
     parser.add_argument('--parent', type=int)
     parser.add_argument('--parent-created', type=float)
@@ -224,6 +232,9 @@ def main():
         parser.error('--smoke-report requires --offline')
     if args.connection_report and (not args.read_only or args.offline or args.smoke_report):
         parser.error('--connection-report requires --read-only')
+    if args.update_smoke_dir and (not args.offline or args.smoke_report or args.connection_report
+            or not any(value == '--data-dir' or value.startswith('--data-dir=') for value in sys.argv[1:])):
+        parser.error('--update-smoke-dir requires --offline and explicit --data-dir')
     root = no_links(args.apply_root or Path(sys.executable).parent)
     data = no_links(args.data_dir)
     try:
@@ -259,7 +270,21 @@ def main():
                     except OSError:
                         pass  # A full update disk must not prevent the old app starting.
             clean_old_slots(root)
-            return run_app(root, data, args.offline, args.read_only, args.smoke_report, args.connection_report)
+            code = run_app(root, data, args.offline, args.read_only, args.smoke_report, args.connection_report, args.update_smoke_dir)
+            if code == RESTART_FOR_UPDATE:
+                # The app has closed its worker, database and profile lock.
+                # Reuse the existing handoff so even a running onefile helper
+                # releases its executable and install lock before replacement.
+                try:
+                    handoff(root, data, args)
+                except (OSError, ValueError, psutil.Error):
+                    # The current app has already closed. Restore its window
+                    # without another automatic attempt in this session if a
+                    # full disk or antivirus prevented the helper starting.
+                    return run_app(root, data, args.offline, args.read_only, args.smoke_report,
+                                   args.connection_report, args.update_smoke_dir, restart_supported=False)
+                return 0
+            return code
     except (OSError, ValueError, psutil.Error) as exc:
         if args.smoke_report:
             atomic_json(args.smoke_report, {'bootstrap_error': type(exc).__name__})

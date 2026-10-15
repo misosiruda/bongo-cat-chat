@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtWebEngineCore import QWebEngineScript
 
 from bongo_chat.desktop import Controller, run, window
-from bongo_chat.exit_codes import PROFILE_IN_USE
+from bongo_chat.exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY
 from bongo_chat.worker import unavailable
 from bongo_chat import desktop
 from test_core import received, state
@@ -216,6 +216,150 @@ def test_update_ready_keeps_editor_and_does_not_restart(qt_chat, monkeypatch):
     js(app, page, "document.querySelector('#check-updates').click()")
     wait_until(app, lambda: len(requests) == 1)
     assert controller.worker is None and not controller.closed
+
+
+def arm_automatic_restart(app, controller, page):
+    # Only the updater capability is substituted. The actual Qt bridge,
+    # renderer, countdown, draft writes and restart gate stay in use.
+    controller.restart_supported = True
+    controller.updates.enabled = True
+    controller.updates.next_check = float('inf')
+    js(app, page, 'window.realNow=Date.now;window.timeOffset=0;Date.now=()=>window.realNow()+window.timeOffset')
+    controller.updates.report('ready', '0.2.0')
+    wait_until(app, lambda: js(app, page, "!document.querySelector('#update-notice').hidden"))
+
+
+def test_automatic_restart_saves_latest_draft_after_ime_and_input_idle(qt_chat):
+    app, controller, page = qt_chat
+    restarts = []
+    controller.restart_requested.connect(lambda: restarts.append(controller.store.draft('fixture-self', 'fixture-room-a')))
+    arm_automatic_restart(app, controller, page)
+    assert not restarts
+    js(app, page, "document.querySelector('#message-input').dispatchEvent(new CompositionEvent('compositionstart'));window.timeOffset=31000")
+    wait_until(app, lambda: js(app, page, "document.querySelector('#update-notice').textContent.includes('입력·전송')"))
+    assert not restarts
+    js(app, page, "document.querySelector('#message-input').value='재시작 직전 한글 초안';document.querySelector('#message-input').dispatchEvent(new CompositionEvent('compositionend'));document.querySelector('#message-input').dispatchEvent(new Event('input'))")
+    wait_until(app, lambda: controller.store.draft('fixture-self', 'fixture-room-a') == '재시작 직전 한글 초안')
+    assert not restarts
+    js(app, page, 'window.timeOffset+=6000')
+    wait_until(app, lambda: bool(restarts))
+    assert restarts == ['재시작 직전 한글 초안']
+    assert controller.restarting
+    assert js(app, page, "document.querySelector('#message-input').disabled")
+
+
+@pytest.mark.parametrize('blocker', ['sending', 'storage', 'volatile', 'draft_failure'])
+def test_automatic_restart_waits_for_send_and_storage(qt_chat, monkeypatch, blocker):
+    app, controller, page = qt_chat
+    restarts = []
+    controller.restart_requested.connect(lambda: restarts.append(True))
+    command = None
+    original_draft = controller.store.draft
+    if blocker == 'sending':
+        command = controller.service.prepare(controller.service.context(), '전송 완료 대기')
+    elif blocker == 'storage':
+        controller.service.storage_error = True
+    elif blocker == 'volatile':
+        # Use a real unsaved message rather than a malformed view fixture.
+        original_add = controller.store.add
+        def fail_add(*args, **kwargs):
+            raise sqlite3.OperationalError('synthetic disk full')
+        monkeypatch.setattr(controller.store, 'add', fail_add)
+        received(controller.service, '저장 대기 기록')
+        monkeypatch.setattr(controller.store, 'add', original_add)
+        controller.service.storage_error = False
+    else:
+        def fail_draft(*args):
+            if len(args) == 3:
+                raise sqlite3.OperationalError('synthetic draft failure')
+            return original_draft(*args)
+        monkeypatch.setattr(controller.store, 'draft', fail_draft)
+    arm_automatic_restart(app, controller, page)
+    js(app, page, 'window.timeOffset=31000')
+    expected = '입력·전송' if blocker == 'sending' else '저장되지 않은'
+    wait_until(app, lambda: js(app, page, f"document.querySelector('#update-notice').textContent.includes('{expected}')"))
+    assert not restarts and not controller.restarting
+    assert not js(app, page, 'document.body.inert')
+    if command:
+        controller.service.result(command['id'], 'accepted')
+    controller.service.storage_error = False
+    controller.service.volatile.clear()
+    monkeypatch.setattr(controller.store, 'draft', original_draft)
+    js(app, page, 'window.timeOffset+=31000')
+    wait_until(app, lambda: bool(restarts))
+    assert restarts == [True]
+
+
+def test_disabling_updates_cancels_countdown_and_rejects_stale_restart(qt_chat):
+    app, controller, page = qt_chat
+    restarts = []
+    controller.restart_requested.connect(lambda: restarts.append(True))
+    arm_automatic_restart(app, controller, page)
+    controller.updates.set_allowed(False)
+    js(app, page, 'window.timeOffset=31000')
+    wait_until(app, lambda: js(app, page, "document.querySelector('#update-notice').hidden"))
+    assert controller.dispatch({'action': 'restart_update'}) == {'ok': False, 'reason': 'unavailable'}
+    assert not restarts
+
+
+def test_old_launcher_cannot_request_new_restart_exit(qt_chat):
+    app, controller, page = qt_chat
+    controller.updates.enabled = True
+    controller.updates.next_check = float('inf')
+    controller.updates.report('ready', '0.2.0')
+    controller.restart_supported = False
+    assert controller.dispatch({'action': 'restart_update'}) == {'ok': False, 'reason': 'unavailable'}
+    assert not controller.restarting
+
+
+def test_restart_exit_closes_database_and_releases_profile_lock(tmp_path, monkeypatch):
+    controllers = []
+    original_window = desktop.window
+    def restart_window(controller):
+        controllers.append(controller)
+        view = original_window(controller)
+        QTimer.singleShot(0, controller.restart_requested.emit)
+        return view
+    monkeypatch.setattr(desktop, 'window', restart_window)
+    assert run(tmp_path, offline=True) == RESTART_FOR_UPDATE
+    assert controllers[0].closed and controllers[0].updates.closed
+    with pytest.raises(sqlite3.ProgrammingError):
+        controllers[0].store.db.execute('SELECT 1')
+    lock = QLockFile(str(tmp_path / 'app.lock'))
+    assert lock.tryLock(0)
+    lock.unlock()
+
+
+@pytest.mark.parametrize('root', [None, 'installation'])
+def test_offline_controller_never_enables_restart_from_environment(tmp_path, monkeypatch, root):
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv(RESTART_CAPABILITY, '1')
+    controller = Controller(tmp_path, offline=True, install_root=tmp_path / root if root else None)
+    try:
+        assert not controller.restart_supported and not controller.can_restart()
+    finally:
+        controller.close()
+
+
+def test_update_diagnostic_uses_real_renderer_without_worker(tmp_path, monkeypatch):
+    controllers = []
+    original_window = desktop.window
+    monkeypatch.setenv(RESTART_CAPABILITY, '1')
+    monkeypatch.setattr(desktop, 'update_checks_allowed', lambda: True)
+    def diagnostic_window(controller):
+        controllers.append(controller)
+        assert controller.worker is None and controller.restart_supported
+        controller.updates.next_check = float('inf')
+        controller.updates.report('current')
+        return original_window(controller)
+    monkeypatch.setattr(desktop, 'window', diagnostic_window)
+    reports = tmp_path / 'reports'
+    assert run(tmp_path / 'data', offline=True, install_root=tmp_path / 'installed', update_smoke_dir=reports) == 0
+    report = json.loads(next(reports.glob('*.json')).read_bytes())
+    assert report['complete'] and report['renderer']
+    assert not report['worker_started'] and not report['steam_connected'] and not report['restart_requested']
+    assert report['console_errors'] == []
+    assert controllers[0].closed
 
 
 @pytest.mark.parametrize('size', [(1240, 840), (960, 540), (400, 500)])
