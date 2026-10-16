@@ -120,3 +120,10 @@ QML hook은 현재 Widgets 앱에 필요한 동적 의존성을 수집하되 QML
 | tpk_ar | 0.2.4 | MIT License |
 | typing_extensions | 4.16.0 | PSF-2.0 |
 | UnityPy | 1.25.4 | MIT License |
+| winrt-runtime | 3.2.1 | MIT |
+| winrt-Windows.Foundation | 3.2.1 | MIT |
+| winrt-Windows.Foundation.Collections | 3.2.1 | MIT |
+| winrt-Windows.Data.Xml.Dom | 3.2.1 | MIT |
+| winrt-Windows.UI.Notifications | 3.2.1 | MIT |
+
+2026-10-16 알림 후속 소스는 위 WinRT 패키지 5개의 Python 3.13 x64 wheel을 사용한다. MIT 메타데이터는 있으나 wheel에 전문이 없어, upstream `v3.2.1`의 commit `21cbd0fd7ff91422ed76b4e3611d3fb52716e017`에서 LICENSE를 받아 `PyWinRT-3.2.1-LICENSE.txt`로 보관하고 additional-notices의 URL/SHA-256으로 고정했다. 기존 고지 수집기가 이 전문을 포함하며 PyInstaller namespace/네이티브 확장을 수집한다. Windows OS 자체 API를 사용하며 메시지마다 PowerShell을 띄우지 않는다. 새 의존성의 추가로 기존 게임 연동·일반 배포 승인이나 Windows 코드 서명을 주장하지 않는다.

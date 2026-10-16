@@ -35,6 +35,14 @@ def js(app,page,code):
     return result[0]
 
 
+def seed_history(service, messages):
+    # Direct fixture inserts block the Qt heartbeat. Keep synthetic connection
+    # state fresh so slower SQLite commits cannot discard later fixture rows.
+    for text in messages:
+        service.update(dict(service.state))
+        received(service, text)
+
+
 @pytest.mark.parametrize('diagnostic', [False, True])
 def test_busy_profile_returns_operational_exit_without_opening_history(tmp_path, monkeypatch, diagnostic):
     app = QApplication.instance() or QApplication([])
@@ -181,14 +189,12 @@ def test_view_failure_clears_stale_peer_display(qt_chat, monkeypatch):
 
 def test_unsaved_first_message_keeps_search_jump_and_older_page(qt_chat, monkeypatch):
     app, controller, page = qt_chat
-    for i in range(5):
-        received(controller.service, f'이전 기록 {i}')
+    seed_history(controller.service, (f'이전 기록 {i}' for i in range(5)))
     original = controller.store.add
     monkeypatch.setattr(controller.store, 'add', lambda *args: (_ for _ in ()).throw(sqlite3.OperationalError('disk full')))
     received(controller.service, '미저장 검색 대상')
     monkeypatch.setattr(controller.store, 'add', original)
-    for i in range(100):
-        received(controller.service, f'복구 뒤 기록 {i}')
+    seed_history(controller.service, (f'복구 뒤 기록 {i}' for i in range(100)))
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 107)
     assert js(app, page, "document.querySelector('.message-bubble').textContent") == '보존할 기록'
     assert js(app, page, "document.querySelector('.message-status').textContent") == '이 기록은 저장되지 않았어요'

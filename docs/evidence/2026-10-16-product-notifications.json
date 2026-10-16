@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-16",
+  "timezone": "Asia/Seoul",
+  "issue": 24,
+  "integrated_main": "dffe75b6d707c96df8888a5f44d63a8a1f05ada1",
+  "game_launched": false,
+  "steam_worker_started": false,
+  "real_lobby_send_count": 0,
+  "tests": {"passed": 570, "skipped": 0, "focused_notifications_passed": 61},
+  "shipping_review": {
+    "previous_full_suite_commit": "134083a84072d31c3168d7d619ce327f4d53db24",
+    "startup_settings_read_failure_defers_both_channels": true,
+    "atomic_reload_on_storage_recovery": true,
+    "new_regression_cases": 2,
+    "focused_passed": 130,
+    "initial_code_review_commit": "b3a0ee2cb111823f64072baddc8cc206a6eda41f",
+    "previous_process_toast_cleanup_finding": "P2",
+    "previous_process_cleanup_regressions": 4,
+    "after_review_focused_passed": 134,
+    "full_suite_before_fixture_fix": {"commit": "448080540159683bff688f9402d426df588a1fc3", "passed": 576, "seconds": 126.97},
+    "ci_before_fixture_fix": {"run_id": 38856717514, "passed": 575, "failed": 1},
+    "slow_fixture_reproduction": {"per_write_delay_seconds": 0.01, "before_rows": 154, "before_failed": 1, "after_rows_including_own_intent": 352, "after_passed": 1},
+    "fixture_fix": "refresh synthetic connection state during bulk history seeding without changing product freshness or UI assertions",
+    "full_suite_after_fixture_fix": {"passed": 576, "skipped": 0, "seconds": 124.19},
+    "ci_after_qt_fixture_fix": {"commit": "057e1bef76225b6a8a508f9f41ba3ff47f119b41", "run_id": 38857841440, "passed": 575, "failed": 1},
+    "slow_service_fixture_reproduction": {"per_write_delay_seconds": 0.015, "before_stored_rows": 157, "before_page_rows": 0, "before_failed": 1, "after_stored_rows": 230, "after_page_rows": 100},
+    "service_fixture_fix": "explicit unit-test clock; stale-state tests retain their own advancing clock; shared Qt seed helper includes unsaved history",
+    "combined_slow_fixture_checks": {"passed": 3, "seconds": 12.39},
+    "full_suite_after_service_fixture_fix": {"passed": 576, "skipped": 0, "seconds": 109.00}
+  },
+  "browser": {
+    "reason": "Browser plugin not available",
+    "runner": "repository Playwright with installed Edge Chromium",
+    "notification_viewports": ["1536x1024", "1240x840", "960x540", "480x800", "400x500"],
+    "themes": ["light", "dark"],
+    "console_errors": 0,
+    "profile_regression_passed": true
+  },
+  "native_synthetic": {
+    "real_controller_poll": true,
+    "real_winrt": true,
+    "test_aumid_substituted_for_isolation": true,
+    "cases": [
+      {"flash": true, "toast": false, "history_count": 0},
+      {"flash": false, "toast": true, "history_count": 1},
+      {"flash": true, "toast": true, "history_count": 1},
+      {"flash": false, "toast": false, "history_count": 0}
+    ],
+    "app_active": false,
+    "owned_shortcut_removed": true,
+    "first_setting_not_found_reproduced_and_fixed": true,
+    "banner_visually_confirmed": false,
+    "flash_visually_confirmed": false,
+    "previous_process_toast_removed_on_first_sync": true
+  },
+  "baseline_service_reads_new_settings": "a2fd477",
+  "pip_check": "passed",
+  "packaging": {
+    "unsigned_review_bundle": true,
+    "isolated_packaged_winrt_import": true,
+    "frozen_offline_renderer": true,
+    "setup_test_identity_install_repair_uninstall": true,
+    "fixed_product_aumid_in_shortcut": true,
+    "synthetic_data_preserved": true,
+    "existing_product_registration_changed": false
+  },
+  "remaining": ["installed_product_aumid_visual_acceptance", "actual_icon_display", "os_off_and_do_not_disturb", "windows_10_and_other_pc", "actual_game_natural_receive"],
+  "release_published": false,
+  "existing_installation_replaced": false
+}

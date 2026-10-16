@@ -1,11 +1,29 @@
 """Message state and privacy boundary, independent of Qt and Steam."""
 from collections import OrderedDict, deque
+from dataclasses import dataclass
 import sqlite3
 import time
 from uuid import uuid4
 
 from .protocol import encode, is_meow_message
 from .profiles import steam_profile_uri
+
+
+NOTIFICATION_KEYS = frozenset({'notification_flash', 'notification_toast'})
+
+
+@dataclass(frozen=True)
+class AcceptedIncoming:
+    """One new peer receipt, without message content or display names."""
+    receipt: str
+    sender: str
+    account: str
+    lobby: str
+    generation: str
+
+    def current(self, service):
+        return (service.context() == dict(account=self.account, lobby=self.lobby, generation=self.generation)
+                and self.sender != self.account and self.sender in service.allowed())
 
 
 class ChatService:
@@ -20,6 +38,28 @@ class ChatService:
         self.pending = deque(maxlen=200)
         self.receipts = OrderedDict()
         self.revision = 0
+        # Keep the last committed values available even if a later DB read fails.
+        # An unreadable setting is not a missing key: never turn a saved OFF
+        # into ON while the DB is unavailable. Load both values atomically.
+        self.notifications = {key: False for key in NOTIFICATION_KEYS}
+        try:
+            self.load_notifications()
+        except (sqlite3.Error, OSError):
+            self.storage_error = True
+
+    def load_notifications(self):
+        values = {}
+        for key in NOTIFICATION_KEYS:
+            value = self.store.setting(key, default=True)
+            values[key] = value if type(value) is bool else True
+        self.notifications = values
+
+    def set_notification(self, key, value):
+        if key not in NOTIFICATION_KEYS or type(value) is not bool:
+            raise ValueError('invalid_setting')
+        self.store.setting(key, value)
+        self.notifications[key] = value
+        self.revision += 1
 
     def write(self, fn, *args):
         try:
@@ -33,6 +73,7 @@ class ChatService:
         self.store.prune()
         if self.session:
             self.store.session(self.session, self.state['account'], self.state['lobby'], self.state.get('name') or '게임 로비')
+        self.load_notifications()
         self.storage_error = False
 
     def save_message(self, row, receipt=None):
@@ -186,6 +227,8 @@ class ChatService:
                 while len(self.volatile) > 200:
                     self.volatile.popitem(last=False)
         self.revision += 1
+        if sender != account:
+            return AcceptedIncoming(receipt, sender, **self.context())
 
     def view(self, lobby=None, query="", before=None, start=None, seen=None, limit=100):
         account = self.state.get("account", "")
@@ -228,6 +271,7 @@ class ChatService:
                 "rooms": rooms, "messages": messages, "profiles": profiles, "draft": draft,
                 "storage_error": self.storage_error, "revision": self.revision,
                 "theme": theme, "collapsed": collapsed,
+                "notifications": dict(self.notifications),
                 "lobby": lobby, "has_more": page['has_more'], "has_newer": page['has_newer'],
                 "latest_seq": page['latest_seq'], "unseen": page['unseen'], "unseen_seq": page['unseen_seq'],
                 "volatile_peer_ids": [r['id'] for r in visible_volatile if not r['own']]}

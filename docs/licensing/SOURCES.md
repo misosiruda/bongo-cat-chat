@@ -70,6 +70,14 @@ local library replacements after that launch or rebuild a standalone app.
 
 ## Other native components
 
+The notification implementation uses five PyWinRT 3.2.1 wheels (runtime,
+Foundation, Foundation.Collections, Data.Xml.Dom and UI.Notifications). Their
+metadata specifies MIT but these wheels omit the licence text. The upstream
+v3.2.1 licence, including Microsoft and David Lechner notices, is pinned by
+commit and SHA-256 in additional-notices.json and included in
+THIRD-PARTY-NOTICES.txt as PyWinRT-3.2.1-LICENSE.txt. Upstream source:
+https://github.com/pywinrt/pywinrt/tree/21cbd0fd7ff91422ed76b4e3611d3fb52716e017.
+
 Python 3.13.3 and its bundled libraries retain the Python Windows distribution
 notices. Additional OpenSSL 3.0.16 notices cover libssl-3.dll/libcrypto-3.dll.
 The cryptography wheel has its own bundled-library notices. Pillow, codecs,

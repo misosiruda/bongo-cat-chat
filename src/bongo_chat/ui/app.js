@@ -8,6 +8,9 @@
   let theme = 'system', collapsed = false, composing = false, sending = false, switching = 0;
   let refreshing = 0, requestVersion = 0, draftVersion = 0, draftTimer, signature = '';
   let deleteScope = null;
+  const notificationSettings = {notification_flash:true,notification_toast:true};
+  const notificationPending = new Set();
+  const notificationControls = {notification_flash:'notification-flash',notification_toast:'notification-toast'};
   let restartPlan = null, restarting = false, lastEdit = 0;
   let openingProfile = false, participantsSignature = '';
   let start = null, seenSeq = null, loadingHistory = false, restoring = false;
@@ -376,6 +379,17 @@
   function render(data, resetDraft) {
     const position=pendingPosition || capturePosition();
     model = data;
+    for (const [key,id] of Object.entries(notificationControls)) {
+      if (!notificationPending.has(key)) {
+        notificationSettings[key] = data.notifications?.[key] !== false;
+        $(id).checked = notificationSettings[key];
+      }
+    }
+    const notificationStatus = data.notification_status || {};
+    $('notification-status').textContent = ({unavailable:'Windows 알림을 사용할 수 없어요. 설치된 앱의 시작 메뉴 바로가기를 확인해 주세요. 실패한 알림은 다시 보내지 않으며, 옵션을 껐다 켜면 다음 새 메시지부터 다시 시도합니다.',
+      disabled:'Windows에서 이 앱의 알림을 제한하고 있어요. 표시 여부는 Windows 알림 설정을 따릅니다.',
+      cleanup_failed:'이전 Windows 알림을 지우지 못했어요. 알림 센터에서 직접 지울 수 있습니다.'})[notificationStatus.toast] || '';
+    if (notificationStatus.flash === 'unavailable') $('notification-status').textContent += ' 작업 표시줄 알림을 사용할 수 없어요.';
     if (seenSeq===null) {seenSeq=data.latest_seq || 0; seenVolatile=new Set(data.volatile_peer_ids || []);}
     if (!query && start===null) start=data.messages.find(message => Number.isInteger(message.seq))?.seq ?? null;
     const update = data.update || {state:'development',current:''};
@@ -499,6 +513,22 @@
     $('refresh-button').addEventListener('click',()=>rpc('refresh').then(()=>refresh()).catch(showError));
     $('check-updates').addEventListener('click',()=>rpc('check_updates').then(()=>refresh(true)).catch(showError));
     $('allow-update-checks').addEventListener('change',event=>rpc('update_permission',{allowed:event.target.checked}).then(()=>refresh(true)).catch(error=>{showError(error);refresh(true);}));
+    for (const [key,id] of Object.entries(notificationControls)) $(id).addEventListener('change',async()=>{
+      if (notificationPending.has(key)) return;
+      const control=$(id), value=control.checked, previous=notificationSettings[key];
+      notificationPending.add(key); requestVersion++; control.disabled=true; control.checked=previous;
+      $('notification-save-status').textContent='알림 설정을 저장하고 있어요.';
+      try {
+        await rpc('setting',{key,value});
+        notificationSettings[key]=value;
+        if (model) model.notifications={...notificationSettings};
+        $('notification-save-status').textContent='알림 설정을 저장했어요.';
+      } catch(error) {
+        $('notification-save-status').textContent='알림 설정을 저장하지 못해 이전 값으로 되돌렸어요. 다시 시도해 주세요.';
+      } finally {
+        requestVersion++; control.checked=notificationSettings[key]; control.disabled=false; notificationPending.delete(key);
+      }
+    });
     document.querySelectorAll('[data-legal]').forEach(button=>button.addEventListener('click',()=>rpc('legal',{document:button.dataset.legal}).catch(showError)));
     document.querySelectorAll('[name=appearance]').forEach(el=>el.addEventListener('change',()=>{theme=el.value;applyTheme();rpc('setting',{key:'theme',value:theme}).catch(showError);}));
     media.addEventListener('change',applyTheme); narrow.addEventListener('change',applySidebar);

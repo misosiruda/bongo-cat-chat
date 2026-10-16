@@ -18,6 +18,37 @@ from bongo_chat.service import ChatService
 from bongo_chat.store import Store
 
 
+def check_notification_controls(page, service, output):
+    """Real product settings, synthetic bridge; no Windows delivery in browser QA."""
+    for width, height in [(1240, 840), (400, 500)]:
+        page.set_viewport_size({'width': width, 'height': height})
+        if width <= 760:
+            page.locator('#mobile-menu').click()
+        for theme in ['light', 'dark']:
+            page.locator('#settings-button').click()
+            page.locator(f'[value={theme}]').check()
+            expect(page.locator('html')).to_have_attribute('data-theme', theme)
+            for flash, toast in [(False, True), (True, False), (False, False), (True, True)]:
+                for key, target in [('notification_flash', flash), ('notification_toast', toast)]:
+                    control = page.locator('#notification-flash' if key.endswith('flash') else '#notification-toast')
+                    if control.is_checked() != target:
+                        control.focus()
+                        page.keyboard.press('Space')
+                    expect(control).to_be_enabled()
+                    expect(control).to_be_checked(checked=target)
+                    assert service.notifications[key] is target
+            page.locator('.notification-panel').scroll_into_view_if_needed()
+            expect(page.get_by_role('checkbox', name='작업 표시줄 깜빡임')).to_be_in_viewport()
+            expect(page.get_by_role('checkbox', name='Windows 알림', exact=True)).to_be_in_viewport()
+            expect(page.locator('[aria-label="설정 닫기"]')).to_be_in_viewport(ratio=1)
+            assert page.locator('#settings-content').evaluate('(el)=>el.scrollWidth<=el.clientWidth')
+            page.screenshot(path=str(output / f'notifications-{theme}-{width}x{height}.png'))
+            page.keyboard.press('Escape')
+        if width <= 760:
+            page.locator('#drawer-backdrop').click(position={'x':350, 'y':250})
+    page.set_viewport_size({'width':1536, 'height':1024})
+
+
 def check_settings_layout(page, output):
     draft=page.locator('#message-input').input_value()
     query=page.locator('#message-search').input_value()
@@ -125,7 +156,10 @@ def main():
         def request(raw):
             args=json.loads(raw);action=args['action']
             if action=='view':result=service.view(args.get('lobby'),args.get('query',''),args.get('before'),args.get('start'),args.get('seen'),args.get('limit',100))
-            elif action=='setting':store.setting(args['key'],args['value']);result={'ok':True}
+            elif action=='setting':
+                if args['key'].startswith('notification_'):service.set_notification(args['key'],args['value'])
+                else:store.setting(args['key'],args['value'])
+                result={'ok':True}
             elif action=='draft':store.draft(args['account'],args['lobby'],args['text']);result={'ok':True}
             elif action=='refresh':result={'ok':True}
             elif action=='send':command=service.prepare(args['context'],args['text']);service.result(command['id'],'accepted');result={'id':command['id']}
@@ -161,6 +195,7 @@ def main():
         expect(page.locator('html')).to_have_attribute('data-theme','dark')
         assert page.locator('#message-search').input_value()=='한글 입력'
         assert page.locator('#message-input').input_value()=='작성 중인 한글'
+        check_notification_controls(page,service,args.output)
         check_settings_layout(page,args.output)
         assert store.db.execute('SELECT count(*) FROM messages').fetchone()[0]==48
         page.locator('#clear-search').click();page.wait_for_timeout(800)

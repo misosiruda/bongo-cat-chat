@@ -8,20 +8,22 @@ import sqlite3
 import sys
 import time
 
-from PySide6.QtCore import QObject, QLockFile, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QLockFile, QTimer, QUrl, Qt, Signal, Slot
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings, QWebEngineUrlRequestInterceptor
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication, QMessageBox, QDialog, QVBoxLayout, QTextBrowser
 
-from .service import ChatService
+from .service import ChatService, NOTIFICATION_KEYS
 from .store import Store
 from .worker import run_worker, unavailable
 from . import __version__
 from .exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY
 from .updates import UpdateManager
 from .privacy import update_checks_allowed, set_update_checks_allowed
+from .notifications import Notifications
+from .windows_notifications import Attention, WindowsToast, set_app_id
 
 UI = Path(__file__).with_name("ui").resolve()
 LEGAL = Path(__file__).with_name('legal')
@@ -91,10 +93,15 @@ class Page(QWebEnginePage):
 class Controller(QObject):
     restart_requested = Signal()
 
-    def __init__(self, data, offline=False, read_only=False, parent=None, install_root=None, update_smoke=False):
+    def __init__(self, data, offline=False, read_only=False, parent=None, install_root=None, update_smoke=False,
+                 notification_backend=None):
         super().__init__(parent)
         self.store = Store(data / "history.sqlite3")
         self.service = ChatService(self.store)
+        backend = notification_backend
+        if backend is None and os.name == 'nt' and install_root and not offline:
+            backend = WindowsToast(install_root)
+        self.notifications = Notifications(self.service, backend, enabled=not offline or notification_backend is not None)
         if update_smoke and (not offline or not install_root):
             raise ValueError('update_diagnostic_requires_offline_installation')
         self.updates = UpdateManager(install_root, __version__, offline and not update_smoke, allowed=update_checks_allowed())
@@ -123,6 +130,8 @@ class Controller(QObject):
 
     def poll(self):
         try:
+            if not self.closed and not self.restarting:
+                self.notifications.sync()
             self.updates.poll()
             for _ in range(200):
                 try:
@@ -138,12 +147,16 @@ class Controller(QObject):
                     if event.get("account"):
                         self.known_accounts.add(event["account"])
                     self.service.update(event)
+                    self.notifications.sync()
                 elif event.get("type") == "message":
-                    self.service.receive(event)
+                    incoming = self.service.receive(event)
+                    if not self.closed and not self.restarting:
+                        self.notifications.incoming(incoming)
                 elif event.get("type") == "result":
                     self.service.result(event["id"], event["status"])
             if self.worker and not self.worker.is_alive() and self.service.state.get("notice") != "worker_stopped":
                 self.service.update(unavailable("worker_stopped"))
+                self.notifications.sync()
             if time.monotonic()-self.last_prune > 60:
                 self.service.write(self.store.prune)
                 self.last_prune = time.monotonic()
@@ -187,6 +200,7 @@ class Controller(QObject):
             result['update']['can_restart'] = self.can_restart()
             if self.closed or self.restarting:
                 result['profile_targets'] = []
+            result['notification_status'] = self.notifications.snapshot()
             return result
         if action == 'open_steam_profile':
             if self.closed or self.restarting or self.opening_profile:
@@ -216,6 +230,10 @@ class Controller(QObject):
             self.store.draft(owner, args["lobby"], args["text"])
         elif action == "setting":
             key, value = args["key"], args["value"]
+            if key in NOTIFICATION_KEYS:
+                self.service.set_notification(key, value)
+                self.notifications.settings_changed(key, value)
+                return {"ok": True}
             if not (key == "theme" and value in ("light", "dark", "system") or key == "collapsed" and type(value) is bool):
                 raise ValueError("invalid_setting")
             self.store.setting(key, value)
@@ -241,6 +259,7 @@ class Controller(QObject):
                 return {'ok': False, 'reason': 'sending'}
             if not self.restarting:
                 self.restarting = True
+                self.notifications.close()
                 QTimer.singleShot(0, self.restart_requested.emit)
             return {'ok': True}
         elif action == 'update_permission':
@@ -278,6 +297,7 @@ class Controller(QObject):
         if self.closed:
             return
         self.closed = True
+        self.notifications.close()
         for dialog in list(self.legal_dialogs):
             dialog.close()
         self.timer.stop()
@@ -318,10 +338,18 @@ def window(controller):
     view.setMinimumSize(400, 500)
     view.load(QUrl.fromLocalFile(str(UI / "index.html")))
     view._resources = (profile, interceptor, page, channel)
+    app = QApplication.instance()
+    controller.notifications.bind(Attention(view), lambda: app.applicationState() == Qt.ApplicationState.ApplicationActive)
+    app.applicationStateChanged.connect(controller.notifications.sync)
     return view
 
 
 def run(data, offline=False, read_only=False, smoke_report=None, connection_report=None, install_root=None, update_smoke_dir=None):
+    if os.name == 'nt' and install_root and not offline:
+        try:
+            set_app_id()
+        except OSError:
+            pass  # Notification identity failures cannot prevent opening chat.
     app = QApplication.instance() or QApplication([])
     app.setWindowIcon(QIcon(str(UI / "app-icon.ico")))
     data.mkdir(parents=True, exist_ok=True)

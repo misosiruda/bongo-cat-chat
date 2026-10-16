@@ -27,7 +27,9 @@ def state(**changes):
 
 @pytest.fixture
 def service(store):
-    result = ChatService(store)
+    # Unit fixtures do not have a live worker heartbeat. Keep elapsed time
+    # explicit; stale-state tests below use their own advancing clock.
+    result = ChatService(store, clock=lambda: 100.0)
     result.update(state())
     return result
 

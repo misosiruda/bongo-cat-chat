@@ -14,5 +14,9 @@
   "MESA-NOTICES.txt": {
     "url": "https://doc.qt.io/qt-6.5/qt-attribution-llvmpipe.html",
     "sha256": "ed6cca5c658efca6d99e28a51d3433b5d3398e2e40765ad9773dc1d3e8475eeb"
+  },
+  "PyWinRT-3.2.1-LICENSE.txt": {
+    "url": "https://raw.githubusercontent.com/pywinrt/pywinrt/21cbd0fd7ff91422ed76b4e3611d3fb52716e017/LICENSE",
+    "sha256": "6e898069e8b3c6d8d23dc70ac7067cc2b7c9db14c36df873026758db82c0891d"
   }
 }

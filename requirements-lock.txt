@@ -36,4 +36,9 @@ shiboken6==6.12.0
 texture2ddecoder==1.0.6
 tpk_ar==0.2.4
 typing_extensions==4.16.0
+winrt-runtime==3.2.1
+winrt-Windows.Data.Xml.Dom==3.2.1
+winrt-Windows.Foundation==3.2.1
+winrt-Windows.Foundation.Collections==3.2.1
+winrt-Windows.UI.Notifications==3.2.1
 UnityPy==1.25.4

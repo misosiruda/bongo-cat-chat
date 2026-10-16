@@ -3,7 +3,8 @@ import json
 import pytest
 
 from test_core import received
-from test_desktop import js, qt_chat, wait_until
+from test_desktop import js, qt_chat, seed_history, wait_until
+
 
 def scroll_anchor(app, page):
     return json.loads(js(app, page, """JSON.stringify((() => {
@@ -16,8 +17,7 @@ def scroll_anchor(app, page):
 
 def test_qt_incoming_preserves_message_anchor_and_manual_bottom_clears_badge(qt_chat):
     app, controller, page = qt_chat
-    for i in range(180):
-        received(controller.service, f'스크롤 가상 기록 {i}')
+    seed_history(controller.service, (f'스크롤 가상 기록 {i}' for i in range(180)))
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message').length") == 181)
     js(app, page, "const s=document.querySelector('#message-scroll');s.scrollTop=(s.scrollHeight-s.clientHeight)/2")
     before = scroll_anchor(app, page)
@@ -35,8 +35,7 @@ def test_qt_incoming_preserves_message_anchor_and_manual_bottom_clears_badge(qt_
 
 def test_qt_delayed_reply_does_not_restore_an_already_read_badge(qt_chat):
     app, controller, page = qt_chat
-    for i in range(120):
-        received(controller.service, f'지연 검증 가상 기록 {i}')
+    seed_history(controller.service, (f'지연 검증 가상 기록 {i}' for i in range(120)))
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message').length") == 121)
     js(app, page, "const s=document.querySelector('#message-scroll');s.scrollTop=(s.scrollHeight-s.clientHeight)/2")
     received(controller.service, '지연 검증 새 가상 기록')
@@ -54,8 +53,7 @@ def test_qt_delayed_reply_does_not_restore_an_already_read_badge(qt_chat):
 
 def test_qt_older_history_is_continuous_and_own_send_returns_to_latest(qt_chat):
     app, controller, page = qt_chat
-    for i in range(350):
-        received(controller.service, f'연속 가상 기록 {i}')
+    seed_history(controller.service, (f'연속 가상 기록 {i}' for i in range(350)))
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message').length") == 351)
     js(app, page, "document.querySelector('#latest').click()")
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message').length") == 100)
@@ -74,8 +72,7 @@ def test_qt_older_history_is_continuous_and_own_send_returns_to_latest(qt_chat):
 
 def test_qt_search_restore_keeps_window_and_message_anchor(qt_chat):
     app, controller, page = qt_chat
-    for i in range(250):
-        received(controller.service, f'검색 가상 기록 {i:03d}')
+    seed_history(controller.service, (f'검색 가상 기록 {i:03d}' for i in range(250)))
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message').length") == 251)
     js(app, page, "const s=document.querySelector('#message-scroll');s.scrollTop=(s.scrollHeight-s.clientHeight)/2")
     before = scroll_anchor(app, page)

@@ -33,6 +33,28 @@ public static class BongoChatShortcut {
         void Resolve(IntPtr window, uint flags);
         void SetPath([MarshalAs(UnmanagedType.LPWStr)] string value);
     }
+    [StructLayout(LayoutKind.Sequential)] private struct Key { public Guid fmtid; public uint pid; }
+    [StructLayout(LayoutKind.Explicit, Size=24)] private struct Value {
+        [FieldOffset(0)] public ushort type;
+        [FieldOffset(8)] public IntPtr text;
+    }
+    [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IStore {
+        void GetCount(out uint count); void GetAt(uint index, out Key key);
+        void GetValue(ref Key key, out Value value); void SetValue(ref Key key, ref Value value); void Commit();
+    }
+    [DllImport("ole32.dll")] private static extern int PropVariantClear(ref Value value);
+    public const string AppId = "BongoCatChat.Desktop";
+    public static string ReadAppId(string path) {
+        object link = new ShellLink();
+        var value = new Value();
+        try {
+            ((IPersistFile)link).Load(path, 0);
+            var key = new Key { fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), pid = 5 };
+            ((IStore)link).GetValue(ref key, out value);
+            return value.type == 31 ? Marshal.PtrToStringUni(value.text) : "";
+        } finally { PropVariantClear(ref value); Marshal.FinalReleaseComObject(link); }
+    }
     public static string Read(string path) {
         object link = new ShellLink();
         try {
@@ -47,6 +69,11 @@ public static class BongoChatShortcut {
         try {
             ((ILink)link).SetPath(target);
             ((ILink)link).SetWorkingDirectory(directory);
+            ((ILink)link).SetIconLocation(target, 0);
+            var key = new Key { fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), pid = 5 };
+            var value = new Value { type = 31, text = Marshal.StringToCoTaskMemUni(AppId) };
+            try { ((IStore)link).SetValue(ref key, ref value); ((IStore)link).Commit(); }
+            finally { Marshal.FreeCoTaskMem(value.text); }
             ((IPersistFile)link).Save(path, true);
         } finally { Marshal.FinalReleaseComObject(link); }
     }
@@ -107,7 +134,19 @@ try {
             Initialize-ShortcutInterop
             $shortcutTarget = [BongoChatShortcut]::Read($shortcutPath)
             if (-not $shortcutTarget) { throw 'Cannot inspect the Start Menu shortcut; retry uninstall' }
-            if ($shortcutTarget -eq (Join-Path $target 'BongoCatChat.exe')) { Remove-Item -LiteralPath $shortcutPath }
+            $shortcutId = [BongoChatShortcut]::ReadAppId($shortcutPath)
+            if ($shortcutTarget -eq (Join-Path $target 'BongoCatChat.exe') -and (-not $shortcutId -or $shortcutId -eq [BongoChatShortcut]::AppId)) {
+                # Only the genuine per-user Start Menu owns OS registration.
+                # Isolated installer tests redirect APPDATA and never touch OS history.
+                $realPrograms = [Environment]::GetFolderPath('Programs')
+                if ($shortcutId -eq [BongoChatShortcut]::AppId -and (Split-Path $shortcutPath -Parent) -eq $realPrograms) {
+                    try {
+                        $null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime]
+                        [Windows.UI.Notifications.ToastNotificationManager]::History.RemoveGroup('incoming', [BongoChatShortcut]::AppId)
+                    } catch { Write-Output 'Windows notification cleanup was unavailable; app data is retained.' }
+                }
+                Remove-Item -LiteralPath $shortcutPath
+            }
         }
     }
     foreach ($name in $members) {
