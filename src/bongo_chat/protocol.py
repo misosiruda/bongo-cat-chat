@@ -29,7 +29,8 @@ class InvalidMessage(ValueError):
 def validate_text(text: str, *, sending=False) -> str:
     if not isinstance(text, str) or not text.strip():
         raise InvalidMessage("empty_text")
-    if any(unicodedata.category(c) in {"Cs", "Cc"} and c not in "\n\t" for c in text):
+    # Windows pasted text can contain CRLF; preserve it for storage and echo matching.
+    if any(unicodedata.category(c) in {"Cs", "Cc"} and c not in "\r\n\t" for c in text):
         raise InvalidMessage("control_character")
     if sending and len(text.encode("utf-16-le")) // 2 > MAX_SEND_UNITS:
         raise InvalidMessage("development_limit_50")
