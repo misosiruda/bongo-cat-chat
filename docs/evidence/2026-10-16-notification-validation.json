@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-16",
+  "timezone": "Asia/Seoul",
+  "source_baseline": "9bdd0ba",
+  "scope": "offline_notification_feasibility",
+  "product_integrated": false,
+  "environment": {
+    "windows": "Windows-11-10.0.26300-SP0",
+    "python": "3.13.3",
+    "pyside": "6.12.0",
+    "qt": "6.12.0",
+    "tray_available": true,
+    "supports_messages": true
+  },
+  "qt_runtime": {
+    "active_window_suppresses_both": true,
+    "minimized_requests_both": true,
+    "both_off_suppresses_both_while_minimized": true,
+    "toast_only_requested_while_other_app_active": true,
+    "flash_only_requested_while_minimized": true,
+    "foreground_unchanged_in_recorded_receive_calls": true,
+    "both_off_persisted_across_gui_restart": true,
+    "flash_only_user_visually_confirmed": true,
+    "combined_flash_and_banner_user_visually_confirmed": true,
+    "initial_flash_only_no_effect_report": "Recorded receipts were foreground=true; minimized repeat was confirmed by user.",
+    "notification_click_verified": false,
+    "notification_sound_verified": false
+  },
+  "winrt_runtime": {
+    "isolated_aumid": "BongoCatChat.NotificationProbe.20261016",
+    "show_then_inspect_runs": 2,
+    "notifier_setting": "Enabled",
+    "own_history_count_after_show_each_run": 1,
+    "own_tag_and_group_present": true,
+    "own_history_count_after_sending_process_exit_each_run": 1,
+    "own_history_count_after_cleanup_each_run": 0,
+    "temporary_shortcut_remaining_after_cleanup": false,
+    "banner_separately_visually_confirmed": false,
+    "click_activation_verified": false
+  },
+  "offline_tests": {
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/test_notification_probe.py -q",
+    "passed": 23,
+    "focus_and_toggle_combinations": 8,
+    "excluded_message_cases": 8,
+    "settings_reopen_cases": 4,
+    "invalid_setting_cases": 3
+  },
+  "publication_validation": {
+    "base_commit": "f587a30588be6c823725da251afa084a7f99feaa",
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest tests/test_notification_probe.py tests/test_core.py tests/test_meow_filter.py -q",
+    "passed": 136,
+    "powershell_ast_parse_passed": true,
+    "probe_setting_failure_restore_gui_verified": false,
+    "full_product_suite_run_locally": false,
+    "product_build_run_locally": false
+  },
+  "boundaries": {
+    "steam_worker_started": false,
+    "live_lobby_messages_sent": 0,
+    "real_chat_history_used": false,
+    "product_settings_changed": false,
+    "windows_notification_preferences_changed": false,
+    "installer_validation_performed": false,
+    "other_pc_validation_performed": false
+  }
+}
