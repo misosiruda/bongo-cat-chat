@@ -16,7 +16,12 @@
     "initial_code_review_commit": "b3a0ee2cb111823f64072baddc8cc206a6eda41f",
     "previous_process_toast_cleanup_finding": "P2",
     "previous_process_cleanup_regressions": 4,
-    "after_review_focused_passed": 134
+    "after_review_focused_passed": 134,
+    "full_suite_before_fixture_fix": {"commit": "448080540159683bff688f9402d426df588a1fc3", "passed": 576, "seconds": 126.97},
+    "ci_before_fixture_fix": {"run_id": 38856717514, "passed": 575, "failed": 1},
+    "slow_fixture_reproduction": {"per_write_delay_seconds": 0.01, "before_rows": 154, "before_failed": 1, "after_rows_including_own_intent": 352, "after_passed": 1},
+    "fixture_fix": "refresh synthetic connection state during bulk history seeding without changing product freshness or UI assertions",
+    "full_suite_after_fixture_fix": {"passed": 576, "skipped": 0, "seconds": 124.19}
   },
   "browser": {
     "reason": "Browser plugin not available",
@@ -40,7 +45,8 @@
     "owned_shortcut_removed": true,
     "first_setting_not_found_reproduced_and_fixed": true,
     "banner_visually_confirmed": false,
-    "flash_visually_confirmed": false
+    "flash_visually_confirmed": false,
+    "previous_process_toast_removed_on_first_sync": true
   },
   "baseline_service_reads_new_settings": "a2fd477",
   "pip_check": "passed",

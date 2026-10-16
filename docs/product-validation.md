@@ -57,6 +57,10 @@ pwsh -NoProfile -File packaging/build-setup.ps1 -Bundle dist/notification-integr
 
 최초 Ready 자동 Code Review는 `b3a0ee2`에서 이전 프로세스가 남긴 토스트 정리 누락(P2)을 지적했다. 현재 프로세스가 새 알림을 제출하지 않았더라도 최초 상태 동기화·첫 옵션 OFF·종료 경계에서 자기 그룹 정리를 한 번 수행하도록 보완했다. 정리 실패의 반복 방지와 새 수신 계속 처리를 포함한 회귀 4개를 추가했다. 같은 집중 명령은 보완 후 **134 passed**로 통과했다. 리뷰 대상 SHA와 후속 수정 SHA를 동일하다고 표현하지 않는다.
 
+후속 `4480805`의 로컬 전체 검사는 **576 passed in 126.97s**였지만 [원격 CI](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38856717514)는 **575 passed, 1 failed**였다. 기존 스크롤 검사의 기록 350건 생성 중 Qt 이벤트 루프를 처리하지 않아 2.5초 상태 유효기간이 지나면 남은 합성 수신이 차단되는 조건을 확인했다. 저장마다 10ms 지연을 넣은 외부 재현 검사에서도 기록이 154건에 그치고 같은 UI 대기 조건이 실패했다. 대량 합성 기록 생성마다 시험 상태를 갱신하도록 `test_scroll_desktop.py`만 보정한 뒤 동일 지연 검사에서 기록 351건과 자기 송신 의도 1건, 총 352건이 유지되며 **1 passed**였다. 제품의 상태 유효기간·수신 차단·UI 인수 조건은 바꾸지 않았다.
+
+보정 소스의 동일 전체 명령은 **576 passed in 124.19s**, 건너뜀 없음이었다. 실제 Windows API 합성 시험에서도 별도 프로세스가 남긴 시험 토스트가 새 Controller의 최초 동기화에서 제거됨을 확인했다. 원격 CI·자동 리뷰·실제 병합 상태는 이 로컬 검증으로 대신하지 않는다.
+
 ## 2026-10-16 이슈 #23 Steam 프로필 열기
 
 원격 `main`의 `f587a30588be6c823725da251afa084a7f99feaa`에서 `feat/steam-profile` 브랜치를 만들어 실제 제품의 참여자 목록과 메시지 이름·아바타에 `Steam 프로필 열기`를 구현했다. [이슈 #23](https://github.com/misosiruda/bongo-cat-chat/issues/23)에 기록된 기존 진단 코드의 실제 URI 시험과 이번 제품 통합 검사를 구분한다.
