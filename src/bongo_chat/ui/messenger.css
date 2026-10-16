@@ -108,6 +108,11 @@ h1 { font-size: calc(var(--u) * 32); font-weight: 700; line-height: 1.3; letter-
 .message-content { display: flex; flex-direction: column; align-items: flex-start; max-width: min(82%, 860px); min-width: 0; padding-top: calc(var(--u) * 3); }
 .message-meta { display: flex; align-items: baseline; gap: 10px; min-height: calc(var(--u) * 28); margin-bottom: 5px; font-size: calc(var(--u) * 16); color: var(--muted); line-height: 1.45; }
 .message-meta strong { font-size: calc(var(--u) * 17); font-weight: 650; color: var(--ink); }
+.profile-avatar, .profile-name { background: transparent; padding: 0; border-radius: 8px; }
+.profile-avatar { display: inline-flex; flex: 0 0 auto; }
+.profile-name { text-align: left; overflow-wrap: anywhere; }
+.profile-name:hover, .participant-profile:hover { text-decoration: underline; text-underline-offset: 3px; }
+.steam-profile-action[aria-disabled="true"] { cursor: wait; opacity: .65; }
 .message-meta .meta-dot { opacity: .7; }
 .self-tag { font-size: calc(var(--u) * 15); color: var(--muted); }
 .message-bubble { padding: calc(var(--u) * 13) calc(var(--u) * 21); background: var(--bubble); border-radius: calc(var(--u) * 20); font-size: calc(var(--u) * 21); line-height: 1.5; letter-spacing: -.45px; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -167,6 +172,9 @@ dialog::backdrop { background: #090d1880; }
 .participant-list li { display: flex; gap: 12px; align-items: center; min-width: 0; padding: 8px 0; font-size: 14px; }
 .participant-list .avatar { width: 42px; height: 42px; }
 .participant-list .participant-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.participant-info { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; gap: 4px; }
+.participant-name { max-width: 100%; }
+.participant-profile { padding: 4px 0; background: transparent; color: var(--accent-ink); border-radius: 4px; font-size: 12px; text-align: left; }
 .toast { position: fixed; z-index: 30; left: 50%; bottom: 30px; transform: translateX(-50%); padding: 12px 20px; border: 1px solid var(--line); background: var(--ink); color: var(--paper); box-shadow: 0 4px 30px var(--shadow); border-radius: 12px; font-size: 14px; max-width: calc(100vw - 32px); text-align: center; }
 .is-refreshing svg { animation: refresh-turn 650ms ease-out; }
 @keyframes refresh-turn { to { transform: rotate(360deg); } }

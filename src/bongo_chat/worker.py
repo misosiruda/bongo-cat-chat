@@ -102,7 +102,11 @@ class LiveConnection:
         state = {"type": "state", "account": account, "lobby": lobby if valid else "",
                  "generation": self.generation, "connected": valid, "lobby_verified": verified,
                  "privacy_ready": privacy_ready, "hidden_ok": complete, "hidden": hidden,
-                 "profiles": self.profiles, "send_enabled": verified and not self.read_only,
+                 # Profiles refresh once a second, membership/privacy every tick.
+                 # Never offer a departed or newly hidden peer from that cache.
+                 "profiles": {uid: row for uid, row in self.profiles.items()
+                              if uid in members and (uid == account or hidden.get(uid) is False)},
+                 "send_enabled": verified and not self.read_only,
                  "avatar_stage": getattr(self.avatars, "stage", "disabled"),
                  "avatar_error": getattr(self.avatars, "error", ""),
                  "state": "ready" if complete else ("syncing" if valid or discovering else "no_lobby"),

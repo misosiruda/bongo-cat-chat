@@ -9,6 +9,7 @@
   let refreshing = 0, requestVersion = 0, draftVersion = 0, draftTimer, signature = '';
   let deleteScope = null;
   let restartPlan = null, restarting = false, lastEdit = 0;
+  let openingProfile = false, participantsSignature = '';
   let start = null, seenSeq = null, loadingHistory = false, restoring = false;
   let seenVolatile = new Set(), searchPosition = null, pendingPosition = {bottom:true};
   const positions = new Map();
@@ -94,8 +95,75 @@
       storage_failed_before_send:'기록을 저장하지 못해 전송하지 않았어요.',
       storage_failed:'저장에 실패했어요. 작성한 내용은 이 창에서 확인해 주세요.',
       legal_unavailable:'안내 파일을 열지 못했어요. 앱 파일을 복구하거나 다시 설치해 주세요.',
+      invalid_steam_id:'프로필 대상을 확인하지 못했어요. 참여자 목록을 다시 확인해 주세요.',
+      steam_profile_unavailable:'현재 연결에서 열 수 없는 프로필이에요. 참여자와 연결 상태를 확인해 주세요.',
+      steam_profile_failed:'Steam 프로필을 열지 못했어요. Steam 실행 상태를 확인해 주세요.',
       update_permission_failed:'업데이트 통신 설정을 저장하지 못했어요. 기존 선택을 유지합니다.'})[error.message] || '요청을 완료하지 못했어요. 연결·저장 상태를 확인해 주세요.';
     toast(text);
+  }
+  function profileContext(context) {
+    return JSON.stringify([context.account, context.lobby, context.generation]);
+  }
+  function profileAvailable(data, uid) {
+    return typeof uid === 'string' && uid !== data.context.account && data.connected && data.lobby_verified
+      && data.lobby === data.context.lobby && (data.profile_targets || []).includes(uid);
+  }
+  function updateProfileBusy() {
+    document.querySelectorAll('.steam-profile-action').forEach(button => {
+      button.setAttribute('aria-disabled', String(openingProfile || !!switching || restarting));
+      button.setAttribute('aria-busy', String(openingProfile));
+    });
+  }
+  async function openProfile(event, uid, context) {
+    event.preventDefault(); event.stopPropagation();
+    if (openingProfile || switching || restarting || event.detail > 1) return;
+    if (!model || selected !== context.lobby || profileContext(context) !== profileContext(model.context)
+        || !profileAvailable(model, uid)) {
+      showError(new Error('steam_profile_unavailable')); return;
+    }
+    openingProfile = true; updateProfileBusy();
+    try {
+      await rpc('open_steam_profile', {steam_id:uid, context});
+      toast('Steam에 프로필 열기를 요청했어요. 친구 추가는 Steam에서 진행해 주세요.');
+    } catch (error) { showError(error); }
+    finally { openingProfile = false; updateProfileBusy(); }
+  }
+  function profileButton(uid, profile, context, key, cls, content) {
+    const button = node('button', `steam-profile-action ${cls}`);
+    const captured = {...context}; // Preserve the action's original connection, including for detached events.
+    button.type = 'button'; button.dataset.profileKey = key;
+    button.dataset.profileContext = profileContext(captured);
+    button.setAttribute('aria-label', `Steam 프로필 열기 · ${profile?.name || '참여자'}`);
+    button.title = 'Steam 프로필 열기 · 친구 추가는 Steam에서 진행해 주세요';
+    button.append(content);
+    button.addEventListener('click', event => openProfile(event, uid, captured));
+    return button;
+  }
+  function preserveProfileFocus(container) {
+    const active = document.activeElement;
+    if (!container.contains(active) || !active?.matches('.steam-profile-action')) return () => {};
+    const key = active.dataset.profileKey, context = active.dataset.profileContext;
+    return () => {
+      const target = [...container.querySelectorAll('.steam-profile-action')].find(button =>
+        button.dataset.profileKey === key && button.dataset.profileContext === context);
+      const fallback = container === $('participant-list')
+        ? document.querySelector('[aria-label="참여자 목록 닫기"]') : $('message-scroll');
+      (target || fallback).focus({preventScroll:true});
+    };
+  }
+  function renderParticipants(data, people) {
+    const nextSignature = JSON.stringify([people, data.profile_targets, data.context, data.lobby, data.connected, data.lobby_verified]);
+    if (participantsSignature === nextSignature) return;
+    participantsSignature = nextSignature;
+    const restoreFocus = preserveProfileFocus($('participant-list'));
+    $('participant-list').replaceChildren(...people.map(([uid,p]) => {
+      const li = node('li'), info = node('span', 'participant-info');
+      info.append(node('span', 'participant-name', p.name));
+      if (profileAvailable(data, uid)) info.append(profileButton(uid, p, data.context, `participant-${uid}`,
+        'participant-profile', document.createTextNode('Steam 프로필 열기')));
+      li.append(avatar(p), info); return li;
+    }));
+    restoreFocus();
   }
   function updateSend() {
     const text = $('message-input').value;
@@ -103,6 +171,7 @@
     $('message-input').disabled = !selected || sending || switching || restarting;
     $('composer-help').textContent = `${text.length}/50 · Enter 전송 · Shift + Enter 줄바꿈`;
     $('message-form').classList.toggle('is-unavailable', !model?.can_send);
+    updateProfileBusy();
   }
   async function saveDraft(text = $('message-input').value, room = selected, owner = account) {
     if (room && owner) await rpc('draft', {account:owner,lobby:room,text});
@@ -263,9 +332,11 @@
     finally { switching--; updateSend(); }
   }
   function renderMessages(data, position) {
-    const nextSignature = JSON.stringify([data.messages,data.profiles,data.hidden_ok,query]);
+    const nextSignature = JSON.stringify([data.messages,data.profiles,data.hidden_ok,query,
+      data.profile_targets,data.context,data.lobby,data.connected,data.lobby_verified]);
     if (signature === nextSignature) {if (pendingPosition) restorePosition(position); pendingPosition=null; updateNavigation(); return;}
     signature = nextSignature;
+    const restoreFocus = preserveProfileFocus($('message-list'));
     $('message-list').replaceChildren();
     let day = '', segment = '';
     for (const message of data.messages) {
@@ -276,9 +347,12 @@
       }
       const row = node('article', `message${message.own ? ' is-own' : ''}`);
       row.id = `message-${message.id}`; row.setAttribute('role','listitem');
-      const profile = data.profiles[message.sender]; row.append(avatar(profile));
+      const profile = data.profiles[message.sender];
+      const canOpen = !message.own && profileAvailable(data, message.sender);
+      row.append(canOpen ? profileButton(message.sender, profile, data.context, `${message.id}-avatar`, 'profile-avatar', avatar(profile)) : avatar(profile));
       const content = node('div','message-content'), meta = node('div','message-meta');
-      meta.append(node('strong','', profile?.name || message.name));
+      const name = node('strong','', profile?.name || message.name);
+      meta.append(canOpen ? profileButton(message.sender, profile, data.context, `${message.id}-name`, 'profile-name', name) : name);
       if (message.own) meta.append(node('span','self-tag','나'));
       meta.append(node('time','',date.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})));
       const bubble = node('div','message-bubble');
@@ -297,7 +371,7 @@
     $('empty-state').hidden = data.messages.length > 0;
     $('empty-title').textContent = query ? '검색 결과가 없어요' : '대화를 기다리고 있어요';
     $('empty-description').textContent = data.hidden_ok ? '앱이 연결된 동안 받은 대화만 표시합니다.' : '게임의 숨김 상태를 확인하면 상대 대화를 표시합니다.';
-    restorePosition(position); pendingPosition=null;
+    restoreFocus(); restorePosition(position); pendingPosition=null;
   }
   function render(data, resetDraft) {
     const position=pendingPosition || capturePosition();
@@ -338,12 +412,12 @@
     $('account-status').textContent = connected ? (data.lobby_verified ? 'Bongo Cat 연결됨' : 'Steam 연결됨 · 로비 확인 중') : '연결 확인 중';
     const accountAvatar = document.querySelector('.account-avatar');
     const replacement = avatar(data.profiles[data.context.account]); replacement.classList.add('account-avatar'); accountAvatar.replaceWith(replacement);
-    const people = Object.entries(data.profiles);
+    const people = Object.entries(data.profiles).sort(([a], [b]) => a.localeCompare(b));
     $('member-count').textContent = `${people.length}명`;
     $('participants-button').setAttribute('aria-label', `확인된 참여자 ${people.length}명 보기`);
     document.querySelector('.avatar-stack').replaceChildren(...people.slice(0,3).map(([,p])=>avatar(p)));
-    $('participant-list').replaceChildren(...people.map(([,p])=>{const li=node('li'); li.append(avatar(p),node('span','participant-name',p.name)); return li;}));
-    $('participants-description').textContent = '게임의 숨김 설정을 따릅니다. 외형 조회 실패는 기본 윤곽으로 표시합니다.';
+    renderParticipants(data, people);
+    $('participants-description').textContent = '현재 로비에서 확인된 상대의 Steam 프로필을 엽니다. 친구 추가는 Steam에서 진행해 주세요. 게임의 숨김 설정을 따르며 외형 조회 실패는 기본 윤곽으로 표시합니다.';
     if (resetDraft) $('message-input').value = data.draft;
     $('message-input').placeholder = selected === data.context.lobby ? '메시지 입력' : '이 로비에 남겨 둘 초안';
     $('search-status').hidden=!query; $('search-summary').textContent=`현재 페이지 ${data.messages.length}개 결과`;

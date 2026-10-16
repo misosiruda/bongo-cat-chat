@@ -4,6 +4,46 @@
 
 PR #3의 `db78bda`에서 시작해 실제 저장소·원본 PoC·프로필 관찰 자료를 확인했다. 이 문서는 디자인 시안의 38개 UI 검사와 별개다. 게임·Steam 재시작, 로비 변경, 게임 파일 수정, DLL 주입·패치, 게임 메모리 쓰기는 하지 않았다. 순정 환경 인수나 일반 배포 승인을 의미하지 않는다.
 
+## 2026-10-16 이슈 #23 Steam 프로필 열기
+
+원격 `main`의 `f587a30588be6c823725da251afa084a7f99feaa`에서 `feat/steam-profile` 브랜치를 만들어 실제 제품의 참여자 목록과 메시지 이름·아바타에 `Steam 프로필 열기`를 구현했다. [이슈 #23](https://github.com/misosiruda/bongo-cat-chat/issues/23)에 기록된 기존 진단 코드의 실제 URI 시험과 이번 제품 통합 검사를 구분한다.
+
+**이번 PC에서는 사용자 요청으로 Bongo Cat을 실행하지 않았다.** 자동 검사는 합성 계정·대화·임시 DB를 사용하고 Steam 작업자와 실제 OS 프로토콜 실행을 차단했다. 실제 제품 버튼 → Steam의 정확한 상대 프로필 표시는 미검증이다. 게임 파일·개인 대화 DB·설치본을 변경하거나 메시지·친구 요청을 보내지 않았다.
+
+| 검사 | 확인 결과와 범위 |
+| --- | --- |
+| 새 서비스·Qt 검사 | `tests/test_profiles.py`, `tests/test_profile_desktop.py`의 65개 검사가 최종 전체 실행에서 통과. ASCII/uint64 문자열·고정 URI, 대상/context·숨김·오래된 연결·읽기 전용·부분 확인, 종료/재시작·재진입, OS False/OSError/RuntimeError 격리, 저장/송신 상태 보존, 실제 QWebChannel ID/context 전달, UI 갱신·포커스·본문 URL 차단 포함 |
+| 프로필 브라우저 검사 | 실제 제품 HTML + 합성 브리지 + Chrome/Playwright. 참여자/메시지 진입점, 동명이인, Enter·Space·더블클릭, 보관 로비·generation 변경·표본 만료, 초안·검색·스크롤 보존 통과. 1240×840·960×540·400×500 × 라이트/다크, 캡처 9개. JavaScript 오류·경고 0개 |
+| 기존 UI 브라우저 검사 | 5개 창 크기, 설정 배치 6개 조합, 모달 갱신 12개 표본 통과. JavaScript 오류 0개 |
+| 기존 스크롤 브라우저 검사 | 1280×800·480×800에서 기존 회귀 7개 통과. JavaScript 오류·경고 0개 |
+| 최종 전체 pytest | **477 passed, 5 skipped in 85.34s**. NSIS 경로 `BONGO_TEST_NSIS_PATH`를 지정하지 않아 실제 NSIS 컴파일러 통합 5개는 미실행. 제품 설치 파일 빌드 결과로 표현하지 않음 |
+| 정적 검사 | `node --check src/bongo_chat/ui/app.js`, `git diff --check` 통과 |
+
+Browser 플러그인/`browser` 스킬이 제공되지 않아 기존 로컬 Playwright·Chrome 경로를 사용했다. 검사 서버는 `127.0.0.1`의 임의 포트였으며 검사 종료 시 닫았다. 화면 캡처는 저장소 밖 `C:/Users/user/Documents/Codex/qa/bongo-profile-issue23-20261016/`에만 보관한다. 이미지에는 합성 대화만 있다. Qt는 기존 검사 조건인 `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`를 사용했고 제품 GPU 설정은 바꾸지 않았다. Qt 자체 GPU/mailbox 경고와 페이지 JavaScript 오류는 구분했다.
+
+### 기존 설정창 검사의 크기 반영 경합
+
+최초 전체 검사 두 번은 각각 `476 passed, 5 skipped, 1 failed`였다. 기존 `test_settings_close_stays_reachable_after_scroll_and_reopen`의 라이트 960×540 또는 400×500 조합이 시간 초과됐다. 설정창 6개 조합만 재실행하면 통과했다.
+
+수정 전 원격 `main`을 저장소 밖 별도 복사본으로 풀고 선행 검사와 설정창 검사를 실행해 동일한 400×500 실패를 재현했다(`106 passed, 1 failed`, `--maxfail=1`). 실패 시 viewport는 400×500으로 반영됐지만 설정 내용은 이전 배치 기준으로 일부만 스크롤되어 확인 버튼이 화면 아래에 남았다. Qt의 비동기 viewport 반영 전에 같은 테마 확인이 즉시 끝날 수 있었다.
+
+`tests/test_desktop.py`에서 요청한 `innerWidth/innerHeight`가 반영된 뒤 기존 스크롤 검사를 시작하도록 보정했다. 기존 좌표·hit test·초안·포커스 인수 조건은 유지했다. 이 보정 후 위 최종 전체 실행이 통과했다. 이번 프로필 기능과 별도 테스트 보정이며 실제 사용자 환경의 GPU/모달 깜빡임 문제를 해결했다는 의미는 아니다.
+
+### 실행 명령과 남은 실제 인수
+
+```powershell
+$env:QTWEBENGINE_CHROMIUM_FLAGS = '--disable-gpu'
+.venv/Scripts/python.exe -m pytest -q tests/test_profiles.py tests/test_profile_desktop.py tests/test_core.py tests/test_desktop.py tests/test_worker.py
+.venv/Scripts/python.exe -m pytest -q
+.venv/Scripts/python.exe tests/browser_profile_check.py --browser 'C:/Program Files/Google/Chrome/Application/chrome.exe' --output <저장소-외부-캡처-폴더>
+.venv/Scripts/python.exe tests/browser_check.py --browser 'C:/Program Files/Google/Chrome/Application/chrome.exe' --output <저장소-외부-캡처-폴더>
+.venv/Scripts/python.exe tests/browser_scroll_check.py --browser 'C:/Program Files/Google/Chrome/Application/chrome.exe' --output <저장소-외부-캡처-폴더>
+node --check src/bongo_chat/ui/app.js
+git diff --check
+```
+
+실제 제품 버튼에서 Steam의 정확한 프로필 표시, Steam 미등록 핸들러·로그인 만료·다른 PC·설치본 통합은 남아 있다. OS False/예외 검사는 대체 함수의 실패 격리를 입증하며 실제 Steam 표시 성공을 뜻하지 않는다. 친구 추가 버튼 클릭·관계 변경, 릴리스 게시·설치본 교체·병합은 이번 작업 범위에 포함하지 않는다. [FR-16](product-spec.md), [D-025](decisions.md#d-025-현재-로비-상대의-steam-프로필을-외부-steam-창으로-연다)를 따른다.
+
 ## 2026-10-15: 앱 아이콘과 파비콘
 
 원작 고양이에 보라색 말풍선을 더한 투명 마스터와 앱 로고·Windows ICO·파비콘을 추가했다. [디자인·참조·재생성](design/app-icon.md)에 파일과 생성 프롬프트를 기록했다. 이 검증은 로컬 오프라인 UI와 미서명 검토용 빌드에 한정한다.

@@ -103,6 +103,16 @@ UTF-8 JSON `Channel=3`, 문자열 `Message`만 처리한다. 반환 길이·발�
 
 로비 전환 응답을 기다리는 동안 입력한 문장도 이전 방에 저장한다. 대상을 바꾸는 동안 입력을 잠그고 새 방에 저장된 초안을 불러온다. 기록 삭제 확인은 확인창을 연 계정·로비에 고정한다. 대화 조회 오류가 발생하면 이전 상대 대화·참여자 표시를 지우고 전송을 막는다. 저장소 복구 시 생성에 실패했던 현재 연결 구간도 다시 만들며, 성공한 후속 수신을 미저장 목록에 중복 표시하지 않는다.
 
+## Steam 프로필 열기
+
+현재 로비의 참여자 목록에서 상대의 `Steam 프로필 열기`를 누르거나 메시지의 상대 이름·고양이를 선택한다. Steam 클라이언트 안에 프로필 열기를 요청하며 **친구 추가는 Steam에서 직접 진행한다.** 이름·고양이 버튼도 Tab으로 선택해 Enter 또는 Space로 실행할 수 있다.
+
+숨김 상태가 허용되고 현재 프로필에 있는 상대만 대상으로 하며 자기 자신과 보관 로비에는 버튼을 제공하지 않는다. 일부 참여자가 미확인이어도 확인된 상대는 사용할 수 있고 읽기 전용 실행에서도 허용한다. 계정·로비·연결 구간 변경, 오래된 연결, 종료·업데이트 재시작 중의 요청은 거절한다. 참여자 갱신 시 동일 대상의 포커스를 유지한다.
+
+`Steam에 프로필 열기를 요청했어요`는 OS에 URI를 전달했다는 안내다. Steam 화면 표시나 친구 요청 성공 확인이 아니다. 열지 못하면 Steam 실행 상태를 확인하라는 오류를 표시하며 다른 주소로 자동 재시도하지 않는다. 프로필 오류로 저장 오류를 설정하거나 채팅 송신을 막지 않으며 초안·검색·스크롤·선택 로비를 유지한다. 프로필 페이지 내용과 친구 관계는 수집하지 않는다.
+
+이번 소스의 검사는 실제 Steam 호출을 대체한 Qt/QWebChannel 및 합성 브라우저 검사다. 작업 PC에서 Bongo Cat 실행은 사용자 요청으로 금지되어 실제 제품 버튼 → Steam의 상대 프로필 표시는 미검증이다. 설치본 반영·다른 PC·미등록 프로토콜·로그인 만료 인수도 남아 있다. [검증 기록](product-validation.md#2026-10-16-이슈-23-steam-프로필-열기)을 참고한다.
+
 ## 검사와 빌드
 
 ### 기록 스크롤
@@ -133,6 +143,13 @@ dist/BongoCatChat/BongoCatChat.exe --offline
 브라우저 보조 검사는 `tests/browser_check.py`다. 실제 제품 HTML에 테스트 전용 로컬 QWebChannel 대역을 연결한다. 실제 Qt·QWebChannel·SQLite 검사는 `tests/test_desktop.py`에서 따로 수행한다. 두 검사 모두 실제 게임 송신의 증거가 아니다.
 
 스크롤 회귀 검사는 `tests/browser_scroll_check.py`, 네이티브 브리지 검사는 `tests/test_scroll_desktop.py`, 조회 범위·경계·숨김 메타데이터 검사는 `tests/test_scroll_service.py`다. Browser 플러그인이 없는 환경에서는 설치된 Playwright Chromium으로 가상 대화만 검증한다.
+
+프로필 허용·URI·캐시 검사는 `tests/test_profiles.py`, 실제 Qt 브리지는 `tests/test_profile_desktop.py`, 키보드·포커스·스크롤·테마·최소 창 보조 검사는 `tests/browser_profile_check.py`다. 프로필 검사의 OS 실행은 대체 함수만 사용하며 실제 Steam을 열지 않는다.
+
+```powershell
+.venv/Scripts/python.exe -m pytest -q tests/test_profiles.py tests/test_profile_desktop.py
+.venv/Scripts/python.exe tests/browser_profile_check.py --browser <로컬-Chromium.exe> --output <저장소-외부-검증-폴더>
+```
 
 ```powershell
 .venv/Scripts/python tests/browser_scroll_check.py --browser <로컬-Chromium.exe> --output <외부-검증-폴더>
