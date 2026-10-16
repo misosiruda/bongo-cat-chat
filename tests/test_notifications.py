@@ -252,6 +252,39 @@ def test_committed_settings_survive_reopen_and_old_schema(tmp_path, flash, toast
         reopened.close()
 
 
+@pytest.mark.parametrize('unreadable_key', sorted(NOTIFICATION_KEYS))
+def test_startup_settings_read_failure_never_enables_saved_off(tmp_path, monkeypatch, unreadable_key):
+    store = Store(tmp_path / 'history.sqlite3')
+    try:
+        store.setting('notification_flash', False)
+        store.setting('notification_toast', False)
+        original = store.setting
+
+        def read(key, *args, **kwargs):
+            if key == unreadable_key:
+                raise sqlite3.OperationalError('synthetic read failure')
+            return original(key, *args, **kwargs)
+
+        monkeypatch.setattr(store, 'setting', read)
+        service = ChatService(store)
+        service.update(state())
+        toast = Toast()
+        notifications = Notifications(service, toast)
+        attention = Attention()
+        notifications.bind(attention, lambda: False)
+        notifications.incoming(service.receive(event(service)))
+        assert service.storage_error
+        assert not any(service.notifications.values())
+        assert toast.shown == attention.started == 0
+        monkeypatch.setattr(store, 'setting', original)
+        service.recover_storage()
+        assert not service.storage_error
+        assert service.notifications == dict(notification_flash=False, notification_toast=False)
+        assert len(service.view()['messages']) == 1
+    finally:
+        store.close()
+
+
 @pytest.fixture
 def controller(tmp_path):
     app = QApplication.instance() or QApplication([])

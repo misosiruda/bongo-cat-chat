@@ -39,13 +39,20 @@ class ChatService:
         self.receipts = OrderedDict()
         self.revision = 0
         # Keep the last committed values available even if a later DB read fails.
-        self.notifications = {key: True for key in NOTIFICATION_KEYS}
+        # An unreadable setting is not a missing key: never turn a saved OFF
+        # into ON while the DB is unavailable. Load both values atomically.
+        self.notifications = {key: False for key in NOTIFICATION_KEYS}
         try:
-            for key in NOTIFICATION_KEYS:
-                value = self.store.setting(key, default=True)
-                self.notifications[key] = value if type(value) is bool else True
+            self.load_notifications()
         except (sqlite3.Error, OSError):
             self.storage_error = True
+
+    def load_notifications(self):
+        values = {}
+        for key in NOTIFICATION_KEYS:
+            value = self.store.setting(key, default=True)
+            values[key] = value if type(value) is bool else True
+        self.notifications = values
 
     def set_notification(self, key, value):
         if key not in NOTIFICATION_KEYS or type(value) is not bool:
@@ -66,6 +73,7 @@ class ChatService:
         self.store.prune()
         if self.session:
             self.store.session(self.session, self.state['account'], self.state['lobby'], self.state.get('name') or '게임 로비')
+        self.load_notifications()
         self.storage_error = False
 
     def save_message(self, row, receipt=None):

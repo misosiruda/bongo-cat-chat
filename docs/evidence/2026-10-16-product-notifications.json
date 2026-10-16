@@ -7,6 +7,13 @@
   "steam_worker_started": false,
   "real_lobby_send_count": 0,
   "tests": {"passed": 570, "skipped": 0, "focused_notifications_passed": 61},
+  "shipping_review": {
+    "previous_full_suite_commit": "134083a84072d31c3168d7d619ce327f4d53db24",
+    "startup_settings_read_failure_defers_both_channels": true,
+    "atomic_reload_on_storage_recovery": true,
+    "new_regression_cases": 2,
+    "focused_passed": 130
+  },
   "browser": {
     "reason": "Browser plugin not available",
     "runner": "repository Playwright with installed Edge Chromium",

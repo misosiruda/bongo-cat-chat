@@ -44,6 +44,17 @@ pwsh -NoProfile -File packaging/build-setup.ps1 -Bundle dist/notification-integr
 
 실제 설치본의 고정 제품 AUMID로 받는 배너·깜빡임 육안 확인, Windows 아이콘 표시 대조, Windows 알림 OFF·방해 금지·Windows 10·다른 PC·게임 자연 수신은 미검증이다. 클릭 활성화는 구현하지 않았다. 기존 설치본 교체·공개 릴리스·병합·이슈 종료는 이 결과와 별개다. [정책·등록·정리 안내](notifications.md).
 
+### 출하 자체 검수 보완
+
+후속 출하·검수 요청에서는 시작 시 설정 조회 오류를 키 미존재로 취급해 기본 ON이 될 수 있는 경계를 수정했다. 시작 조회 실패 때 두 알림을 보류하고, 수동 새로고침의 저장소 복구가 성공하면 저장된 두 값을 원자적으로 다시 읽는다. 각 키의 조회 실패 2개 회귀 검사를 추가해 저장된 OFF·기존 메시지가 보존됨을 확인했다.
+
+```powershell
+.venv/Scripts/python.exe -m pytest -q tests/test_notifications.py tests/test_core.py tests/test_notification_desktop.py tests/test_windows_notifications.py --tb=short
+# 130 passed in 10.46s
+```
+
+앞선 전체 570개와 패키지 검사는 `134083a` 기준이며, 보완 소스의 집중 130개 결과와 구분한다. 게임 실행·작업자·실사용 수신 시험은 추가하지 않았다.
+
 ## 2026-10-16 이슈 #23 Steam 프로필 열기
 
 원격 `main`의 `f587a30588be6c823725da251afa084a7f99feaa`에서 `feat/steam-profile` 브랜치를 만들어 실제 제품의 참여자 목록과 메시지 이름·아바타에 `Steam 프로필 열기`를 구현했다. [이슈 #23](https://github.com/misosiruda/bongo-cat-chat/issues/23)에 기록된 기존 진단 코드의 실제 URI 시험과 이번 제품 통합 검사를 구분한다.
