@@ -21,7 +21,12 @@
     "ci_before_fixture_fix": {"run_id": 38856717514, "passed": 575, "failed": 1},
     "slow_fixture_reproduction": {"per_write_delay_seconds": 0.01, "before_rows": 154, "before_failed": 1, "after_rows_including_own_intent": 352, "after_passed": 1},
     "fixture_fix": "refresh synthetic connection state during bulk history seeding without changing product freshness or UI assertions",
-    "full_suite_after_fixture_fix": {"passed": 576, "skipped": 0, "seconds": 124.19}
+    "full_suite_after_fixture_fix": {"passed": 576, "skipped": 0, "seconds": 124.19},
+    "ci_after_qt_fixture_fix": {"commit": "057e1bef76225b6a8a508f9f41ba3ff47f119b41", "run_id": 38857841440, "passed": 575, "failed": 1},
+    "slow_service_fixture_reproduction": {"per_write_delay_seconds": 0.015, "before_stored_rows": 157, "before_page_rows": 0, "before_failed": 1, "after_stored_rows": 230, "after_page_rows": 100},
+    "service_fixture_fix": "explicit unit-test clock; stale-state tests retain their own advancing clock; shared Qt seed helper includes unsaved history",
+    "combined_slow_fixture_checks": {"passed": 3, "seconds": 12.39},
+    "full_suite_after_service_fixture_fix": {"passed": 576, "skipped": 0, "seconds": 109.00}
   },
   "browser": {
     "reason": "Browser plugin not available",

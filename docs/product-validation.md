@@ -61,6 +61,10 @@ pwsh -NoProfile -File packaging/build-setup.ps1 -Bundle dist/notification-integr
 
 보정 소스의 동일 전체 명령은 **576 passed in 124.19s**, 건너뜀 없음이었다. 실제 Windows API 합성 시험에서도 별도 프로세스가 남긴 시험 토스트가 새 Controller의 최초 동기화에서 제거됨을 확인했다. 원격 CI·자동 리뷰·실제 병합 상태는 이 로컬 검증으로 대신하지 않는다.
 
+그다음 `057e1be`의 [원격 CI](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38857841440)는 스크롤 검사가 통과했지만 기존 서비스 페이지 검사에서 같은 상태 만료가 발생해 **575 passed, 1 failed**였다. 저장마다 15ms 지연을 넣어 기록 157건·조회 0건과 같은 실패를 재현했다. 기존 서비스 단위 fixture도 다른 이력·프로필 검사처럼 명시적인 시계를 사용하도록 보정했다. 상태 만료 검사는 별도로 3초를 진행하는 자체 시계를 유지한다. Qt 대량 기록 헬퍼는 `test_desktop.py`로 모아 미저장 기록 검사에도 적용했다.
+
+외부 지연 주입 검사 세 경우(연속 이력·미저장 이력·서비스 페이지)는 **3 passed in 12.39s**였다. 서비스 페이지는 230건 저장·최신 100건 조회를 확인했다. 최종 보정 소스의 전체 검사는 **576 passed in 109.00s**, 건너뜀 없음이었다. 두 CI 실패와 후속 결과를 구분하며 테스트 대기 시간·제품 유효기간·UI 기대값을 완화하지 않았다.
+
 ## 2026-10-16 이슈 #23 Steam 프로필 열기
 
 원격 `main`의 `f587a30588be6c823725da251afa084a7f99feaa`에서 `feat/steam-profile` 브랜치를 만들어 실제 제품의 참여자 목록과 메시지 이름·아바타에 `Steam 프로필 열기`를 구현했다. [이슈 #23](https://github.com/misosiruda/bongo-cat-chat/issues/23)에 기록된 기존 진단 코드의 실제 URI 시험과 이번 제품 통합 검사를 구분한다.

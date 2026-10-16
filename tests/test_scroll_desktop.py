@@ -3,15 +3,7 @@ import json
 import pytest
 
 from test_core import received
-from test_desktop import js, qt_chat, wait_until
-
-
-def seed_history(service, messages):
-    # Direct fixture inserts block the Qt heartbeat. Keep synthetic connection
-    # state fresh so slower SQLite commits cannot discard later fixture rows.
-    for text in messages:
-        service.update(dict(service.state))
-        received(service, text)
+from test_desktop import js, qt_chat, seed_history, wait_until
 
 
 def scroll_anchor(app, page):
