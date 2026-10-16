@@ -119,6 +119,12 @@ PoC에서 다른 이벤트와 탭 관련 메시지가 채팅보다 훨씬 많았
 
 각 조회 결과에는 계정·로비·프로세스·관찰 시각을 연결하는 설계가 필요하다. 이번 실험은 현재 세션의 읽기 확인이며 로비 전환 안전성을 입증하지 않는다. [실행 검증과 제한](profile-sync-validation.md)
 
+### 새 상대 메시지 알림
+
+`ChatService.receive → AcceptedIncoming → Controller.poll → Notifications → Attention / WindowsToast` 순서로 GUI 스레드에서 처리한다. 반환 결과에는 본문·이름이 없다. 서비스의 기존 필터·저장·자기 에코 처리를 유지하며 revision·렌더러·DB 조회를 수신 판정에 사용하지 않는다. `Notifications`는 최신 context/허용·앱 활성 상태·확정된 두 설정·종료 경계를 확인한다. 읽기 전용과 부분 숨김 확인은 송신 상태와 분리한다.
+
+첫 토스트는 즉시 제출하고 5초 미만 추가 수신은 생략한다. 대기 큐 없이 고정 tag/group 하나를 교체하며 앱 복귀·OFF·권한 상실·종료/업데이트 인계 때 자기 표시를 정리한다. OS 오류는 어댑터 경계에서 제한된 상태로 바꿔 SQLite 오류와 분리한다. `WindowsToast`는 WinRT를 직접 호출하고 설치기의 고정 AUMID·런처 바로가기를 사용한다. 이전 기본 바로가기의 누락 속성 보완만 소유 확인 후 허용한다. [정책·의존성과 설치 수명](notifications.md).
+
 ## 6. 송신과 내 메시지 표시
 
 ```mermaid

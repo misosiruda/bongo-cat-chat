@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-16",
+  "timezone": "Asia/Seoul",
+  "issue": 24,
+  "integrated_main": "dffe75b6d707c96df8888a5f44d63a8a1f05ada1",
+  "game_launched": false,
+  "steam_worker_started": false,
+  "real_lobby_send_count": 0,
+  "tests": {"passed": 570, "skipped": 0, "focused_notifications_passed": 61},
+  "browser": {
+    "reason": "Browser plugin not available",
+    "runner": "repository Playwright with installed Edge Chromium",
+    "notification_viewports": ["1536x1024", "1240x840", "960x540", "480x800", "400x500"],
+    "themes": ["light", "dark"],
+    "console_errors": 0,
+    "profile_regression_passed": true
+  },
+  "native_synthetic": {
+    "real_controller_poll": true,
+    "real_winrt": true,
+    "test_aumid_substituted_for_isolation": true,
+    "cases": [
+      {"flash": true, "toast": false, "history_count": 0},
+      {"flash": false, "toast": true, "history_count": 1},
+      {"flash": true, "toast": true, "history_count": 1},
+      {"flash": false, "toast": false, "history_count": 0}
+    ],
+    "app_active": false,
+    "owned_shortcut_removed": true,
+    "first_setting_not_found_reproduced_and_fixed": true,
+    "banner_visually_confirmed": false,
+    "flash_visually_confirmed": false
+  },
+  "baseline_service_reads_new_settings": "a2fd477",
+  "pip_check": "passed",
+  "packaging": {
+    "unsigned_review_bundle": true,
+    "isolated_packaged_winrt_import": true,
+    "frozen_offline_renderer": true,
+    "setup_test_identity_install_repair_uninstall": true,
+    "fixed_product_aumid_in_shortcut": true,
+    "synthetic_data_preserved": true,
+    "existing_product_registration_changed": false
+  },
+  "remaining": ["installed_product_aumid_visual_acceptance", "actual_icon_display", "os_off_and_do_not_disturb", "windows_10_and_other_pc", "actual_game_natural_receive"],
+  "release_published": false,
+  "existing_installation_replaced": false
+}

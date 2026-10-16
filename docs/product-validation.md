@@ -4,6 +4,46 @@
 
 PR #3의 `db78bda`에서 시작해 실제 저장소·원본 PoC·프로필 관찰 자료를 확인했다. 이 문서는 디자인 시안의 38개 UI 검사와 별개다. 게임·Steam 재시작, 로비 변경, 게임 파일 수정, DLL 주입·패치, 게임 메모리 쓰기는 하지 않았다. 순정 환경 인수나 일반 배포 승인을 의미하지 않는다.
 
+## 2026-10-16 이슈 24 제품 알림 연결
+
+이슈 [#24](https://github.com/misosiruda/bongo-cat-chat/issues/24)의 작업 표시줄 알림·WinRT 토스트·독립 설정을 제품 수신에 연결했다. 최초 base `a2fd477`에서 시작하고, 이슈 #23을 병합한 최신 main `dffe75b`에 통합했다. 기존 작업·제품 설치·실사용 기록은 보존했다. 사용자 지시에 따라 **Bongo Cat을 실행하지 않았고 Steam 작업자·실사용 로비 송신도 시작하지 않았다.**
+
+| 검사 | 결과 | 경계 |
+| --- | --- | --- |
+| 전체 자동 검사 | **570 passed**, 건너뜀 없음 | Windows/Qt/SQLite·설치 엔진·실제 NSIS 컴파일 포함. OS 발송은 대체 |
+| 알림 정책·Windows 어댑터 집중 검사 | 61 passed | 새 수신, 포커스×4조합, 필터·중복·미저장·빈도·종료·설정·WinRT 초기 등록 오류 |
+| 실제 Qt HTML/QWebChannel | 전체 검사에 포함 | 설정 왕복·재로딩·실패 복구·초안 보존·OS 오류와 저장 오류 분리 |
+| 제품 브라우저 검사 | 통과, console 오류 0 | 1536×1024·1240×840·960×540·480×800·400×500. 라이트/다크·Space 설정 네 조합·스크롤·닫기·초안/검색 보존 |
+| 프로필 브라우저 회귀 | 통과, console 오류·경고 0 | 1240×840·960×540·400×500, Enter/Space·포커스. 외부 프로토콜 대체 |
+| 실제 Windows API 합성 수신 | 네 설정 조합에서 기록 **0/1/1/0건** 및 정리 확인 | 제품 Controller.poll→필터→정책→실제 WinRT/Flash API. 최소화·앱 비활성 유지. 개인 등록과 충돌하지 않게 AUMID만 고유 시험 값으로 대체 |
+| 이전 소스와 새 설정 DB | 통과 | `a2fd477` ChatService를 새 bool 키가 있는 합성 DB로 실행, 기존 조회·테마·키 보존 확인. 구버전 설치본 롤백 인수는 아님 |
+| 의존성·라이선스 | pip check 통과 | WinRT 5개 3.2.1/MIT 메타데이터 확인. wheel에 전문이 없어 upstream commit/SHA-256 고정 LICENSE 추가 |
+| 최종 검토 묶음 | 빌드·고지·동결 화면 통과 | 실제 EXE의 PYZ와 동봉 WinRT 네이티브 확장을 개발 site-packages 없는 인터프리터로 읽어 XML/토스트 구성. 실제 OS 발송 없음 |
+| 실제 Setup/제거 | 격리 설치·재설치·시작·제거 통과 | 별도 test identity·임시 APPDATA/LOCALAPPDATA 사용. 고정 제품 AUMID·런처 바로가기, 오프라인 renderer=true/console_errors=[]/steam_connected=false, 합성 DB 바이트 보존 확인. 기존 제품 등록은 변경하지 않음 |
+
+실제 합성 시험에서 첫 `ToastNotifier.Setting`이 `0x80070490`으로 실패했다. 최초 `Show` 후 Enabled가 되는 것을 대조하고 이 오류만 정상 발송 경로로 넘기도록 수정했다. 권한 거부 등 다른 오류는 발송하지 않으며 OS 설정을 변경하지 않는다. `create_toast_notifier_with_id`, `remove_group_with_id` 오버로드도 실제 projection에서 확인했다.
+
+Qt 오프스크린 검사에서 Chromium SharedImage/GLES 초기화 경고가 stderr에 있었다. 최종 테스트 실패나 제품 JavaScript console 오류는 없었다. 이를 GPU·배너·깜빡임 육안 인수로 설명하지 않는다. Browser 플러그인/skill이 없어 저장소 Playwright와 설치된 Edge/Chromium을 사용했다.
+
+```powershell
+$env:QTWEBENGINE_CHROMIUM_FLAGS='--disable-gpu'
+$env:BONGO_TEST_NSIS_PATH='<검증한 NSIS 3.13 폴더>'
+.venv/Scripts/python.exe -m pytest -q --tb=short
+.venv/Scripts/python.exe -m pytest -q tests/test_windows_notifications.py tests/test_notifications.py --tb=short
+.venv/Scripts/python.exe tests/browser_check.py --browser '<로컬 msedge.exe>' --output '<저장소 외부 폴더>'
+.venv/Scripts/python.exe tests/browser_profile_check.py --browser '<로컬 msedge.exe>' --output '<저장소 외부 폴더>'
+.venv/Scripts/python.exe -m pip check
+node --check src/bongo_chat/ui/app.js
+git diff --check
+pwsh -NoProfile -File packaging/build.ps1 -OutputRoot dist/notification-integrated -AllowUnsigned
+.venv/Scripts/python.exe tools/verify_review_bundle.py --bundle dist/notification-integrated/BongoCatChat --evidence '<저장소 외부 폴더>'
+pwsh -NoProfile -File packaging/build-setup.ps1 -Bundle dist/notification-integrated/BongoCatChat -NsisPath '<NSIS 3.13>' -OutputRoot dist/notification-integrated-setup -TestIdentity -AllowUnsigned
+```
+
+네이티브 합성 시험은 저장소 외부 일회성 코드에서 제품 Controller와 가상 상태·메시지를 연결했다. 기본 제품 바로가기는 수정하지 않았고 자기 시험 바로가기·알림 그룹만 정리했다. 로컬 원본 산출물·스크린샷은 공개하지 않으며 [식별정보 없는 결과](evidence/2026-10-16-product-notifications.json)만 기록한다.
+
+실제 설치본의 고정 제품 AUMID로 받는 배너·깜빡임 육안 확인, Windows 아이콘 표시 대조, Windows 알림 OFF·방해 금지·Windows 10·다른 PC·게임 자연 수신은 미검증이다. 클릭 활성화는 구현하지 않았다. 기존 설치본 교체·공개 릴리스·병합·이슈 종료는 이 결과와 별개다. [정책·등록·정리 안내](notifications.md).
+
 ## 2026-10-16 이슈 #23 Steam 프로필 열기
 
 원격 `main`의 `f587a30588be6c823725da251afa084a7f99feaa`에서 `feat/steam-profile` 브랜치를 만들어 실제 제품의 참여자 목록과 메시지 이름·아바타에 `Steam 프로필 열기`를 구현했다. [이슈 #23](https://github.com/misosiruda/bongo-cat-chat/issues/23)에 기록된 기존 진단 코드의 실제 URI 시험과 이번 제품 통합 검사를 구분한다.

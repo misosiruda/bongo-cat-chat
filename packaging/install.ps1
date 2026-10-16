@@ -33,6 +33,28 @@ public static class BongoChatShortcut {
         void Resolve(IntPtr window, uint flags);
         void SetPath([MarshalAs(UnmanagedType.LPWStr)] string value);
     }
+    [StructLayout(LayoutKind.Sequential)] private struct Key { public Guid fmtid; public uint pid; }
+    [StructLayout(LayoutKind.Explicit, Size=24)] private struct Value {
+        [FieldOffset(0)] public ushort type;
+        [FieldOffset(8)] public IntPtr text;
+    }
+    [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IStore {
+        void GetCount(out uint count); void GetAt(uint index, out Key key);
+        void GetValue(ref Key key, out Value value); void SetValue(ref Key key, ref Value value); void Commit();
+    }
+    [DllImport("ole32.dll")] private static extern int PropVariantClear(ref Value value);
+    public const string AppId = "BongoCatChat.Desktop";
+    public static string ReadAppId(string path) {
+        object link = new ShellLink();
+        var value = new Value();
+        try {
+            ((IPersistFile)link).Load(path, 0);
+            var key = new Key { fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), pid = 5 };
+            ((IStore)link).GetValue(ref key, out value);
+            return value.type == 31 ? Marshal.PtrToStringUni(value.text) : "";
+        } finally { PropVariantClear(ref value); Marshal.FinalReleaseComObject(link); }
+    }
     public static string Read(string path) {
         object link = new ShellLink();
         try {
@@ -47,6 +69,11 @@ public static class BongoChatShortcut {
         try {
             ((ILink)link).SetPath(target);
             ((ILink)link).SetWorkingDirectory(directory);
+            ((ILink)link).SetIconLocation(target, 0);
+            var key = new Key { fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), pid = 5 };
+            var value = new Value { type = 31, text = Marshal.StringToCoTaskMemUni(AppId) };
+            try { ((IStore)link).SetValue(ref key, ref value); ((IStore)link).Commit(); }
+            finally { Marshal.FreeCoTaskMem(value.text); }
             ((IPersistFile)link).Save(path, true);
         } finally { Marshal.FinalReleaseComObject(link); }
     }
@@ -134,6 +161,9 @@ try {
     $shortcutPath = Join-Path $env:APPDATA "Microsoft/Windows/Start Menu/Programs/$ShortcutName.lnk"
     if (-not $NoShortcut -and (Test-Path -LiteralPath $shortcutPath)) {
         Initialize-ShortcutInterop
+        Assert-NoLinks $shortcutPath
+        $shortcutId = [BongoChatShortcut]::ReadAppId($shortcutPath)
+        if ($shortcutId -and $shortcutId -ne [BongoChatShortcut]::AppId) { $resultCode = 11; throw 'Another app owns the shortcut identity' }
         $shortcutTarget = [BongoChatShortcut]::Read($shortcutPath)
         if ($shortcutTarget -ne (Join-Path $destinationPath 'BongoCatChat.exe')) { $resultCode = 11; throw 'Another installation owns the shortcut' }
     }
@@ -174,7 +204,11 @@ try {
     if (-not $NoShortcut) {
         New-Item -ItemType Directory -Path (Split-Path $shortcutPath -Parent) -Force | Out-Null
         Initialize-ShortcutInterop
-        [BongoChatShortcut]::Write($shortcutPath, (Join-Path $destinationPath 'BongoCatChat.exe'), $destinationPath)
+        $newShortcut = Join-Path $stage 'shortcut.lnk'
+        [BongoChatShortcut]::Write($newShortcut, (Join-Path $destinationPath 'BongoCatChat.exe'), $destinationPath)
+        if (Test-Path -LiteralPath $shortcutPath) {
+            [IO.File]::Replace($newShortcut, $shortcutPath, (Join-Path $stage 'old-shortcut.lnk'))
+        } else { Move-Item -LiteralPath $newShortcut -Destination $shortcutPath }
     }
     $complete = $true
     $resultCode = 0

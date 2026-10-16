@@ -14,6 +14,8 @@ Bongo Cat의 기존 로비 채팅을 메신저처럼 읽고 입력하며, 수신
 
 ## 만들려는 것
 
+후속 소스는 [새 상대 메시지 알림](docs/notifications.md)을 제공한다. 앱이 비활성일 때 작업 표시줄 깜빡임과 Windows 알림 센터 토스트를 독립적으로 켜고 끄며 설정을 기억한다. 알림에는 대화 내용·이름을 넣지 않는다. 게임을 실행하지 않은 합성 검증과 실제 사용자 인수는 [별도 기록](docs/product-validation.md#2026-10-16-이슈-24-제품-알림-연결)으로 구분하며, 게시된 dev11 설치본과는 별도다.
+
 [Windows 설치 안내](docs/installation.md): [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받아 더블클릭한다. 개발 도구나 명령어 입력은 필요하지 않다. 첫 공개 개발판은 **0.1.0.dev6**이며 다른 PC 인수와 Windows 코드 서명은 남아 있다.
 
 [자동 업데이트](docs/automatic-updates.md)는 새 정식 GitHub Release를 내려받는다. `0.1.0.dev10`은 준비 완료 후 30초 안내를 거쳐 앱을 자동으로 재시작해 적용한다. 입력·전송·저장 상태를 확인하고 초안을 보존하며, 서명·해시와 후보 화면을 다시 검사한다. 기존 공개 dev9 이하에서 dev10으로 처음 전환할 때는 직접 앱을 다시 실행해야 하며, dev10 실행기로 시작한 이후부터 자동 재시작한다. [dev10 릴리스 노트](docs/releases/0.1.0.dev10.md)와 [검증 기록](docs/update-validation.md)을 참고한다. 저장소는 2026-10-14 공개 전환을 완료했다.
