@@ -42,7 +42,13 @@ node --check src/bongo_chat/ui/app.js
 git diff --check
 ```
 
-실제 제품 버튼에서 Steam의 정확한 프로필 표시, Steam 미등록 핸들러·로그인 만료·다른 PC·설치본 통합은 남아 있다. OS False/예외 검사는 대체 함수의 실패 격리를 입증하며 실제 Steam 표시 성공을 뜻하지 않는다. 친구 추가 버튼 클릭·관계 변경, 릴리스 게시·설치본 교체·병합은 이번 작업 범위에 포함하지 않는다. [FR-16](product-spec.md), [D-025](decisions.md#d-025-현재-로비-상대의-steam-프로필을-외부-steam-창으로-연다)를 따른다.
+실제 제품 버튼에서 Steam의 정확한 프로필 표시, Steam 미등록 핸들러·로그인 만료·다른 PC·설치본 통합은 남아 있다. OS False/예외 검사는 대체 함수의 실패 격리를 입증하며 실제 Steam 표시 성공을 뜻하지 않는다. 친구 추가 버튼 클릭·관계 변경, 릴리스 게시·설치본 교체는 이번 작업 범위에 포함하지 않는다. [FR-16](product-spec.md), [D-025](decisions.md#d-025-현재-로비-상대의-steam-프로필을-외부-steam-창으로-연다)를 따른다.
+
+### 최신 main 통합 출하 검수
+
+후속 출하·검수 요청 시 원격 `main`에 PR #26의 알림 검증 문서·도구·정책 테스트가 추가돼 있었다. `a2fd477137a4180f32312e97ce9c7fb0b591248d`를 정상 merge로 보존·통합했고 제품 코드 충돌은 없었다. 통합 커밋 `aab71e47a9d0dc957430dc8345a4076df73f0f70`에서 전체 pytest를 다시 실행해 **500 passed, 5 skipped in 90.42s**를 확인했다. 추가된 알림 정책 테스트는 오프라인 검사이며 Windows 알림 도구나 게임을 실행하지 않았다. 건너뛴 검사는 동일한 NSIS 컴파일러 통합 5개다.
+
+자체 검수에서는 문자열 ID/context·대상 허용, 외부 URI 권한 제한·OS 예외 격리, 수명주기·중복 실행·포커스 보존을 다시 확인했다. 앞선 `63253f0`의 [Windows CI](https://github.com/misosiruda/bongo-cat-chat/actions/runs/38852585261)는 테스트·대응 소스 검사·미서명 앱 빌드·동결 EXE 오프라인 렌더러·설치 파일 컴파일까지 성공했다. 최신 head의 CI·자동 리뷰와 실제 병합 상태는 [PR #25](https://github.com/misosiruda/bongo-cat-chat/pull/25)의 결과로 확인한다. 실제 Steam 프로필 표시 인수와 공개 릴리스는 이 소스 검수로 완료 처리하지 않는다.
 
 ## 2026-10-15: 앱 아이콘과 파비콘
 
