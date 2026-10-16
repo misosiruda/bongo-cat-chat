@@ -1,0 +1,61 @@
+name: Publish approved release
+run-name: Publish ${{ inputs.candidate_tag }} (dry-run=${{ inputs.dry_run }})
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_tag:
+        description: '릴리스 저장소의 approved-v<version>-<run-id>-<attempt> 태그'
+        required: true
+        type: string
+      dry_run:
+        description: '검증만 수행하고 실제 태그·릴리스를 게시하지 않음'
+        type: boolean
+        default: true
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: approved-release-publication
+  cancel-in-progress: false
+env:
+  CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # Only independently reviewed release tools run here; never check out app code.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: misosiruda/bongo-cat-chat-release
+          ref: 57e9288ed9041e4359e569372a031dcc4678125e
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: node scripts/publish.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: 'true'
+  publish:
+    needs: validate
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: release-publishing
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: misosiruda/bongo-cat-chat-release
+          ref: 57e9288ed9041e4359e569372a031dcc4678125e
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: node scripts/publish.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: 'false'

@@ -58,6 +58,8 @@ BongoCatChat/
 
 ## 릴리스 작성자 절차
 
+2026-10-16부터 운영 배포는 [두 PC 공통 배포 절차](release-workstations.md)의 별도 릴리스 저장소를 사용한다. 키 없는 빌드, 파일 해시 확인, 보호된 환경의 서명 승인, 원래 저장소의 게시 승인을 분리한다. 기존 앱의 저장소·공개키·manifest 규약은 유지한다. 아래 로컬 키·`pack` 설명은 이전 방식과 전환 중 복구를 위한 기록이다. 새 경로 검증과 독립 복구 백업 확인 전에는 로컬 키를 삭제하지 않는다.
+
 Windows 게시자 인증은 아래 Ed25519 서명과 별개다. 배포용 묶음은 먼저 [Windows 코드 서명](windows-code-signing.md)을 적용하고 `pack --signing-config <설정-파일>`로 다시 검사한다. 아래 예시는 인증서 없는 로컬 개발 검사이며 `--allow-unsigned`를 명시한다. Windows 경고 제거 검증으로 사용하지 않는다.
 
 개인키는 Git·앱·릴리스에 포함하지 않는다. 개발 PC의 키는 Git 제외 경로 `research/private/update-signing-key.dpapi`에 Windows 사용자 범위 [DPAPI](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata)로 암호화했다. 공개키만 `src/bongo_chat/update-config.json`에 고정한다. 다른 계정·PC에서의 배포, 키 백업·복구는 별도 준비가 필요하다. 임의로 키를 교체하면 기존 이용자가 새 서명을 검증할 수 없다.
