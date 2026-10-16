@@ -16,6 +16,7 @@ from bongo_chat.desktop import Controller, run, window
 from bongo_chat.exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY
 from bongo_chat.worker import unavailable
 from bongo_chat import desktop
+from bongo_chat.protocol import decode
 from test_core import received, state
 
 
@@ -133,6 +134,33 @@ def qt_chat(tmp_path):
         assert not page.console_errors, page.console_errors
     finally:
         heartbeat.stop(); view.close(); controller.close(); view.deleteLater(); app.processEvents()
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"], ids=["lf", "crlf", "cr"])
+def test_multiline_received_message_renders_line_breaks(qt_chat, newline):
+    app, controller, page = qt_chat
+    text = newline.join(["첫 줄 <검증>", "", "마지막 줄 🙂"])
+    packet = json.dumps({"Channel": 3, "Message": text}, ensure_ascii=False).encode("utf-8")
+    received(controller.service, decode(packet))
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 2)
+    displayed = text.replace("\r\n", "\n").replace("\r", "\n")
+    assert js(app, page, "document.querySelector('.message:last-child .message-bubble').textContent") == displayed
+    assert controller.service.view()["messages"][-1]["body"] == text
+    layout = json.loads(js(app, page, """JSON.stringify((() => {
+      const bubble=document.querySelector('.message:last-child .message-bubble');
+      const text=bubble.firstChild, range=document.createRange();
+      range.setStart(text,0);range.setEnd(text,1);const first=range.getBoundingClientRect().top;
+      const last=text.textContent.indexOf('마지막');
+      range.setStart(text,last);range.setEnd(text,last+1);
+      return {gap:range.getBoundingClientRect().top-first,line:parseFloat(getComputedStyle(bubble).lineHeight)};
+    })())"""))
+    assert layout["gap"] == pytest.approx(2 * layout["line"], abs=1)
+    js(app, page, "document.querySelector('#message-search').value='마지막';document.querySelector('#message-search').dispatchEvent(new Event('input'))")
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble mark').length") == 1)
+    assert js(app, page, "document.querySelector('.message-bubble').textContent") == displayed
+    assert js(app, page, "document.querySelector('.message-bubble mark').textContent") == "마지막"
+    assert js(app, page, "document.querySelectorAll('.message-bubble 검증').length") == 0
+    assert controller.worker is None
 
 
 def test_lobby_transition_during_view_reply_keeps_editor_ownership(qt_chat):

@@ -359,9 +359,11 @@
       if (message.own) meta.append(node('span','self-tag','나'));
       meta.append(node('time','',date.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})));
       const bubble = node('div','message-bubble');
-      const index = query ? message.body.toLocaleLowerCase().indexOf(query.toLocaleLowerCase()) : -1;
-      if (index >= 0) bubble.append(document.createTextNode(message.body.slice(0,index)),node('mark','',message.body.slice(index,index+query.length)),document.createTextNode(message.body.slice(index+query.length)));
-      else bubble.textContent = message.body;
+      // DOM text preserves CR, but it does not render it as a line break.
+      const body = message.body.replace(/\r\n?/g, '\n');
+      const index = query ? body.toLocaleLowerCase().indexOf(query.toLocaleLowerCase()) : -1;
+      if (index >= 0) bubble.append(document.createTextNode(body.slice(0,index)),node('mark','',body.slice(index,index+query.length)),document.createTextNode(body.slice(index+query.length)));
+      else bubble.textContent = body;
       content.append(meta,bubble);
       if (statuses[message.status] || message.unsaved) content.append(node('span','message-status',message.unsaved ? '이 기록은 저장되지 않았어요' : statuses[message.status]));
       if (query) {
