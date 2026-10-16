@@ -73,6 +73,7 @@ Python 송신은 상대방에게 전달되지만, 게임 자체의 로컬 말풍
 | [메신저 디자인](docs/design/README.md) | 라이트·다크·시스템 테마, 고양이 프로필, 검색·초안·사이드바 동작 시안 |
 | [화면 와이어프레임](docs/wireframes/README.md) | 메신저형·디스코드형, 사이드바 접기, 로비 전환·게임 숨김 적용 예시 |
 | [기술 검증 기록](docs/technical-validation.md) | 실험 환경, 단계별 증거, UTF-8 비교, 말풍선 분석, 검증 한계 |
+| [채팅 알림 기술 검증](docs/notification-validation.md) | 작업 표시줄 깜빡임, Windows 배너·알림 센터, 독립 ON/OFF의 오프라인 시험과 사용자 확인 |
 | [아키텍처 제안](docs/architecture.md) | Steam 연결, 송수신, 자기 메시지 처리, 로컬 저장, 장애 처리 |
 | [결정 기록](docs/decisions.md) | 게임 무수정 원칙, 말풍선 제외, 로컬 기록과 배포 방향 |
 | [개발·검증 계획](docs/roadmap.md) | 단계별 작업, 실행 조건, 테스트 시나리오와 완료 기준 |
