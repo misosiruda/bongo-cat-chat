@@ -47,7 +47,7 @@ def test_all_shipped_localized_meows_are_discarded(locale, text):
 
 
 @pytest.mark.parametrize("text", [
-    "meow meow", "  Meow Meow\n", "miau miau", "Mn\u030cau Mn\u030cau",
+    "meow meow", "  Meow Meow\n", "\r\nMeow Meow\r\n", "miau miau", "Mn\u030cau Mn\u030cau",
 ])
 def test_whole_message_matching_normalizes_case_outer_space_and_unicode(text):
     assert decode(encode(text)) is None
@@ -55,7 +55,7 @@ def test_whole_message_matching_normalizes_case_outer_space_and_unicode(text):
 
 @pytest.mark.parametrize("text", [
     "야옹", "야옹야옹", "야옹 야옹 해주세요", "meow", "Meow Meow!",
-    "I heard Meow Meow", "Meow Meow\n안녕하세요", "Miau Miau?",
+    "I heard Meow Meow", "Meow Meow\n안녕하세요", "Meow Meow\r\n안녕하세요", "Miau Miau?",
     "にゃんにゃ～んって鳴いた", "喵~喵~ 你好", "Miyav Miyav :)",
 ])
 def test_normal_conversation_is_preserved_verbatim(text):

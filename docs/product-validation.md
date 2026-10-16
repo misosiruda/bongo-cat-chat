@@ -4,6 +4,34 @@
 
 PR #3의 `db78bda`에서 시작해 실제 저장소·원본 PoC·프로필 관찰 자료를 확인했다. 이 문서는 디자인 시안의 38개 UI 검사와 별개다. 게임·Steam 재시작, 로비 변경, 게임 파일 수정, DLL 주입·패치, 게임 메모리 쓰기는 하지 않았다. 순정 환경 인수나 일반 배포 승인을 의미하지 않는다.
 
+## 2026-10-16 줄바꿈 메시지 수신 누락 수정
+
+사용자가 게임에는 보이는 여러 줄 메시지가 앱에서는 누락된다고 제보했다. `4356a7b` 기준 `validate_text`는 LF·탭만 허용하고 CR을 금지된 제어 문자로 분류했다. 따라서 정상 JSON 본문에 Windows CRLF 또는 단독 CR이 있으면 `Steam.pump`가 메시지 전체를 거부해 저장·화면에 도달하지 못했다. 합성 패킷으로 이 경로를 재현했으며 사용자 원문 패킷을 수집하지 않아 제보 메시지의 실제 줄바꿈 바이트는 확정하지 않았다.
+
+- CR을 허용하고 수신·저장·자기 에코 비교의 원문을 보존한다. 화면에서만 CRLF·CR을 LF로 바꾼다. Qt WebEngine에 단독 CR을 그대로 전달하면 줄이 나뉘지 않는 현상도 오프라인 렌더러에서 확인했다.
+- 수정 전 프로토콜·저장·콜백 회귀 검사는 **6 failed, 10 passed**였다. 실패 6개는 CRLF·CR의 전체 메시지 거부였다. 수신 검사만 고친 중간 상태에서는 화면의 단독 CR 줄바꿈 검사 1개가 실패했고, 표시 변환까지 적용한 관련 검사는 **19 passed**였다.
+- 화면 수정 후 관련 검사 **221 passed in 61.32s**. LF·CRLF·CR, 빈 줄·탭·한글·이모지, 50 UTF-16 단위를 넘는 수신, 저장소 재열기·검색, 정확한 자기 에코 병합, 화면의 실제 줄 간격·검색 강조를 확인했다. 다른 제어 문자·잘못된 유니코드·빈 메시지 차단, 송신 상한, 숨김·울음 필터, 작업자·스크롤 회귀도 포함한다.
+
+격리 작업 디렉터리에서 기존 개발 가상환경을 사용한 최종 명령:
+
+```powershell
+$env:QTWEBENGINE_CHROMIUM_FLAGS='--disable-gpu'
+& C:\Project\bongo-cat-chat\.venv\Scripts\python.exe -m pytest -q tests/test_core.py tests/test_callback.py tests/test_meow_filter.py tests/test_privacy.py tests/test_worker.py tests/test_desktop.py tests/test_scroll_service.py tests/test_scroll_desktop.py --tb=short --show-capture=no
+node --check src/bongo_chat/ui/app.js
+git diff --check
+```
+
+JavaScript 문법·diff 공백 검사도 통과했다. Qt 검사는 오프스크린·GPU 가속을 끈 테스트 프로세스에서 실행했으며 Chromium의 SharedImageManager 진단 로그는 남았다. 제품 GPU 설정은 변경하지 않았다. 실제 게임·Steam 송수신, 제보 입력의 원본 패킷 대조, 설치본 교체·릴리스 게시·기본 GPU 화면 인수는 수행하지 않았다. 기존에 거부되어 저장되지 않은 메시지는 복원할 수 없다.
+
+### 금지 규칙의 도입 이유와 허용 범위 재검토
+
+금지 규칙의 도입 배경을 확인하기 위해 `git blame`, 파일 변경 이력, 최초 [구현 커밋 ecf6f3a](https://github.com/misosiruda/bongo-cat-chat/commit/ecf6f3a5123df44c62c6e3f259daaab8fa27ef9d), [PR #4](https://github.com/misosiruda/bongo-cat-chat/pull/4)의 본문·일반 댓글·리뷰·인라인 댓글과 당시 EC-13을 조사했다.
+
+- 확인된 목적은 잘못된 JSON·허용하지 않은 제어문자·비정상 유니코드의 방어적 검증이다. `Cc`·`Cs`를 일괄 차단하고 LF·탭을 예외로 둔 최초 코드가 이후 그대로 유지됐다. 당시 테스트는 LF 왕복·NUL·단독 서로게이트 거부를 확인했으며 CRLF 사례는 없었다.
+- 확인한 기록에는 CR만 금지해야 하는 특정 취약점·게임 제약·사용자 결정이 없다. Windows 줄바꿈 예외가 빠진 것으로 판단하지만 작성 당시의 정확한 의도를 확정할 수는 없다. 당시 보안 리뷰 완료 표시는 이 CR 예외를 개별 검토했다는 증거로 사용하지 않는다.
+- 현재 송신과 Qt 브리지는 JSON 직렬화를 사용하고, 작업자 전달은 객체 큐, DB 저장은 파라미터 바인딩, 화면은 텍스트 노드를 사용한다. 채팅 본문을 줄 단위 명령·HTTP 헤더·진단 로그에 삽입하는 경로는 확인되지 않았다. 허용되는 CR은 정상 JSON을 해석한 뒤의 문자열이며 JSON 문자열에 이스케이프 없이 들어온 CR/LF는 계속 거부한다.
+- 마지막 경계를 회귀 검사 3개로 추가하고 송신 바이트에서 CR/LF가 이스케이프되는지도 확인했다. `& C:\Project\bongo-cat-chat\.venv\Scripts\python.exe -m pytest -q tests/test_core.py tests/test_callback.py tests/test_meow_filter.py --tb=short`는 **140 passed in 1.42s**였다. 이 후속 검사에서 제품 코드의 허용 범위를 추가로 넓히지는 않았다.
+
 ## 2026-10-16 이슈 24 제품 알림 연결
 
 이슈 [#24](https://github.com/misosiruda/bongo-cat-chat/issues/24)의 작업 표시줄 알림·WinRT 토스트·독립 설정을 제품 수신에 연결했다. 최초 base `a2fd477`에서 시작하고, 이슈 #23을 병합한 최신 main `dffe75b`에 통합했다. 기존 작업·제품 설치·실사용 기록은 보존했다. 사용자 지시에 따라 **Bongo Cat을 실행하지 않았고 Steam 작업자·실사용 로비 송신도 시작하지 않았다.**

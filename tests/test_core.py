@@ -1,4 +1,5 @@
 import hashlib
+import json
 import sqlite3
 import time
 from pathlib import Path
@@ -67,6 +68,76 @@ def test_utf16_guard_and_escaping():
         encode("가"*51)
     with pytest.raises(InvalidMessage):
         encode("🙂"*26)
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"], ids=["lf", "crlf", "cr"])
+def test_multiline_protocol_preserves_text(newline):
+    text = newline.join(['첫 줄 "따옴표"', '', '마지막 줄\t🙂'])
+    # Construct the incoming packet independently of our outbound encoder.
+    raw = json.dumps({"Channel": 3, "Message": text}, ensure_ascii=False).encode("utf-8")
+    assert decode(raw) == text
+    encoded = encode(text)
+    assert json.loads(encoded)["Message"] == text
+    assert b"\r" not in encoded and b"\n" not in encoded
+    encode("가" * (50 - len(newline)) + newline)
+    with pytest.raises(InvalidMessage, match="development_limit_50"):
+        encode("가" * (51 - len(newline)) + newline)
+
+
+@pytest.mark.parametrize("text", ["\r", "\r\n", " \r\n\t "])
+def test_line_breaks_only_are_still_empty(text):
+    with pytest.raises(InvalidMessage, match="empty_text"):
+        decode(json.dumps({"Channel": 3, "Message": text}).encode("utf-8"))
+    with pytest.raises(InvalidMessage, match="empty_text"):
+        encode(text)
+
+
+@pytest.mark.parametrize("newline", [b"\n", b"\r\n", b"\r"], ids=["lf", "crlf", "cr"])
+def test_unescaped_line_breaks_inside_json_strings_are_still_rejected(newline):
+    raw = b'{"Channel":3,"Message":"first' + newline + b'second"}'
+    with pytest.raises(InvalidMessage, match="invalid_json"):
+        decode(raw)
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"], ids=["lf", "crlf", "cr"])
+def test_multiline_sent_message_keeps_exact_echo_matching(service, newline):
+    text = newline.join(["내 첫 줄", "내 둘째 줄"])
+    command = service.prepare(service.context(), text)
+    service.result(command["id"], "accepted")
+    received(service, decode(encode(text)), sender="fixture-self")
+    rows = service.view()["messages"]
+    assert len(rows) == 1
+    assert rows[0]["body"] == text and rows[0]["echo"] == 1
+
+
+@pytest.mark.parametrize("control", ["\0", "\v", "\f", "\x1b", "\x7f", "\x85", "\ud800"])
+def test_multiline_does_not_allow_other_controls(control):
+    text = "첫 줄\r\n둘째 줄" + control
+    raw = json.dumps({"Channel": 3, "Message": text}).encode("utf-8")
+    with pytest.raises(InvalidMessage, match="control_character"):
+        decode(raw)
+    with pytest.raises(InvalidMessage, match="control_character"):
+        encode(text)
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"], ids=["lf", "crlf", "cr"])
+def test_multiline_receive_survives_history_reopen_and_search(tmp_path, newline):
+    text = newline.join(["첫 번째 합성 검증 문장입니다.", "", "두 번째 합성 검증 문장입니다.",
+                         "마지막 검색용 검증 문장입니다."])
+    assert len(text.encode("utf-16-le")) // 2 > 50  # Only sending has this limit.
+    raw = json.dumps({"Channel": 3, "Message": text}, ensure_ascii=False).encode("utf-8")
+    path = tmp_path / "multiline.sqlite3"
+    for initial in (True, False):
+        store = Store(path)
+        try:
+            service = ChatService(store, clock=lambda: 1.0)
+            service.update(state())
+            if initial:
+                received(service, decode(raw))
+            assert [row["body"] for row in service.view()["messages"]] == [text]
+            assert [row["body"] for row in service.view(query="검색용")["messages"]] == [text]
+        finally:
+            store.close()
 
 
 @pytest.mark.parametrize("echo_first", [True, False])
