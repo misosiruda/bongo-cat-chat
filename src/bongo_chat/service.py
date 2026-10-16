@@ -5,6 +5,7 @@ import time
 from uuid import uuid4
 
 from .protocol import encode, is_meow_message
+from .profiles import steam_profile_uri
 
 
 class ChatService:
@@ -98,6 +99,18 @@ class ChatService:
 
     def context(self):
         return {k: self.state.get(k, "") for k in ("account", "lobby", "generation")}
+
+    def profile_targets(self, lobby=None):
+        context = self.context()
+        if not self.verified() or not all(context.values()) or lobby not in (None, context['lobby']):
+            return set()
+        return (self.allowed() & self.state.get('profiles', {}).keys()) - {context['account']}
+
+    def profile_uri(self, steam_id, context):
+        uri = steam_profile_uri(steam_id)
+        if context != self.context() or steam_id not in self.profile_targets():
+            raise ValueError('steam_profile_unavailable')
+        return uri
 
     def prepare(self, context, text):
         encode(text)
@@ -211,6 +224,7 @@ class ChatService:
                 "privacy_ready": self.verified() and self.state.get("privacy_ready", False),
                 "hidden_ok": self.verified() and self.state.get("hidden_ok", False),
                 "can_send": self.can_send() and lobby == self.state.get("lobby"),
+                "profile_targets": sorted(self.profile_targets(lobby)),
                 "rooms": rooms, "messages": messages, "profiles": profiles, "draft": draft,
                 "storage_error": self.storage_error, "revision": self.revision,
                 "theme": theme, "collapsed": collapsed,

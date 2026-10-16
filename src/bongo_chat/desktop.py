@@ -9,7 +9,7 @@ import sys
 import time
 
 from PySide6.QtCore import QObject, QLockFile, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings, QWebEngineUrlRequestInterceptor
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -26,6 +26,15 @@ from .privacy import update_checks_allowed, set_update_checks_allowed
 UI = Path(__file__).with_name("ui").resolve()
 LEGAL = Path(__file__).with_name('legal')
 SOURCE_ROOT = Path(__file__).resolve().parents[2]
+
+
+def launch_steam_profile(uri):
+    try:
+        if QDesktopServices.openUrl(QUrl(uri)):
+            return
+    except Exception:
+        pass  # A protocol-handler failure must not become a DB/storage failure.
+    raise ValueError('steam_profile_failed')
 
 
 def legal_document(document):
@@ -93,6 +102,7 @@ class Controller(QObject):
         self.worker = None
         self.closed = False
         self.restarting = False
+        self.opening_profile = False
         self.restart_supported = bool(install_root and (not offline or update_smoke)
                                       and os.environ.get(RESTART_CAPABILITY) == '1')
         self.context = mp.get_context("spawn")
@@ -154,7 +164,8 @@ class Controller(QObject):
         except (ValueError, TypeError, KeyError, queue.Full) as exc:
             # Don't return native exception messages or paths through the renderer.
             code = str(exc)
-            if code not in {"connection_changed", "development_limit_50", "control_character", "storage_failed_before_send", "legal_unavailable"}:
+            if code not in {"connection_changed", "development_limit_50", "control_character", "storage_failed_before_send", "legal_unavailable",
+                            "invalid_steam_id", "steam_profile_unavailable", "steam_profile_failed"}:
                 code = "request_failed"
             return json.dumps({"error": code})
 
@@ -174,7 +185,19 @@ class Controller(QObject):
             result = self.service.view(lobby, query, before, start, seen, limit)
             result['update'] = self.updates.snapshot()
             result['update']['can_restart'] = self.can_restart()
+            if self.closed or self.restarting:
+                result['profile_targets'] = []
             return result
+        if action == 'open_steam_profile':
+            if self.closed or self.restarting or self.opening_profile:
+                raise ValueError('steam_profile_unavailable')
+            uri = self.service.profile_uri(args.get('steam_id'), args.get('context'))
+            self.opening_profile = True
+            try:
+                launch_steam_profile(uri)
+            finally:
+                self.opening_profile = False
+            return {'ok': True}
         if action == "send":
             if self.restarting:
                 raise ValueError('restart_in_progress')

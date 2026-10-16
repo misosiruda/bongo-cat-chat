@@ -367,6 +367,9 @@ def test_update_diagnostic_uses_real_renderer_without_worker(tmp_path, monkeypat
 def test_settings_close_stays_reachable_after_scroll_and_reopen(qt_chat, size, theme):
     app, controller, page = qt_chat
     page.parent().resize(*size)
+    # Qt posts viewport resizing to the renderer asynchronously. In the same
+    # theme, the theme check alone can pass before the new scroll geometry exists.
+    wait_until(app, lambda: js(app, page, 'JSON.stringify([innerWidth,innerHeight])') == json.dumps(list(size), separators=(',', ':')))
     controller.store.setting('theme', theme)
     wait_until(app, lambda: js(app, page, 'document.documentElement.dataset.theme') == theme)
     js(app, page, """

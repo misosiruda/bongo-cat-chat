@@ -31,6 +31,12 @@ flowchart LR
 
 개발판은 Python `multiprocessing` 작업자로 네이티브 호출을 격리하고 상속된 크기 제한 큐로 통신한다. Qt WebEngine과 QWebChannel을 사용하는 UI 프로세스에서 SQLite를 단일 스레드로 소유한다. 제품은 HTTP 서버나 네트워크 수신 포트를 열지 않는다. 구현 모듈은 `environment/memory/steam/worker` → `service/store` → `desktop/ui`다.
 
+### Steam 프로필 실행 경계
+
+`ui/app.js`의 참여자·메시지 버튼은 문자열 SteamID64와 버튼 생성 당시 context만 QWebChannel로 전달한다. `ChatService.profile_uri()`는 고정 URI 형식, context, 최신 검증된 로비의 프로필·숨김 허용 집합을 검사한다. `Controller`는 종료·재시작·진행 중 상태를 차단하고 `QDesktopServices.openUrl`로 OS에 전달한다. 예외·False는 `steam_profile_failed`로 격리해 기존 저장 오류 처리로 넘기지 않는다.
+
+작업자의 1초 프로필 캐시는 매 상태 발행 시 현재 참여자·비숨김 집합으로 필터링한다. UI 응답의 `profile_targets`에는 허용된 상대만 포함하며 숨긴 전체 ID 목록을 새로 노출하지 않는다. 읽기 전용 수신 모드에서도 프로필 열기는 가능하고 전원 `hidden_ok`나 `can_send()`에 종속시키지 않는다. 범용 URL, 친구 요청 API, 추가 데이터 저장소는 없다. [D-025](decisions.md#d-025-현재-로비-상대의-steam-프로필을-외부-steam-창으로-연다)의 표본 유효성·검증 한계를 따른다.
+
 ## 3. 초기화와 종료
 
 ### 초기화
