@@ -12,7 +12,11 @@
     "startup_settings_read_failure_defers_both_channels": true,
     "atomic_reload_on_storage_recovery": true,
     "new_regression_cases": 2,
-    "focused_passed": 130
+    "focused_passed": 130,
+    "initial_code_review_commit": "b3a0ee2cb111823f64072baddc8cc206a6eda41f",
+    "previous_process_toast_cleanup_finding": "P2",
+    "previous_process_cleanup_regressions": 4,
+    "after_review_focused_passed": 134
   },
   "browser": {
     "reason": "Browser plugin not available",

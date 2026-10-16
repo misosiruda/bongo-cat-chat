@@ -234,6 +234,37 @@ def test_cleanup_failure_not_retried_each_poll(rig, monkeypatch):
     assert not service.storage_error
 
 
+@pytest.mark.parametrize('boundary', ['startup', 'off', 'close'])
+def test_previous_process_toast_is_cleared_without_new_incoming(rig, boundary):
+    service, notifications, toast, attention, _, _ = rig
+    assert not notifications.has_toast
+    if boundary == 'startup':
+        notifications.sync()
+    elif boundary == 'off':
+        service.set_notification('notification_toast', False)
+        notifications.settings_changed('notification_toast', False)
+    else:
+        notifications.close()
+    for _ in range(10):
+        notifications.sync()
+    assert toast.cleared == 1
+    assert toast.shown == attention.started == 0
+    assert not service.storage_error
+
+
+def test_previous_process_cleanup_failure_is_one_attempt(rig, monkeypatch):
+    service, notifications, toast, _, _, _ = rig
+    cleanup = Mock(side_effect=OSError('synthetic prior-process cleanup failure'))
+    monkeypatch.setattr(toast, 'clear', cleanup)
+    for _ in range(10):
+        notifications.sync()
+    assert cleanup.call_count == 1
+    assert notifications.snapshot()['toast'] == 'cleanup_failed'
+    assert not service.storage_error
+    notifications.incoming(service.receive(event(service)))
+    assert toast.shown == 1
+
+
 @pytest.mark.parametrize('flash,toast_on', [(True, True), (True, False), (False, True), (False, False)])
 def test_committed_settings_survive_reopen_and_old_schema(tmp_path, flash, toast_on):
     path = tmp_path / 'history.sqlite3'

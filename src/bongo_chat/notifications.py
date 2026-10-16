@@ -23,6 +23,9 @@ class Notifications:
         self.closed = False
         self.flashing = False
         self.has_toast = False
+        # The previous process may have crashed after Show. Its generic toast
+        # belongs to the same group, even though this instance did not submit it.
+        self.cleanup_pending = enabled and toast is not None
         self.last_toast = float('-inf')
         self.last_incoming = None
         self.toast_status = 'ready' if toast else 'unavailable'
@@ -41,8 +44,9 @@ class Notifications:
                 self.flash_status = 'unavailable'
 
     def clear_toast(self):
-        if self.has_toast:
+        if self.has_toast or self.cleanup_pending:
             self.has_toast = False
+            self.cleanup_pending = False
             try:
                 self.toast.clear()
             except Exception:
@@ -57,6 +61,8 @@ class Notifications:
     def sync(self):
         if self.closed:
             return
+        if self.cleanup_pending:
+            self.clear_toast()
         if self.active() or (self.last_incoming and not self.last_incoming.current(self.service)):
             self.cancel()
             self.last_toast = float('-inf')

@@ -55,6 +55,8 @@ pwsh -NoProfile -File packaging/build-setup.ps1 -Bundle dist/notification-integr
 
 앞선 전체 570개와 패키지 검사는 `134083a` 기준이며, 보완 소스의 집중 130개 결과와 구분한다. 게임 실행·작업자·실사용 수신 시험은 추가하지 않았다.
 
+최초 Ready 자동 Code Review는 `b3a0ee2`에서 이전 프로세스가 남긴 토스트 정리 누락(P2)을 지적했다. 현재 프로세스가 새 알림을 제출하지 않았더라도 최초 상태 동기화·첫 옵션 OFF·종료 경계에서 자기 그룹 정리를 한 번 수행하도록 보완했다. 정리 실패의 반복 방지와 새 수신 계속 처리를 포함한 회귀 4개를 추가했다. 같은 집중 명령은 보완 후 **134 passed**로 통과했다. 리뷰 대상 SHA와 후속 수정 SHA를 동일하다고 표현하지 않는다.
+
 ## 2026-10-16 이슈 #23 Steam 프로필 열기
 
 원격 `main`의 `f587a30588be6c823725da251afa084a7f99feaa`에서 `feat/steam-profile` 브랜치를 만들어 실제 제품의 참여자 목록과 메시지 이름·아바타에 `Steam 프로필 열기`를 구현했다. [이슈 #23](https://github.com/misosiruda/bongo-cat-chat/issues/23)에 기록된 기존 진단 코드의 실제 URI 시험과 이번 제품 통합 검사를 구분한다.
