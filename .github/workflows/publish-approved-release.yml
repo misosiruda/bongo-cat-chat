@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: misosiruda/bongo-cat-chat-release
-          ref: 57e9288ed9041e4359e569372a031dcc4678125e
+          ref: 819c8a6c5c68dcf248d8b44aa8e4b6adaf4a6413
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -50,7 +50,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: misosiruda/bongo-cat-chat-release
-          ref: 57e9288ed9041e4359e569372a031dcc4678125e
+          ref: 819c8a6c5c68dcf248d8b44aa8e4b6adaf4a6413
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
