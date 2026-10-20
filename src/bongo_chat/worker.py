@@ -72,8 +72,11 @@ class LiveConnection:
                 if uid != account and hidden.get(uid) is not False:
                     continue
                 row = self.steam.profile(lobby, uid)
-                skin = self.steam.definition(row["skin"], "name")
-                hat = self.steam.definition(row["hat"], "name")
+                # The game publishes -1 for an explicitly unequipped slot.
+                # Its default body/paw sprites are CatLeft/CatRight. Unknown
+                # slots and failed item lookups must not become default outfits.
+                skin = "Cat" if row["skin"] == -1 else self.steam.definition(row["skin"], "name")
+                hat = None if row["hat"] == -1 else self.steam.definition(row["hat"], "name")
                 if self.avatars and skin and (hat or row["hat"] == -1):
                     row["avatar"] = self.avatars.get(skin.replace(" ", ""), hat.replace(" ", "") if hat else None)
                 profiles[uid] = row
