@@ -4,7 +4,7 @@ import json
 import pytest
 from bongo_chat import environment as env
 
-FEATURES = {key: hashlib.sha256(key.encode()).hexdigest() for key in ('chat', 'privacy', 'lobby', 'profiles')}
+FEATURES = {key: hashlib.sha256(key.encode()).hexdigest() for key in ('chat', 'privacy', 'lobby', 'profiles', 'reactions')}
 
 @pytest.fixture
 def game_files(tmp_path, monkeypatch):

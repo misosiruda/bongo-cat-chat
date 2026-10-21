@@ -6,6 +6,7 @@ from uuid import uuid4
 from .environment import UnsupportedGameBuild, running_game, verify_compatibility
 from .memory import MemoryDiscovery, MemoryUnavailable
 from .steam import APP_ID, Steam
+from .reactions import ReactionAssets
 
 
 def unavailable(notice):
@@ -162,6 +163,7 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
             live = LiveConnection(game, None, steam, read_only, compatibility=compatibility)
             last_state, last_emit, receive_context = None, 0, None
             receive_senders, retry_discovery_at = set(), 0
+            reactions = ReactionAssets()
             while not stop.is_set():
                 if discovery and discovery.done.is_set():
                     live.memory = discovery.memory
@@ -189,7 +191,16 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
                 # cannot be relabelled as messages received after synchronization.
                 for message in steam.pump(context, members & allowed & receive_senders,
                                           accept=receive_context == context):
-                    emit(message)
+                    if message["type"] == "reaction":
+                        reactions.add(message)
+                    else:
+                        emit(message)
+                for reaction in reactions.ready(state, steam, avatars):
+                    # Flavor can be dropped under load; never stop chat for it.
+                    try:
+                        events.put_nowait(reaction)
+                    except queue.Full:
+                        pass
                 receive_context, receive_senders = context, allowed
                 # Asset decoding competes with discovery for the Python GIL.
                 # Publish verified chat readiness before starting that work.

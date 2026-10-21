@@ -6,12 +6,12 @@ import pytest
 from bongo_chat.steam import Callback, ChatHeader, Steam
 
 
-@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"], ids=["lf", "crlf", "cr"])
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r", None], ids=["lf", "crlf", "cr", "emote"])
 def test_body_copied_before_callback_freed_and_id_is_app_owned(newline):
     steam=Steam.__new__(Steam)
     steam.pipe=1;steam.matchmaking=1;steam.rejected=0
-    text = newline.join(["수신 버퍼 검증", "", "둘째 줄 🙂"])
-    raw=json.dumps({"Channel": 3, "Message": text}, ensure_ascii=False).encode("utf-8")
+    text = newline.join(["수신 버퍼 검증", "", "둘째 줄 🙂"]) if newline is not None else '927'
+    raw=json.dumps({"Channel": 3 if newline is not None else 6, "Message": text}, ensure_ascii=False).encode("utf-8")
     header=ChatHeader(10,20,1,7)
     freed=[];used=[False]
     steam.run_frame=lambda pipe:None
@@ -30,7 +30,11 @@ def test_body_copied_before_callback_freed_and_id_is_app_owned(newline):
         freed.append(True);C.memset(C.addressof(header),0,C.sizeof(header))
     steam.next_callback=next_callback;steam.read_entry=read_entry;steam.free_callback=free
     result=steam.pump({"lobby":"10","account":"30","generation":"fixture"},{"20"})
-    assert freed and len(result)==1 and result[0]["text"]==text
+    assert freed and len(result)==1
+    if newline is None:
+        assert result[0]['type']=='reaction' and result[0]['kind']=='emote' and result[0]['item']==927
+    else:
+        assert result[0]["text"]==text
     assert steam.rejected == 0
     assert len(result[0]["id"])==36
     assert "chat_id" not in result[0]

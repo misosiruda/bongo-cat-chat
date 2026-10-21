@@ -31,6 +31,10 @@ flowchart LR
 
 개발판은 Python `multiprocessing` 작업자로 네이티브 호출을 격리하고 상속된 크기 제한 큐로 통신한다. Qt WebEngine과 QWebChannel을 사용하는 UI 프로세스에서 SQLite를 단일 스레드로 소유한다. 제품은 HTTP 서버나 네트워크 수신 포트를 열지 않는다. 구현 모듈은 `environment/memory/steam/worker` → `service/store` → `desktop/ui`다.
 
+### 메모리 전용 반응 경로
+
+`protocol.decode_event()`는 일반 문장과 채널 3 클릭 울음·채널 6 아이템을 분리한다. `worker`의 기존 로비/숨김 수신 경계를 통과한 반응은 `ReactionAssets`에서 실제 고양이·아이템 이미지를 준비하고, `ChatService.receive_reaction()` → `take_reactions()` → UI의 스크롤 바깥 파티클 레이어로 전달한다. `Store`와 알림 서비스에는 전달하지 않는다. 자원 준비·IPC 단계의 1.2초 만료와 최대 12개 제한, 전달 시점 재검사 및 화면의 2.2초 수명으로 재생 지연과 누적을 제한한다. [반응 계약](reaction-particles.md)을 참조한다.
+
 ### Steam 프로필 실행 경계
 
 `ui/app.js`의 참여자·메시지 버튼은 문자열 SteamID64와 버튼 생성 당시 context만 QWebChannel로 전달한다. `ChatService.profile_uri()`는 고정 URI 형식, context, 최신 검증된 로비의 프로필·숨김 허용 집합을 검사한다. `Controller`는 종료·재시작·진행 중 상태를 차단하고 `QDesktopServices.openUrl`로 OS에 전달한다. 예외·False는 `steam_profile_failed`로 격리해 기존 저장 오류 처리로 넘기지 않는다.

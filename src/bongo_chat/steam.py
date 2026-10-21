@@ -5,7 +5,7 @@ import os
 import time
 from uuid import uuid4
 
-from .protocol import MAX_PACKET, InvalidMessage, decode, encode
+from .protocol import MAX_PACKET, InvalidMessage, decode_event, encode
 
 APP_ID = 3419430
 
@@ -164,13 +164,13 @@ class Steam:
                 # No pointer/header/chat_id leaves this callback scope.
                 raw = bytes(buffer.raw[:length])
                 try:
-                    text = decode(raw)
+                    event = decode_event(raw)
                 except InvalidMessage:
                     self.rejected += 1
                     continue
-                if text is not None:
-                    result.append({"type": "message", "id": str(uuid4()), "context": dict(context),
-                                   "sender": str(sender.value), "text": text, "received": time.time()})
+                if event is not None:
+                    result.append(dict(event, id=str(uuid4()), context=dict(context),
+                                       sender=str(sender.value), received=time.time(), observed=time.monotonic()))
             finally:
                 self.free_callback(self.pipe)
         return result

@@ -45,7 +45,7 @@ def compatibility_contract():
     try:
         catalog = json.loads(SUPPORT_PATH.read_text(encoding="utf-8"))
         profiles = catalog["profiles"]
-        features = {"privacy", "lobby", "chat", "profiles"}
+        features = {"privacy", "lobby", "chat", "profiles", "reactions"}
         valid = (catalog["schema"] == 1 and set(catalog["features"]) == features
                  and catalog["assemblies"] == ["Assembly-CSharp.dll", "Heathen.Steamworks.dll"]
                  and isinstance(profiles, list) and 0 < len(profiles) <= 64
@@ -111,7 +111,7 @@ def probe_features(root, stop=None):
         if process.returncode != 0 or len(output) > 4096:
             raise ValueError("feature_probe_failed")
         features = json.loads(output)
-        if (not isinstance(features, dict) or set(features) != {"privacy", "lobby", "chat", "profiles"}
+        if (not isinstance(features, dict) or set(features) != {"privacy", "lobby", "chat", "profiles", "reactions"}
                 or not all(isinstance(v, str) and re.fullmatch(r"[0-9a-f]{64}", v) for v in features.values())):
             raise ValueError("feature_probe_failed")
         return features

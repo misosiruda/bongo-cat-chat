@@ -152,6 +152,8 @@ class Controller(QObject):
                     incoming = self.service.receive(event)
                     if not self.closed and not self.restarting:
                         self.notifications.incoming(incoming)
+                elif event.get("type") == "reaction":
+                    self.service.receive_reaction(event)
                 elif event.get("type") == "result":
                     self.service.result(event["id"], event["status"])
             if self.worker and not self.worker.is_alive() and self.service.state.get("notice") != "worker_stopped":
@@ -196,6 +198,9 @@ class Controller(QObject):
                     or type(limit) is not int or not 1 <= limit <= 1000):
                 raise ValueError("invalid_query")
             result = self.service.view(lobby, query, before, start, seen, limit)
+            if 'reactions' in args:
+                result['reactions'] = self.service.take_reactions(result['lobby'],
+                    args['reactions'] is True and not query and not self.closed and not self.restarting)
             result['update'] = self.updates.snapshot()
             result['update']['can_restart'] = self.can_restart()
             if self.closed or self.restarting:
