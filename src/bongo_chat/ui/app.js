@@ -16,6 +16,54 @@
   let start = null, seenSeq = null, loadingHistory = false, restoring = false;
   let seenVolatile = new Set(), searchPosition = null, pendingPosition = {bottom:true};
   const positions = new Map();
+  let reactionContext = '', reactionLane = 0;
+  const activeReactions = new Map();
+  const reactionIds = new Set();
+  function clearReactions() {
+    for (const [el, timer] of activeReactions) {clearTimeout(timer); el.remove();}
+    activeReactions.clear();
+  }
+  function renderReactions(data) {
+    const context = JSON.stringify(data.context);
+    if (context !== reactionContext) {clearReactions(); reactionIds.clear(); reactionContext = context;}
+    const layer = $('reaction-layer');
+    if (document.hidden || query || switching || !data.connected || !data.lobby_verified || data.lobby !== data.context.lobby) {
+      clearReactions(); return;
+    }
+    for (const [el, timer] of activeReactions) {
+      if (!data.profiles[el.dataset.sender]) {clearTimeout(timer); el.remove(); activeReactions.delete(el);}
+    }
+    const width = layer.clientWidth;
+    const cap = Math.min(12, Math.max(4, Math.floor(width / 70)));
+    for (const event of data.reactions || []) {
+      if (reactionIds.has(event.id)) continue;
+      reactionIds.add(event.id);
+      if (reactionIds.size > 256) reactionIds.delete(reactionIds.values().next().value);
+      // A delayed bridge reply must not resurrect an old reaction.
+      if (!(event.expires_in_ms > performance.now() - data.reactionRequestedAt)) continue;
+      if (activeReactions.size >= cap || !data.profiles[event.sender] || !event.avatar?.startsWith('data:image/png;base64,')) continue;
+      if (event.kind !== 'meow' && (event.kind !== 'emote' || !event.image?.startsWith('data:image/png;base64,'))) continue;
+      const el = node('div', 'reaction-particle'); el.dataset.sender = event.sender;
+      const cat = node('img', 'reaction-cat'); cat.src = event.avatar; cat.alt = '';
+      let reaction;
+      if (event.kind === 'meow') reaction = node('span', 'reaction-meow', event.text);
+      else {reaction = node('img', 'reaction-item'); reaction.src = event.image; reaction.alt = '';}
+      const name = node('span', 'reaction-name', data.profiles[event.sender].name || '이름 확인 중');
+      name.dir = 'auto';
+      el.append(cat, reaction, name);
+      const lanes = Math.max(2, Math.min(6, Math.floor(width / 115)));
+      const step = reactionLane++ % lanes;
+      const lane = step % 2 === 0 ? step / 2 : lanes - 1 - Math.floor(step / 2);
+      const left = 12 + lane * Math.max(0, width - 144) / Math.max(1, lanes - 1) + Math.random() * 20 - 10;
+      el.style.left = `${Math.max(8, Math.min(width - 132, left))}px`;
+      el.style.setProperty('--reaction-drift', `${Math.random() * 20 - 10}px`);
+      el.style.setProperty('--reaction-rise', `${Math.min(245, Math.max(100, layer.clientHeight - 75)) * (.85 + Math.random() * .15)}px`);
+      const remove = () => {clearTimeout(activeReactions.get(el)); activeReactions.delete(el); el.remove();};
+      el.addEventListener('animationend', remove, {once:true});
+      cat.addEventListener('error', remove, {once:true}); reaction.addEventListener('error', remove, {once:true});
+      activeReactions.set(el, setTimeout(remove, 2400)); layer.append(el);
+    }
+  }
   const notices = {
     checking: 'Steam과 게임의 채팅·숨김 연동 구조를 확인하고 있어요.',
     searching_lobby: 'Bongo Cat의 현재 로비를 확인하고 있어요. 연결이 확인되면 대화를 불러옵니다.',
@@ -303,6 +351,7 @@
     await refresh(true);
   }
   function changeSearch(value) {
+    clearReactions();
     if (value && !query) searchPosition=captureTimeline();
     if (!value) {const saved=searchPosition; query=''; resetTimeline(saved);}
     else {query=value; before=null; pendingPosition={top:0}; signature='';}
@@ -322,6 +371,7 @@
     } catch(e) {showError(e);}
   }
   async function changeRoom(lobby) {
+    clearReactions();
     if (switching || restarting) return;
     switching++; updateSend(); requestVersion++;
     positions.set(selected, query && searchPosition ? searchPosition : captureTimeline());
@@ -439,7 +489,7 @@
     $('search-status').hidden=!query; $('search-summary').textContent=`현재 페이지 ${data.messages.length}개 결과`;
     // The history control changes the content height; settle it before restoring the anchor.
     $('older').hidden=!data.has_more;
-    renderMessages(data,position); updateSend();
+    renderMessages(data,position); renderReactions(data); updateSend();
   }
   async function refresh(force=false) {
     if (restarting || refreshing && !force) return;
@@ -447,7 +497,9 @@
     let lockedEditor = false;
     refreshing++;
     try {
-      let data = await rpc('view',viewArgs());
+      const reactionRequestedAt = performance.now();
+      let data = await rpc('view',viewArgs({reactions:!document.hidden && !query && !switching}));
+      data.reactionRequestedAt = reactionRequestedAt;
       if (version !== requestVersion) return;
       let reset = !model || data.lobby !== model.lobby;
       if (account !== data.context.account || model && model.context.lobby !== data.context.lobby && data.context.lobby) {
@@ -486,6 +538,7 @@
   }
   function connect(value) {
     bridge=value;
+    document.addEventListener('visibilitychange', clearReactions);
     $('message-form').addEventListener('submit',send);
     $('message-input').addEventListener('compositionstart',()=>{composing=true;lastEdit=Date.now();updateSend();});
     $('message-input').addEventListener('compositionend',()=>{composing=false;lastEdit=Date.now();updateSend();});

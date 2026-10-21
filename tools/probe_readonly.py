@@ -27,17 +27,19 @@ def main():
         discovery=round(time.monotonic()-started,2)
         steam=Steam(game.root);steam.start()
         connection=LiveConnection(game,memory,steam,read_only=True)
-        states=set();received=0;profiles=0;hidden=0
+        states=set();received=0;reactions=0;profiles=0;hidden=0
         end=time.monotonic()+args.seconds
         while time.monotonic()<end:
             state,members,changed=connection.snapshot()
             states.add(state["state"]);profiles=max(profiles,len(state["profiles"]));hidden=len(state["hidden"])
             context={key:state[key] for key in ("account","lobby","generation")}
-            received+=len(steam.pump(context,members,accept=not changed and state["hidden_ok"]))
+            events=steam.pump(context,members,accept=not changed and state["hidden_ok"])
+            received+=sum(event['type']=='message' for event in events)
+            reactions+=sum(event['type']=='reaction' for event in events)
             time.sleep(.15)
         print(json.dumps(dict(build=build, discovery_seconds=discovery, observe_seconds=args.seconds,
             states=sorted(states), profile_count=profiles, hidden_entries=hidden,
-            chat_callbacks_decoded=received, rejected_packets=steam.rejected,
+            chat_callbacks_decoded=received, reaction_callbacks_decoded=reactions, rejected_packets=steam.rejected,
             sends=0, lobby_mutations=0, process_writes=0, plaintext_saved=False)))
     finally:
         if steam:steam.close()

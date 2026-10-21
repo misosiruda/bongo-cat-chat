@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from .protocol import encode, is_meow_message
 from .profiles import steam_profile_uri
+from .reactions import MAX_REACTIONS, REACTION_TTL, png
 
 
 NOTIFICATION_KEYS = frozenset({'notification_flash', 'notification_toast'})
@@ -38,6 +39,8 @@ class ChatService:
         self.pending = deque(maxlen=200)
         self.receipts = OrderedDict()
         self.revision = 0
+        self.reactions = deque(maxlen=MAX_REACTIONS)
+        self.reaction_receipts = deque(maxlen=256)
         # Keep the last committed values available even if a later DB read fails.
         # An unreadable setting is not a missing key: never turn a saved OFF
         # into ON while the DB is unavailable. Load both values atomically.
@@ -102,6 +105,7 @@ class ChatService:
         boundary = (old.get("account"), old.get("lobby"), old.get("generation")) != (
             state.get("account"), state.get("lobby"), state.get("generation"))
         if boundary:
+            self.reactions.clear()
             self.end("connection_changed")
             self.pending.clear()
             self.volatile.clear()
@@ -229,6 +233,32 @@ class ChatService:
         self.revision += 1
         if sender != account:
             return AcceptedIncoming(receipt, sender, **self.context())
+
+    def reaction_allowed(self, event):
+        sender = event["sender"]
+        return (self.verified() and event["context"] == self.context()
+                and sender in self.state.get("profiles", {})
+                and (sender == self.state.get("account") or sender in self.allowed())
+                and 0 <= self.clock() - event["observed"] < REACTION_TTL)
+
+    def receive_reaction(self, event):
+        if (not self.reaction_allowed(event) or event["id"] in self.reaction_receipts
+                or not png(event.get("avatar")) or event.get("kind") not in {"meow", "emote"}
+                or event["kind"] == "emote" and not png(event.get("image"))
+                or event["kind"] == "meow" and not is_meow_message(event.get("text", ""))):
+            return
+        self.reaction_receipts.append(event["id"])
+        if len(self.reactions) < MAX_REACTIONS:
+            self.reactions.append(event)
+
+    def take_reactions(self, lobby, enabled):
+        events = list(self.reactions)
+        self.reactions.clear()
+        if not enabled or lobby != self.state.get("lobby"):
+            return []
+        return [dict({k: event[k] for k in ("id", "sender", "kind", "avatar", "text", "image") if k in event},
+                     expires_in_ms=max(0, int((REACTION_TTL - (self.clock() - event['observed'])) * 1000)))
+                for event in events if self.reaction_allowed(event)]
 
     def view(self, lobby=None, query="", before=None, start=None, seen=None, limit=100):
         account = self.state.get("account", "")

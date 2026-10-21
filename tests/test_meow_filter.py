@@ -63,7 +63,7 @@ def test_normal_conversation_is_preserved_verbatim(text):
 
 
 @pytest.mark.parametrize("sender", ["20", "30"], ids=["peer", "self"])
-def test_callback_filters_meows_before_events_and_still_frees_every_callback(service, sender):
+def test_callback_routes_meows_away_from_messages_and_frees_every_callback(service, sender):
     steam = Steam.__new__(Steam)
     steam.pipe = steam.matchmaking = 1
     steam.rejected = 0
@@ -110,8 +110,12 @@ def test_callback_filters_meows_before_events_and_still_frees_every_callback(ser
     events = steam.pump(service.context(), {sender})
     assert freed == list(range(len(texts)))
     assert steam.rejected == 0
-    assert [event["text"] for event in events] == ["야옹 야옹 해주세요"]
-    for event in events:
+    reactions = [event for event in events if event['type'] == 'reaction']
+    assert len(reactions) == len(LOCALIZATIONS)
+    assert all(event['kind'] == 'meow' for event in reactions)
+    messages = [event for event in events if event['type'] == 'message']
+    assert [event["text"] for event in messages] == ["야옹 야옹 해주세요"]
+    for event in messages:
         service.receive(event)
     assert [row["body"] for row in service.view()["messages"]] == ["야옹 야옹 해주세요"]
     assert service.store.db.execute("SELECT count(*) FROM messages").fetchone()[0] == 1

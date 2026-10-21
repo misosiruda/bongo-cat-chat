@@ -158,3 +158,32 @@ def test_worker_caches_composed_png_without_game_access(prefab, sprites, monkeyp
         assert avatars.get('Fixture', 'FixtureHat') == result
     finally:
         avatars.close()
+
+
+def test_emote_uses_actual_icon_pixels_and_failure_does_not_break_cat(prefab, sprites, monkeypatch, tmp_path):
+    objects = list(prefab[1])
+    icon = Image.new('RGBA', (64, 64), (17, 34, 51, 128))
+    sprites['FixtureEmoteIcon'] = sprite(icon)
+    sprites['FixtureEmoteIcon'].image = icon
+    for name, value in sprites.items():
+        value.m_Name = name
+        objects.append(reader('Sprite', value))
+    monkeypatch.setitem(sys.modules, 'UnityPy', NS(load=lambda *args: NS(objects=objects)))
+    avatars = Avatars(tmp_path)
+    try:
+        assert avatars.get_emote(None) is None
+        avatars.get_emote('Missing Item')
+        deadline = time.monotonic() + 5
+        image = cat = None
+        while time.monotonic() < deadline:
+            image = avatars.get_emote('Fixture Emote')
+            cat = avatars.get('Fixture', 'FixtureHat')
+            if image and cat:
+                break
+            time.sleep(.01)
+        assert image and cat
+        decoded = Image.open(BytesIO(base64.b64decode(image.split(',', 1)[1])))
+        assert decoded.tobytes() == icon.tobytes()
+        assert avatars.get_emote('Missing Item') is None
+    finally:
+        avatars.close()

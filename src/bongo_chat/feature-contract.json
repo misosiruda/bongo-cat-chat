@@ -1,35 +1,88 @@
 {
   "schema": 1,
-  "assemblies": ["Assembly-CSharp.dll", "Heathen.Steamworks.dll"],
+  "assemblies": [
+    "Assembly-CSharp.dll",
+    "Heathen.Steamworks.dll"
+  ],
   "features": {
     "privacy": {
-      "fields": ["Assembly-CSharp|PlayerDataCache|_playerDataCache", "Assembly-CSharp|PlayerDataCache/PlayerData|IsHidden"],
-      "methods": ["Assembly-CSharp|PlayerDataCache|Awake", "Assembly-CSharp|PlayerDataCache|.cctor", "Assembly-CSharp|PlayerDataCache|GetIsHidden", "Assembly-CSharp|PlayerDataCache|SetIsHidden", "Assembly-CSharp|BongoCat.Multiplayer.LobbyMemberInstance|get_IsHidden", "Assembly-CSharp|BongoCat.Multiplayer.LobbyMemberInstance|set_IsHidden", "Assembly-CSharp|BongoCat.Multiplayer.LobbyMemberVisibility|SetVisibility"],
-      "writers": ["Assembly-CSharp|PlayerDataCache|_playerDataCache", "Assembly-CSharp|PlayerDataCache/PlayerData|IsHidden"]
+      "fields": [
+        "Assembly-CSharp|PlayerDataCache|_playerDataCache",
+        "Assembly-CSharp|PlayerDataCache/PlayerData|IsHidden"
+      ],
+      "methods": [
+        "Assembly-CSharp|PlayerDataCache|Awake",
+        "Assembly-CSharp|PlayerDataCache|.cctor",
+        "Assembly-CSharp|PlayerDataCache|GetIsHidden",
+        "Assembly-CSharp|PlayerDataCache|SetIsHidden",
+        "Assembly-CSharp|BongoCat.Multiplayer.LobbyMemberInstance|get_IsHidden",
+        "Assembly-CSharp|BongoCat.Multiplayer.LobbyMemberInstance|set_IsHidden",
+        "Assembly-CSharp|BongoCat.Multiplayer.LobbyMemberVisibility|SetVisibility"
+      ],
+      "writers": [
+        "Assembly-CSharp|PlayerDataCache|_playerDataCache",
+        "Assembly-CSharp|PlayerDataCache/PlayerData|IsHidden"
+      ]
     },
     "lobby": {
-      "fields": ["Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyData|Current", "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyData|_id"],
-      "methods": ["Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyData|get_SteamId"],
-      "writers": ["Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyData|Current"]
+      "fields": [
+        "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyData|Current",
+        "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyData|_id"
+      ],
+      "methods": [
+        "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyData|get_SteamId"
+      ],
+      "writers": [
+        "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyData|Current"
+      ]
     },
     "chat": {
-      "packets": ["Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer/LobbyMessage"],
-      "methods": ["Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer|SendSpeech", "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyChatMsg|ToString"],
+      "packets": [
+        "Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer/LobbyMessage"
+      ],
+      "methods": [
+        "Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer|SendSpeech",
+        "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyChatMsg|ToString"
+      ],
       "route": "Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer|OnLobbyChatMsg",
       "channel": 3
     },
     "profiles": {
-      "methods": ["Heathen.Steamworks|Heathen.SteamworksIntegration.UserData|get_Nickname", "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyMemberData|get_Hat", "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyMemberData|get_Skin"]
+      "methods": [
+        "Heathen.Steamworks|Heathen.SteamworksIntegration.UserData|get_Nickname",
+        "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyMemberData|get_Hat",
+        "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyMemberData|get_Skin"
+      ]
+    },
+    "reactions": {
+      "packets": [
+        "Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer/LobbyMessage"
+      ],
+      "methods": [
+        "Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer|SendEmote",
+        "Assembly-CSharp|BongoCat.SteamItemRuntime|.ctor",
+        "Assembly-CSharp|BongoCat.SteamItemRuntime|get_IsEmote",
+        "Assembly-CSharp|BongoCat.SteamItemRuntime|get_IsConsumable"
+      ],
+      "route": "Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer|OnLobbyChatMsg",
+      "channel": 6
     }
   },
   "native": {
-    "BongoCat_Data/Plugins/x86_64/steam_api64.dll": ["e082bf5c9f881c822b1540a76b74f9d15e18019a73ebd206a559595badcb7f65"],
-    "MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll": ["e1b05864961ea0a17d7eed0b5e6176cff254bf56cba89ff4beaafe00f629d1e9"]
+    "BongoCat_Data/Plugins/x86_64/steam_api64.dll": [
+      "e082bf5c9f881c822b1540a76b74f9d15e18019a73ebd206a559595badcb7f65"
+    ],
+    "MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll": [
+      "e1b05864961ea0a17d7eed0b5e6176cff254bf56cba89ff4beaafe00f629d1e9"
+    ]
   },
-  "profiles": [{
-    "chat": "de162b62f7a74f42d299cb613376ca6c83637dc0d09c48bd25daaa0199e6514a",
-    "lobby": "a7ffe69b73bc2242b26eed3d4874f5e5379f05f59a75a683803f4a1b81d4c7ef",
-    "privacy": "1bf9e53a331d2d73ce76e35c88b327984d311974d06cb85ceeaec3ac4c6cec83",
-    "profiles": "474e344c61f30d06892a79883a527499d676c9f7f4fd1fd6bcfc3cab34f5e41c"
-  }]
+  "profiles": [
+    {
+      "chat": "de162b62f7a74f42d299cb613376ca6c83637dc0d09c48bd25daaa0199e6514a",
+      "lobby": "a7ffe69b73bc2242b26eed3d4874f5e5379f05f59a75a683803f4a1b81d4c7ef",
+      "privacy": "1bf9e53a331d2d73ce76e35c88b327984d311974d06cb85ceeaec3ac4c6cec83",
+      "profiles": "474e344c61f30d06892a79883a527499d676c9f7f4fd1fd6bcfc3cab34f5e41c",
+      "reactions": "9b0b7d0fd98c7e853420e4012309cc30a5c2552bb0a4e15a38361d0dd1558418"
+    }
+  ]
 }

@@ -123,7 +123,15 @@ class Avatars:
     def get(self, skin, hat):
         if not skin:
             return None
-        key = (skin, hat)
+        return self._request((skin, hat))
+
+    def get_emote(self, name):
+        """The game's SteamItemRuntime uses Name.Replace(' ', '') + 'Icon'."""
+        if not isinstance(name, str) or not 0 < len(name) <= 256:
+            return None
+        return self._request((name.replace(" ", "") + "Icon",))
+
+    def _request(self, key):
         with self.lock:
             if key in self.cache:
                 return self.cache[key]
@@ -155,19 +163,27 @@ class Avatars:
             self.stage = "ready"
             while not self.stop.is_set():
                 try:
-                    skin, hat = self.requests.get(timeout=.5)
+                    key = self.requests.get(timeout=.5)
                 except queue.Empty:
                     continue
                 result = None
                 try:
-                    canvas = compose_avatar(sprites, layout, skin, hat)
+                    if len(key) == 1:
+                        sprite = sprites.get(key[0])
+                        if sprite is None or not (0 < sprite.m_Rect.width <= 512 and 0 < sprite.m_Rect.height <= 512):
+                            raise ValueError("unsupported_emote_sprite")
+                        texture = sprite.m_RD.texture.read()
+                        if not (0 < texture.m_Width <= 4096 and 0 < texture.m_Height <= 4096):
+                            raise ValueError("unsupported_emote_texture")
+                        canvas = sprite.image.convert("RGBA")
+                    else:
+                        canvas = compose_avatar(sprites, layout, *key)
                     output = BytesIO()
                     canvas.save(output, format="PNG")
                     result = "data:image/png;base64,"+base64.b64encode(output.getvalue()).decode("ascii")
                 except Exception as exc:
                     self.error = type(exc).__name__  # No names, identifiers or original text.
                 with self.lock:
-                    key = (skin, hat)
                     self.requested.discard(key)
                     self.cache[key] = result
                     while len(self.cache) > 128:

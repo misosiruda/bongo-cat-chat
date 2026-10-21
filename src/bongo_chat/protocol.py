@@ -1,5 +1,6 @@
 """Strict, bounded decoding of the observed game protocol."""
 import json
+import re
 import unicodedata
 
 MAX_PACKET = 4096
@@ -55,7 +56,7 @@ def _unique(pairs):
     return result
 
 
-def decode(raw: bytes) -> str | None:
+def decode_event(raw: bytes) -> dict | None:
     if not raw or len(raw) > MAX_PACKET:
         raise InvalidMessage("packet_size")
     try:
@@ -66,7 +67,21 @@ def decode(raw: bytes) -> str | None:
         raise InvalidMessage("invalid_envelope")
     if type(envelope.get("Channel")) is not int:
         raise InvalidMessage("invalid_channel")
+    if envelope["Channel"] == 6:
+        # SendEmote serializes the item definition ID as a decimal string.
+        item = envelope.get("Message")
+        if not isinstance(item, str) or not re.fullmatch(r"[1-9][0-9]{0,9}", item) or int(item) > 2147483647:
+            raise InvalidMessage("invalid_emote")
+        return {"type": "reaction", "kind": "emote", "item": int(item)}
     if envelope["Channel"] != 3:
         return None
     text = validate_text(envelope.get("Message"))
-    return None if is_meow_message(text) else text
+    if is_meow_message(text):
+        return {"type": "reaction", "kind": "meow", "text": text.strip()}
+    return {"type": "message", "text": text}
+
+
+def decode(raw: bytes) -> str | None:
+    """Text-only callers continue to exclude transient reactions."""
+    event = decode_event(raw)
+    return event["text"] if event and event["type"] == "message" else None
