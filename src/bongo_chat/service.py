@@ -248,8 +248,7 @@ class ChatService:
                 or event["kind"] == "meow" and not is_meow_message(event.get("text", ""))):
             return
         self.reaction_receipts.append(event["id"])
-        if len(self.reactions) < MAX_REACTIONS:
-            self.reactions.append(event)
+        self.reactions.append(event)  # Keep the newest bounded batch for the UI.
 
     def take_reactions(self, lobby, enabled):
         events = list(self.reactions)

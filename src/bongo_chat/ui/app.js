@@ -19,9 +19,14 @@
   let reactionContext = '', reactionLane = 0;
   const activeReactions = new Map();
   const reactionIds = new Set();
+  function removeReaction(el) {
+    clearTimeout(activeReactions.get(el)); activeReactions.delete(el); el.remove();
+  }
+  function trimReactions(limit) {
+    while (activeReactions.size > limit) removeReaction(activeReactions.keys().next().value);
+  }
   function clearReactions() {
-    for (const [el, timer] of activeReactions) {clearTimeout(timer); el.remove();}
-    activeReactions.clear();
+    trimReactions(0);
   }
   function renderReactions(data) {
     const context = JSON.stringify(data.context);
@@ -30,19 +35,22 @@
     if (document.hidden || query || switching || !data.connected || !data.lobby_verified || data.lobby !== data.context.lobby) {
       clearReactions(); return;
     }
-    for (const [el, timer] of activeReactions) {
-      if (!data.profiles[el.dataset.sender]) {clearTimeout(timer); el.remove(); activeReactions.delete(el);}
+    for (const el of activeReactions.keys()) {
+      if (!data.profiles[el.dataset.sender]) removeReaction(el);
     }
     const width = layer.clientWidth;
-    const cap = Math.min(12, Math.max(4, Math.floor(width / 70)));
+    const cap = Math.min(24, Math.max(8, Math.floor(width / 70) * 2));
+    trimReactions(cap); // Also enforce a smaller viewport without new input.
     for (const event of data.reactions || []) {
       if (reactionIds.has(event.id)) continue;
       reactionIds.add(event.id);
       if (reactionIds.size > 256) reactionIds.delete(reactionIds.values().next().value);
       // A delayed bridge reply must not resurrect an old reaction.
       if (!(event.expires_in_ms > performance.now() - data.reactionRequestedAt)) continue;
-      if (activeReactions.size >= cap || !data.profiles[event.sender] || !event.avatar?.startsWith('data:image/png;base64,')) continue;
+      if (!data.profiles[event.sender] || !event.avatar?.startsWith('data:image/png;base64,')) continue;
       if (event.kind !== 'meow' && (event.kind !== 'emote' || !event.image?.startsWith('data:image/png;base64,'))) continue;
+      // Admit fresh valid input immediately; never wait for a full layer to expire.
+      trimReactions(cap - 1);
       const el = node('div', 'reaction-particle'); el.dataset.sender = event.sender;
       const cat = node('img', 'reaction-cat'); cat.src = event.avatar; cat.alt = '';
       let reaction;
@@ -58,7 +66,7 @@
       el.style.left = `${Math.max(8, Math.min(width - 132, left))}px`;
       el.style.setProperty('--reaction-drift', `${Math.random() * 20 - 10}px`);
       el.style.setProperty('--reaction-rise', `${Math.min(245, Math.max(100, layer.clientHeight - 75)) * (.85 + Math.random() * .15)}px`);
-      const remove = () => {clearTimeout(activeReactions.get(el)); activeReactions.delete(el); el.remove();};
+      const remove = () => removeReaction(el);
       el.addEventListener('animationend', remove, {once:true});
       cat.addEventListener('error', remove, {once:true}); reaction.addEventListener('error', remove, {once:true});
       activeReactions.set(el, setTimeout(remove, 2400)); layer.append(el);

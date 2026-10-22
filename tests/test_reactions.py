@@ -71,6 +71,26 @@ def test_overload_drops_without_backlog_and_nonlive_view_discards(service):
     assert not service.take_reactions(service.context()['lobby'],False)
 
 
+def test_overload_keeps_newest_at_both_asset_and_delivery_boundaries(service):
+    connect(service)
+    loader=ReactionAssets(clock=lambda:100)
+    events=[reaction(service) for _ in range(100)]
+    for event in events:
+        loader.add(event)
+        service.receive_reaction(event)
+    expected=[event['id'] for event in events[-MAX_REACTIONS:]]
+    ready=loader.ready(service.state,NS(),NS())
+    assert [event['id'] for event in ready]==expected
+    assert not loader.pending
+    # Invalid input and duplicates must not evict valid pending reactions.
+    service.receive_reaction(events[-1])
+    service.receive_reaction(reaction(service,avatar=None))
+    service.receive_reaction(reaction(service,observed=98))
+    assert [event['id'] for event in service.take_reactions(service.context()['lobby'],True)]==expected
+    assert not service.take_reactions(service.context()['lobby'],True)
+    assert service.store.db.execute('SELECT count(*) FROM messages').fetchone()[0]==0
+
+
 def test_asset_loading_waits_briefly_rechecks_hide_and_uses_real_item_name(service):
     connect(service);calls=[];loader=ReactionAssets(clock=lambda:100)
     steam=NS(definition=lambda item,prop: {'tags':'quality:rare;itemslot:emote','name':'Fixture Emote'}[prop])
