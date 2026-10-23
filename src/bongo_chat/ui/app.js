@@ -4,6 +4,40 @@
   const $ = id => document.getElementById(id);
   const media = matchMedia('(prefers-color-scheme: dark)');
   const narrow = matchMedia('(max-width: 760px)');
+  let language = 'ko', languagePreference = 'system', translations = {}, languagePending = false;
+  // Capture only the initial application shell. Never scan runtime chat, names or drafts.
+  const staticText = [], staticAttributes = [];
+  const walker = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const text = walker.currentNode;
+    if (/[가-힣]/.test(text.data) && text.parentElement?.id !== 'language-select'
+        && text.parentElement?.getAttribute('value') !== 'ko') staticText.push([text, text.data]);
+  }
+  document.querySelectorAll('[aria-label], [placeholder], [title]').forEach(el => {
+    for (const attr of ['aria-label','placeholder','title']) {
+      const text = el.getAttribute(attr);
+      if (text && /[가-힣]/.test(text)) staticAttributes.push([el,attr,text]);
+    }
+  });
+  function t(source, values={}) {
+    const text = language === 'en' ? (translations[source] ?? source) : source;
+    return text.replace(/\{(\w+)\}/g, (match,key) => Object.hasOwn(values,key) ? String(values[key]) : match);
+  }
+  function applyLanguage(data) {
+    if (data.language && data.language !== language && data.translations) {
+      language=data.language; translations=data.translations;
+      document.documentElement.lang=language;
+      for (const [el,source] of staticText) if (el.isConnected) {
+        el.data=source.replace(/\S[\s\S]*\S|\S/, text=>t(text));
+      }
+      for (const [el,attr,source] of staticAttributes) if (el.isConnected) el.setAttribute(attr,t(source));
+      signature=''; participantsSignature='';
+      for (const id of ['language-status','reaction-save-status','notification-save-status']) $(id).textContent='';
+      $('toast').hidden=true;
+    }
+    languagePreference=data.language_preference || 'system';
+    if (!languagePending) $('language-select').value=languagePreference;
+  }
   let bridge, model = null, selected = '', account = '', query = '', before = null;
   let theme = 'system', collapsed = false, composing = false, sending = false, switching = 0;
   let refreshing = 0, requestVersion = 0, draftVersion = 0, draftTimer, signature = '';
@@ -57,7 +91,7 @@
       let reaction;
       if (event.kind === 'meow') reaction = node('span', 'reaction-meow', event.text);
       else {reaction = node('img', 'reaction-item'); reaction.src = event.image; reaction.alt = '';}
-      const name = node('span', 'reaction-name', data.profiles[event.sender].name || '이름 확인 중');
+      const name = node('span', 'reaction-name', data.profiles[event.sender].name || t('이름 확인 중'));
       name.dir = 'auto';
       el.append(cat, reaction, name);
       const lanes = Math.max(2, Math.min(6, Math.floor(width / 115)));
@@ -73,34 +107,34 @@
       activeReactions.set(el, setTimeout(remove, 2400)); layer.append(el);
     }
   }
-  const notices = {
-    checking: 'Steam과 게임의 채팅·숨김 연동 구조를 확인하고 있어요.',
-    searching_lobby: 'Bongo Cat의 현재 로비를 확인하고 있어요. 연결이 확인되면 대화를 불러옵니다.',
-    discovering: '로비를 찾았어요. 현재 로비와 숨김 설정을 확인하는 동안 메시지를 미리 작성할 수 있어요.',
-    discovery_failed: 'Steam 연결은 유지 중이에요. 현재 로비 검증을 다시 시도하고 있어요. 전송은 확인 후 사용할 수 있어요.',
-    read_only: '읽기 전용으로 실행 중입니다. 메시지를 전송하지 않습니다.',
-    no_lobby: '현재 게임 로비를 확인할 수 없어요. 게임에서 로비에 참여해 주세요.',
-    hidden_unavailable: '로비 연결은 유지 중이에요. 숨김 설정을 확인할 수 없어 상대 대화 표시와 신규 저장을 보류하고 있어요.',
-    hidden_syncing: '일부 참여자의 숨김 설정을 확인하고 있어요. 확인된 상대의 대화부터 표시하고 저장합니다.',
-    unsupported_game_build: '채팅·숨김 연동 구조의 호환성을 확인하지 못했어요. 대응 앱 업데이트를 확인하고 있습니다.',
-    game_files_changed: '게임 업데이트를 감지했어요. 연동 구조를 다시 확인하고 있습니다.',
-    compatibility_tool_missing: '호환성 검사 파일이 없어 연결할 수 없어요. 앱을 다시 설치해 주세요.',
-    compatibility_timeout: '호환성 검사에 시간이 걸리고 있어요. 연결을 보류하고 다시 확인합니다.',
-    game_missing_or_ambiguous: '실행 중인 Bongo Cat 하나를 확인해야 연결할 수 있어요.',
-    worker_stopped: '연결 작업자가 종료됐어요. 전송 결과가 불명확한 메시지는 다시 보내지 않습니다.',
-    view_unavailable: '대화 상태를 조회하지 못해 표시와 전송을 중단했어요. 다시 확인하고 있습니다.',
-    offline: '오프라인으로 실행 중입니다. 실제 게임과 연결하지 않습니다.',
-  };
-  const statuses = {pending: '전송 중', accepted: '전송됨 · Steam 접수', failed: '전송 실패', unknown: '전송 결과 확인 불가 · 자동 재전송 안 함'};
-  const updateStatuses = {idle:'업데이트를 자동으로 확인합니다.', checking:'새 버전을 확인하고 있어요.',
-    disabled:'GitHub 업데이트 통신을 껐습니다. Steam 채팅은 계속 사용할 수 있습니다.',
-    downloading:'새 버전을 내려받고 있어요. 채팅을 계속 이용할 수 있습니다.', ready:'업데이트 준비 완료 · 다음 실행 때 적용합니다.',
-    current:'최신 버전을 사용하고 있어요.', unavailable:'아직 받을 수 있는 정식 릴리스가 없습니다.',
-    applied:'새 버전이 적용됐어요.', rolled_back:'새 버전이 시작되지 않아 이전 버전으로 돌아왔습니다.',
-    apply_failed:'업데이트를 적용하지 못해 기존 버전을 유지했습니다.',
-    network_error:'업데이트 서버에 연결하지 못했어요. 다음 확인 때 다시 시도합니다.',
-    verification_failed:'업데이트를 확인하지 못했어요. 현재 버전을 유지합니다.',
-    offline:'오프라인 실행 중에는 업데이트를 확인하지 않습니다.', development:'설치된 앱에서 자동 업데이트를 사용할 수 있습니다.'};
+  const notices = () => ({
+    checking: t('Steam과 게임의 채팅·숨김 연동 구조를 확인하고 있어요.'),
+    searching_lobby: t('Bongo Cat의 현재 로비를 확인하고 있어요. 연결이 확인되면 대화를 불러옵니다.'),
+    discovering: t('로비를 찾았어요. 현재 로비와 숨김 설정을 확인하는 동안 메시지를 미리 작성할 수 있어요.'),
+    discovery_failed: t('Steam 연결은 유지 중이에요. 현재 로비 검증을 다시 시도하고 있어요. 전송은 확인 후 사용할 수 있어요.'),
+    read_only: t('읽기 전용으로 실행 중입니다. 메시지를 전송하지 않습니다.'),
+    no_lobby: t('현재 게임 로비를 확인할 수 없어요. 게임에서 로비에 참여해 주세요.'),
+    hidden_unavailable: t('로비 연결은 유지 중이에요. 숨김 설정을 확인할 수 없어 상대 대화 표시와 신규 저장을 보류하고 있어요.'),
+    hidden_syncing: t('일부 참여자의 숨김 설정을 확인하고 있어요. 확인된 상대의 대화부터 표시하고 저장합니다.'),
+    unsupported_game_build: t('채팅·숨김 연동 구조의 호환성을 확인하지 못했어요. 대응 앱 업데이트를 확인하고 있습니다.'),
+    game_files_changed: t('게임 업데이트를 감지했어요. 연동 구조를 다시 확인하고 있습니다.'),
+    compatibility_tool_missing: t('호환성 검사 파일이 없어 연결할 수 없어요. 앱을 다시 설치해 주세요.'),
+    compatibility_timeout: t('호환성 검사에 시간이 걸리고 있어요. 연결을 보류하고 다시 확인합니다.'),
+    game_missing_or_ambiguous: t('실행 중인 Bongo Cat 하나를 확인해야 연결할 수 있어요.'),
+    worker_stopped: t('연결 작업자가 종료됐어요. 전송 결과가 불명확한 메시지는 다시 보내지 않습니다.'),
+    view_unavailable: t('대화 상태를 조회하지 못해 표시와 전송을 중단했어요. 다시 확인하고 있습니다.'),
+    offline: t('오프라인으로 실행 중입니다. 실제 게임과 연결하지 않습니다.'),
+  });
+  const statuses = () => ({pending: t('전송 중'), accepted: t('전송됨 · Steam 접수'), failed: t('전송 실패'), unknown: t('전송 결과 확인 불가 · 자동 재전송 안 함')});
+  const updateStatuses = () => ({idle:t('업데이트를 자동으로 확인합니다.'), checking:t('새 버전을 확인하고 있어요.'),
+    disabled:t('GitHub 업데이트 통신을 껐습니다. Steam 채팅은 계속 사용할 수 있습니다.'),
+    downloading:t('새 버전을 내려받고 있어요. 채팅을 계속 이용할 수 있습니다.'), ready:t('업데이트 준비 완료 · 다음 실행 때 적용합니다.'),
+    current:t('최신 버전을 사용하고 있어요.'), unavailable:t('아직 받을 수 있는 정식 릴리스가 없습니다.'),
+    applied:t('새 버전이 적용됐어요.'), rolled_back:t('새 버전이 시작되지 않아 이전 버전으로 돌아왔습니다.'),
+    apply_failed:t('업데이트를 적용하지 못해 기존 버전을 유지했습니다.'),
+    network_error:t('업데이트 서버에 연결하지 못했어요. 다음 확인 때 다시 시도합니다.'),
+    verification_failed:t('업데이트를 확인하지 못했어요. 현재 버전을 유지합니다.'),
+    offline:t('오프라인 실행 중에는 업데이트를 확인하지 않습니다.'), development:t('설치된 앱에서 자동 업데이트를 사용할 수 있습니다.')});
   function node(tag, cls, text) {
     const el = document.createElement(tag);
     if (cls) el.className = cls;
@@ -116,8 +150,8 @@
   function avatar(profile) {
     const el = node('span', 'avatar');
     if (profile?.avatar?.startsWith('data:image/png;base64,')) {
-      const img = node('img'); img.src = profile.avatar; img.alt = '게임 스킨·모자 정지 프로필'; el.append(img);
-    } else { el.append(icon('cat')); el.title = '고양이 외형 확인 불가'; }
+      const img = node('img'); img.src = profile.avatar; img.alt = t('게임 스킨·모자 정지 프로필'); el.append(img);
+    } else { el.append(icon('cat')); el.title = t('고양이 외형 확인 불가'); }
     return el;
   }
   function rpc(action, args = {}) {
@@ -130,12 +164,12 @@
   function applyTheme() {
     document.documentElement.dataset.theme = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme;
     document.querySelectorAll('[name=appearance]').forEach(el => { el.checked = el.value === theme; });
-    $('theme-note').textContent = theme === 'system' ? '시스템의 밝기 설정을 따릅니다.' : `${theme === 'dark' ? '다크' : '라이트'} 모드를 사용합니다.`;
+    $('theme-note').textContent = theme === 'system' ? t('시스템의 밝기 설정을 따릅니다.') : t('{mode} 모드를 사용합니다.', {mode:theme === 'dark' ? t('다크') : t('라이트')});
   }
   function applySidebar() {
     $('app').classList.toggle('is-collapsed', collapsed);
     $('sidebar-toggle').setAttribute('aria-expanded', String(!collapsed));
-    $('sidebar-toggle').setAttribute('aria-label', collapsed ? '사이드바 펼치기' : '사이드바 접기');
+    $('sidebar-toggle').setAttribute('aria-label', collapsed ? t('사이드바 펼치기') : t('사이드바 접기'));
     $('sidebar-toggle').replaceChildren(icon(collapsed ? 'expand' : 'collapse'));
     if (narrow.matches) $('sidebar').inert = !$('app').classList.contains('is-drawer-open');
     else $('sidebar').inert = false;
@@ -150,15 +184,15 @@
     $('message-search').focus();
   }
   function showError(error) {
-    const text = ({connection_changed:'연결 대상이 변경되어 전송하지 않았어요. 초안은 원래 방에 남겨 두었습니다.',
-      development_limit_50:'개발판에서는 50 UTF-16 단위 이내로 보내 주세요.',
-      storage_failed_before_send:'기록을 저장하지 못해 전송하지 않았어요.',
-      storage_failed:'저장에 실패했어요. 작성한 내용은 이 창에서 확인해 주세요.',
-      legal_unavailable:'안내 파일을 열지 못했어요. 앱 파일을 복구하거나 다시 설치해 주세요.',
-      invalid_steam_id:'프로필 대상을 확인하지 못했어요. 참여자 목록을 다시 확인해 주세요.',
-      steam_profile_unavailable:'현재 연결에서 열 수 없는 프로필이에요. 참여자와 연결 상태를 확인해 주세요.',
-      steam_profile_failed:'Steam 프로필을 열지 못했어요. Steam 실행 상태를 확인해 주세요.',
-      update_permission_failed:'업데이트 통신 설정을 저장하지 못했어요. 기존 선택을 유지합니다.'})[error.message] || '요청을 완료하지 못했어요. 연결·저장 상태를 확인해 주세요.';
+    const text = ({connection_changed:t('연결 대상이 변경되어 전송하지 않았어요. 초안은 원래 방에 남겨 두었습니다.'),
+      development_limit_50:t('개발판에서는 50 UTF-16 단위 이내로 보내 주세요.'),
+      storage_failed_before_send:t('기록을 저장하지 못해 전송하지 않았어요.'),
+      storage_failed:t('저장에 실패했어요. 작성한 내용은 이 창에서 확인해 주세요.'),
+      legal_unavailable:t('안내 파일을 열지 못했어요. 앱 파일을 복구하거나 다시 설치해 주세요.'),
+      invalid_steam_id:t('프로필 대상을 확인하지 못했어요. 참여자 목록을 다시 확인해 주세요.'),
+      steam_profile_unavailable:t('현재 연결에서 열 수 없는 프로필이에요. 참여자와 연결 상태를 확인해 주세요.'),
+      steam_profile_failed:t('Steam 프로필을 열지 못했어요. Steam 실행 상태를 확인해 주세요.'),
+      update_permission_failed:t('업데이트 통신 설정을 저장하지 못했어요. 기존 선택을 유지합니다.')})[error.message] || t('요청을 완료하지 못했어요. 연결·저장 상태를 확인해 주세요.');
     toast(text);
   }
   function profileContext(context) {
@@ -184,7 +218,7 @@
     openingProfile = true; updateProfileBusy();
     try {
       await rpc('open_steam_profile', {steam_id:uid, context});
-      toast('Steam에 프로필 열기를 요청했어요. 친구 추가는 Steam에서 진행해 주세요.');
+      toast(t('Steam에 프로필 열기를 요청했어요. 친구 추가는 Steam에서 진행해 주세요.'));
     } catch (error) { showError(error); }
     finally { openingProfile = false; updateProfileBusy(); }
   }
@@ -193,8 +227,8 @@
     const captured = {...context}; // Preserve the action's original connection, including for detached events.
     button.type = 'button'; button.dataset.profileKey = key;
     button.dataset.profileContext = profileContext(captured);
-    button.setAttribute('aria-label', `Steam 프로필 열기 · ${profile?.name || '참여자'}`);
-    button.title = 'Steam 프로필 열기 · 친구 추가는 Steam에서 진행해 주세요';
+    button.setAttribute('aria-label', t('Steam 프로필 열기 · {name}', {name:profile?.name || t('참여자')}));
+    button.title = t('Steam 프로필 열기 · 친구 추가는 Steam에서 진행해 주세요');
     button.append(content);
     button.addEventListener('click', event => openProfile(event, uid, captured));
     return button;
@@ -207,7 +241,7 @@
       const target = [...container.querySelectorAll('.steam-profile-action')].find(button =>
         button.dataset.profileKey === key && button.dataset.profileContext === context);
       const fallback = container === $('participant-list')
-        ? document.querySelector('[aria-label="참여자 목록 닫기"]') : $('message-scroll');
+        ? document.querySelector('#participants-dialog .dialog-heading button') : $('message-scroll');
       (target || fallback).focus({preventScroll:true});
     };
   }
@@ -218,9 +252,9 @@
     const restoreFocus = preserveProfileFocus($('participant-list'));
     $('participant-list').replaceChildren(...people.map(([uid,p]) => {
       const li = node('li'), info = node('span', 'participant-info');
-      info.append(node('span', 'participant-name', p.name));
+      info.append(node('span', 'participant-name', p.name || t('이름 확인 중')));
       if (profileAvailable(data, uid)) info.append(profileButton(uid, p, data.context, `participant-${uid}`,
-        'participant-profile', document.createTextNode('Steam 프로필 열기')));
+        'participant-profile', document.createTextNode(t('Steam 프로필 열기'))));
       li.append(avatar(p), info); return li;
     }));
     restoreFocus();
@@ -229,7 +263,7 @@
     const text = $('message-input').value;
     $('send-button').disabled = !model?.can_send || composing || sending || switching || restarting || !text.trim() || text.length > 50;
     $('message-input').disabled = !selected || sending || switching || restarting;
-    $('composer-help').textContent = `${text.length}/50 · Enter 전송 · Shift + Enter 줄바꿈`;
+    $('composer-help').textContent = t('{count}/50 · Enter 전송 · Shift + Enter 줄바꿈', {count:text.length});
     $('message-form').classList.toggle('is-unavailable', !model?.can_send);
     updateProfileBusy();
   }
@@ -245,10 +279,10 @@
       restartPlan = {version:update.version, deadline:Date.now()+30000, retryAt:0, reason:''};
     }
     const seconds = Math.max(0, Math.ceil((Math.max(restartPlan.deadline,lastEdit+5000)-Date.now())/1000));
-    let text = `새 버전 준비 완료 · ${seconds}초 후 자동 재시작합니다. 작성 중인 문장은 저장됩니다.`;
-    if (composing || sending || switching || restartPlan.reason === 'sending') text = '새 버전 준비 완료 · 입력·전송이 끝나면 자동으로 재시작합니다.';
-    if (restartPlan.reason === 'storage' || model?.storage_error) text = '저장되지 않은 내용이 있어 자동 재시작을 기다립니다. 저장 상태를 확인해 주세요.';
-    if (restarting) text = '작성 중인 문장을 저장하고 업데이트를 적용하기 위해 재시작합니다.';
+    let text = t('새 버전 준비 완료 · {seconds}초 후 자동 재시작합니다. 작성 중인 문장은 저장됩니다.', {seconds});
+    if (composing || sending || switching || restartPlan.reason === 'sending') text = t('새 버전 준비 완료 · 입력·전송이 끝나면 자동으로 재시작합니다.');
+    if (restartPlan.reason === 'storage' || model?.storage_error) text = t('저장되지 않은 내용이 있어 자동 재시작을 기다립니다. 저장 상태를 확인해 주세요.');
+    if (restarting) text = t('작성 중인 문장을 저장하고 업데이트를 적용하기 위해 재시작합니다.');
     banner.textContent = text; banner.hidden = false;
     $('update-status').textContent = text;
   }
@@ -278,10 +312,11 @@
   }
   function roomButton(room, live) {
     const button = node('button', `room-button${live ? ' is-live' : ''}`);
-    button.title = room.name; button.setAttribute('aria-label', room.name);
+    const name=room.name || t('게임 로비');
+    button.title = name; button.setAttribute('aria-label', name);
     if (selected === room.lobby) button.setAttribute('aria-current', 'page');
     button.append(avatar(null));
-    const info = node('span', 'room-info'); info.append(node('span','room-name',room.name),node('span','room-detail', live ? '현재 게임 로비' : `${room.segments}개 연결 구간 · 보관 기록`));
+    const info = node('span', 'room-info'); info.append(node('span','room-name',name),node('span','room-detail', live ? t('현재 게임 로비') : t('{count}개 연결 구간 · 보관 기록', {count:room.segments})));
     button.append(info); button.addEventListener('click', () => changeRoom(room.lobby)); return button;
   }
   function atBottom() {
@@ -303,7 +338,7 @@
     pendingPosition=saved?.position || {bottom:true}; signature=''; searchPosition=null;
   }
   function viewArgs(extra={}) {
-    return {lobby:selected, account, query, before:query ? before : null,
+    return {lobby:selected, account, query, language, before:query ? before : null,
       start:query ? null : start, seen:seenSeq, limit:query || start===null ? 100 : 1000, ...extra};
   }
   function updateNavigation() {
@@ -316,10 +351,10 @@
     const unread = !query && ((model.unseen_seq || 0) > (seenSeq || 0) || (model.volatile_peer_ids || []).some(id => !seenVolatile.has(id)));
     $('new-messages').hidden=latestBottom || !unread;
     $('latest').hidden=latestBottom || unread;
-    $('latest').textContent=query || model.has_newer ? '최근 대화로' : '맨 아래로';
+    $('latest').textContent=query || model.has_newer ? t('최근 대화로') : t('맨 아래로');
     $('older').hidden=!model.has_more;
     $('older').disabled=loadingHistory;
-    $('older').textContent=loadingHistory ? '이전 대화 불러오는 중…' : '이전 대화 불러오기';
+    $('older').textContent=loadingHistory ? t('이전 대화 불러오는 중…') : t('이전 대화 불러오기');
   }
   function restorePosition(position) {
     const scroll=$('message-scroll'); restoring=true;
@@ -402,9 +437,9 @@
     $('message-list').replaceChildren();
     let day = '', segment = '';
     for (const message of data.messages) {
-      const date = new Date(message.received*1000), label = date.toLocaleDateString('ko-KR');
+      const date = new Date(message.received*1000), label = date.toLocaleDateString(language === 'ko' ? 'ko-KR' : 'en-US');
       if (day !== label || segment !== message.session) {
-        $('message-list').append(node('div','date-divider', `${label} · 앱이 수신한 기록${segment && segment !== message.session ? ' · 연결 공백 있음' : ''}`));
+        $('message-list').append(node('div','date-divider', `${label} · ${t('앱이 수신한 기록')}${segment && segment !== message.session ? t(' · 연결 공백 있음') : ''}`));
         day = label; segment = message.session;
       }
       const row = node('article', `message${message.own ? ' is-own' : ''}`);
@@ -413,10 +448,10 @@
       const canOpen = !message.own && profileAvailable(data, message.sender);
       row.append(canOpen ? profileButton(message.sender, profile, data.context, `${message.id}-avatar`, 'profile-avatar', avatar(profile)) : avatar(profile));
       const content = node('div','message-content'), meta = node('div','message-meta');
-      const name = node('strong','', profile?.name || message.name);
+      const name = node('strong','', profile?.name || message.name || (message.own ? t('나') : t('이름 확인 중')));
       meta.append(canOpen ? profileButton(message.sender, profile, data.context, `${message.id}-name`, 'profile-name', name) : name);
-      if (message.own) meta.append(node('span','self-tag','나'));
-      meta.append(node('time','',date.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})));
+      if (message.own) meta.append(node('span','self-tag',t('나')));
+      meta.append(node('time','',date.toLocaleTimeString(language === 'ko' ? 'ko-KR' : 'en-US',{hour:'2-digit',minute:'2-digit'})));
       const bubble = node('div','message-bubble');
       // DOM text preserves CR, but it does not render it as a line break.
       const body = message.body.replace(/\r\n?/g, '\n');
@@ -424,21 +459,23 @@
       if (index >= 0) bubble.append(document.createTextNode(body.slice(0,index)),node('mark','',body.slice(index,index+query.length)),document.createTextNode(body.slice(index+query.length)));
       else bubble.textContent = body;
       content.append(meta,bubble);
-      if (statuses[message.status] || message.unsaved) content.append(node('span','message-status',message.unsaved ? '이 기록은 저장되지 않았어요' : statuses[message.status]));
+      if (statuses()[message.status] || message.unsaved) content.append(node('span','message-status',message.unsaved ? t('이 기록은 저장되지 않았어요') : statuses()[message.status]));
       if (query) {
-        const jump = node('button','page-button','대화에서 보기');
+        const jump = node('button','page-button',t('대화에서 보기'));
         jump.addEventListener('click',() => jumpToMessage(message));
         content.append(jump);
       }
       row.append(content); $('message-list').append(row);
     }
     $('empty-state').hidden = data.messages.length > 0;
-    $('empty-title').textContent = query ? '검색 결과가 없어요' : '대화를 기다리고 있어요';
-    $('empty-description').textContent = data.hidden_ok ? '앱이 연결된 동안 받은 대화만 표시합니다.' : '게임의 숨김 상태를 확인하면 상대 대화를 표시합니다.';
+    $('empty-title').textContent = query ? t('검색 결과가 없어요') : t('대화를 기다리고 있어요');
+    $('empty-description').textContent = data.hidden_ok ? t('앱이 연결된 동안 받은 대화만 표시합니다.') : t('게임의 숨김 상태를 확인하면 상대 대화를 표시합니다.');
     restoreFocus(); restorePosition(position); pendingPosition=null;
   }
   function render(data, resetDraft) {
     const position=pendingPosition || capturePosition();
+    applyLanguage(data);
+    document.documentElement.dataset.notice=data.notice || '';
     model = data;
     if (!reactionSettingPending) {
       reactionsEnabled = data.reactions_enabled === true;
@@ -451,15 +488,15 @@
       }
     }
     const notificationStatus = data.notification_status || {};
-    $('notification-status').textContent = ({unavailable:'Windows 알림을 사용할 수 없어요. 설치된 앱의 시작 메뉴 바로가기를 확인해 주세요. 실패한 알림은 다시 보내지 않으며, 옵션을 껐다 켜면 다음 새 메시지부터 다시 시도합니다.',
-      disabled:'Windows에서 이 앱의 알림을 제한하고 있어요. 표시 여부는 Windows 알림 설정을 따릅니다.',
-      cleanup_failed:'이전 Windows 알림을 지우지 못했어요. 알림 센터에서 직접 지울 수 있습니다.'})[notificationStatus.toast] || '';
-    if (notificationStatus.flash === 'unavailable') $('notification-status').textContent += ' 작업 표시줄 알림을 사용할 수 없어요.';
+    $('notification-status').textContent = ({unavailable:t('Windows 알림을 사용할 수 없어요. 설치된 앱의 시작 메뉴 바로가기를 확인해 주세요. 실패한 알림은 다시 보내지 않으며, 옵션을 껐다 켜면 다음 새 메시지부터 다시 시도합니다.'),
+      disabled:t('Windows에서 이 앱의 알림을 제한하고 있어요. 표시 여부는 Windows 알림 설정을 따릅니다.'),
+      cleanup_failed:t('이전 Windows 알림을 지우지 못했어요. 알림 센터에서 직접 지울 수 있습니다.')})[notificationStatus.toast] || '';
+    if (notificationStatus.flash === 'unavailable') $('notification-status').textContent += t(' 작업 표시줄 알림을 사용할 수 없어요.');
     if (seenSeq===null) {seenSeq=data.latest_seq || 0; seenVolatile=new Set(data.volatile_peer_ids || []);}
     if (!query && start===null) start=data.messages.find(message => Number.isInteger(message.seq))?.seq ?? null;
     const update = data.update || {state:'development',current:''};
     $('app-version').textContent = update.current ? `v${update.current}` : '';
-    $('update-status').textContent = updateStatuses[update.state] || updateStatuses.verification_failed;
+    $('update-status').textContent = updateStatuses()[update.state] || updateStatuses().verification_failed;
     $('check-updates').disabled = ['checking','downloading','offline','development','disabled'].includes(update.state);
     $('allow-update-checks').checked = update.allowed !== false;
     updateRestartNotice(update);
@@ -467,39 +504,39 @@
     $('live-rooms').replaceChildren(); $('archived-rooms').replaceChildren();
     for (const room of data.rooms) (room.lobby === data.context.lobby ? $('live-rooms') : $('archived-rooms')).append(roomButton(room,room.lobby === data.context.lobby));
     const room = data.rooms.find(r => r.lobby === selected);
-    $('room-title').textContent = room?.name || 'Bongo Cat Chat';
+    $('room-title').textContent = room ? room.name || t('게임 로비') : 'Bongo Cat Chat';
     const connected = data.connected;
-    const connectionLabel = !data.lobby_verified ? '로비 발견 · 연결 확인 중' : !data.hidden_ok ? '게임과 연결됨 · 숨김 확인 중' : data.can_send ? '게임과 연결됨' : '게임 수신 연결됨';
-    $('connection-label').querySelector('span').textContent = selected && selected !== data.context.lobby ? '보관 기록 · 읽기 전용' : connected ? connectionLabel : '연결 확인 중';
+    const connectionLabel = !data.lobby_verified ? t('로비 발견 · 연결 확인 중') : !data.hidden_ok ? t('게임과 연결됨 · 숨김 확인 중') : data.can_send ? t('게임과 연결됨') : t('게임 수신 연결됨');
+    $('connection-label').querySelector('span').textContent = selected && selected !== data.context.lobby ? t('보관 기록 · 읽기 전용') : connected ? connectionLabel : t('연결 확인 중');
     document.querySelectorAll('.status-dot').forEach(el => el.classList.toggle('unavailable',!connected));
-    let notice = data.notice ? notices[data.notice] || '게임 상태를 확인하지 못했어요. 연동을 중단하고 다시 확인하고 있습니다.' : '';
+    let notice = data.notice ? notices()[data.notice] || t('게임 상태를 확인하지 못했어요. 연동을 중단하고 다시 확인하고 있습니다.') : '';
     if (data.notice === 'unsupported_game_build') {
-      const build = /^[0-9]{1,12}$/.test(data.game_build || '') ? `게임 빌드 ${data.game_build}` : '현재 게임 파일';
-      const progress = ({checking:'앱 업데이트를 확인하고 있어요.', downloading:'새 앱을 내려받고 있어요.',
-        disabled:'GitHub 통신이 꺼져 있습니다. 앱 설정에서 업데이트 확인을 켤 수 있어요.',
-        ready:data.update?.can_restart ? '새 앱이 준비됐어요. 잠시 후 자동으로 재시작합니다.' : '새 앱이 준비됐어요. 앱을 다시 실행하면 적용합니다.',
-        offline:'오프라인 상태입니다.', development:'설치판에서 자동 업데이트를 사용할 수 있어요.',
-        network_error:'업데이트 서버에 연결하지 못했어요. 자동으로 다시 확인합니다.',
-        verification_failed:'업데이트를 검증하지 못했어요. 기존 앱을 유지합니다.'})[data.update?.state]
-        || '아직 대응 버전이 없습니다. 앱 업데이트를 주기적으로 확인합니다.';
-      notice = `${build}의 호환성을 확인하지 못해 연동을 중단했어요. ${progress}`;
+      const build = /^[0-9]{1,12}$/.test(data.game_build || '') ? t('게임 빌드 {build}', {build:data.game_build}) : t('현재 게임 파일');
+      const progress = ({checking:t('앱 업데이트를 확인하고 있어요.'), downloading:t('새 앱을 내려받고 있어요.'),
+        disabled:t('GitHub 통신이 꺼져 있습니다. 앱 설정에서 업데이트 확인을 켤 수 있어요.'),
+        ready:data.update?.can_restart ? t('새 앱이 준비됐어요. 잠시 후 자동으로 재시작합니다.') : t('새 앱이 준비됐어요. 앱을 다시 실행하면 적용합니다.'),
+        offline:t('오프라인 상태입니다.'), development:t('설치판에서 자동 업데이트를 사용할 수 있어요.'),
+        network_error:t('업데이트 서버에 연결하지 못했어요. 자동으로 다시 확인합니다.'),
+        verification_failed:t('업데이트를 검증하지 못했어요. 기존 앱을 유지합니다.')})[data.update?.state]
+        || t('아직 대응 버전이 없습니다. 앱 업데이트를 주기적으로 확인합니다.');
+      notice = t('{build}의 호환성을 확인하지 못해 연동을 중단했어요. {progress}', {build,progress});
     }
-    $('connection-notice').textContent = notice || (!data.hidden_ok ? notices.hidden_unavailable : '개발판 · 읽지 않은 구간과 숨김 중 대화는 복원하지 않습니다.');
+    $('connection-notice').textContent = notice || (!data.hidden_ok ? notices().hidden_unavailable : t('개발판 · 읽지 않은 구간과 숨김 중 대화는 복원하지 않습니다.'));
     $('connection-notice').hidden = false;
-    $('storage-label').textContent = data.storage_error ? '저장 실패 · 일부 기록 미보관' : '이 기기에 30일 보관';
-    document.querySelector('.account-copy strong').textContent = data.profiles[data.context.account]?.name || '계정 확인 중';
-    $('account-status').textContent = connected ? (data.lobby_verified ? 'Bongo Cat 연결됨' : 'Steam 연결됨 · 로비 확인 중') : '연결 확인 중';
+    $('storage-label').textContent = data.storage_error ? t('저장 실패 · 일부 기록 미보관') : t('이 기기에 30일 보관');
+    document.querySelector('.account-copy strong').textContent = data.profiles[data.context.account]?.name || t('계정 확인 중');
+    $('account-status').textContent = connected ? (data.lobby_verified ? t('Bongo Cat 연결됨') : t('Steam 연결됨 · 로비 확인 중')) : t('연결 확인 중');
     const accountAvatar = document.querySelector('.account-avatar');
     const replacement = avatar(data.profiles[data.context.account]); replacement.classList.add('account-avatar'); accountAvatar.replaceWith(replacement);
     const people = Object.entries(data.profiles).sort(([a], [b]) => a.localeCompare(b));
-    $('member-count').textContent = `${people.length}명`;
-    $('participants-button').setAttribute('aria-label', `확인된 참여자 ${people.length}명 보기`);
+    $('member-count').textContent = t('{count}명', {count:people.length});
+    $('participants-button').setAttribute('aria-label', t('확인된 참여자 {count}명 보기', {count:people.length}));
     document.querySelector('.avatar-stack').replaceChildren(...people.slice(0,3).map(([,p])=>avatar(p)));
     renderParticipants(data, people);
-    $('participants-description').textContent = '현재 로비에서 확인된 상대의 Steam 프로필을 엽니다. 친구 추가는 Steam에서 진행해 주세요. 게임의 숨김 설정을 따르며 외형 조회 실패는 기본 윤곽으로 표시합니다.';
+    $('participants-description').textContent = t('현재 로비에서 확인된 상대의 Steam 프로필을 엽니다. 친구 추가는 Steam에서 진행해 주세요. 게임의 숨김 설정을 따르며 외형 조회 실패는 기본 윤곽으로 표시합니다.');
     if (resetDraft) $('message-input').value = data.draft;
-    $('message-input').placeholder = selected === data.context.lobby ? '메시지 입력' : '이 로비에 남겨 둘 초안';
-    $('search-status').hidden=!query; $('search-summary').textContent=`현재 페이지 ${data.messages.length}개 결과`;
+    $('message-input').placeholder = selected === data.context.lobby ? t('메시지 입력') : t('이 로비에 남겨 둘 초안');
+    $('search-status').hidden=!query; $('search-summary').textContent=t('현재 페이지 {count}개 결과', {count:data.messages.length});
     // The history control changes the content height; settle it before restoring the anchor.
     $('older').hidden=!data.has_more;
     renderMessages(data,position); renderReactions(data); updateSend();
@@ -578,6 +615,26 @@
       $('settings-dialog').showModal(); $('settings-content').scrollTop=0;
     });
     $('participants-button').addEventListener('click',()=>$('participants-dialog').showModal());
+    $('language-select').addEventListener('change',async()=>{
+      if (languagePending) return;
+      const control=$('language-select'), value=control.value, previous=languagePreference;
+      const hadFocus=document.activeElement===control;
+      languagePending=true; requestVersion++; control.disabled=true; control.value=previous;
+      $('language-status').textContent=t('언어 설정을 저장하고 있어요.');
+      let saved=false;
+      try {
+        await rpc('setting',{key:'language',value});
+        saved=true; requestVersion++;
+        await refresh(true);
+        $('language-status').textContent=t('언어 설정을 저장했어요.');
+      } catch(error) {
+        $('language-status').textContent=t('언어 설정을 저장하지 못해 이전 언어를 유지합니다. 다시 시도해 주세요.');
+      } finally {
+        requestVersion++; languagePending=false; control.disabled=false;
+        control.value=saved ? value : previous;
+        if (hadFocus && document.activeElement===document.body && $('settings-dialog').open) control.focus({preventScroll:true});
+      }
+    });
     $('refresh-button').addEventListener('click',()=>rpc('refresh').then(()=>refresh()).catch(showError));
     $('check-updates').addEventListener('click',()=>rpc('check_updates').then(()=>refresh(true)).catch(showError));
     $('allow-update-checks').addEventListener('change',event=>rpc('update_permission',{allowed:event.target.checked}).then(()=>refresh(true)).catch(error=>{showError(error);refresh(true);}));
@@ -587,14 +644,14 @@
       const hadFocus=document.activeElement===control;
       reactionSettingPending=true; requestVersion++; control.disabled=true; control.checked=reactionsEnabled;
       clearReactions();
-      $('reaction-save-status').textContent='반응 효과 설정을 저장하고 있어요.';
+      $('reaction-save-status').textContent=t('반응 효과 설정을 저장하고 있어요.');
       try {
         await rpc('setting',{key:'reactions_enabled',value});
         reactionsEnabled=value;
         if (model) model.reactions_enabled=value;
-        $('reaction-save-status').textContent='반응 효과 설정을 저장했어요.';
+        $('reaction-save-status').textContent=t('반응 효과 설정을 저장했어요.');
       } catch(error) {
-        $('reaction-save-status').textContent='반응 효과 설정을 저장하지 못해 이전 값으로 되돌렸어요. 다시 시도해 주세요.';
+        $('reaction-save-status').textContent=t('반응 효과 설정을 저장하지 못해 이전 값으로 되돌렸어요. 다시 시도해 주세요.');
       } finally {
         requestVersion++; control.checked=reactionsEnabled; control.disabled=false; reactionSettingPending=false;
         if (hadFocus && document.activeElement===document.body && $('settings-dialog').open) control.focus();
@@ -604,14 +661,14 @@
       if (notificationPending.has(key)) return;
       const control=$(id), value=control.checked, previous=notificationSettings[key];
       notificationPending.add(key); requestVersion++; control.disabled=true; control.checked=previous;
-      $('notification-save-status').textContent='알림 설정을 저장하고 있어요.';
+      $('notification-save-status').textContent=t('알림 설정을 저장하고 있어요.');
       try {
         await rpc('setting',{key,value});
         notificationSettings[key]=value;
         if (model) model.notifications={...notificationSettings};
-        $('notification-save-status').textContent='알림 설정을 저장했어요.';
+        $('notification-save-status').textContent=t('알림 설정을 저장했어요.');
       } catch(error) {
-        $('notification-save-status').textContent='알림 설정을 저장하지 못해 이전 값으로 되돌렸어요. 다시 시도해 주세요.';
+        $('notification-save-status').textContent=t('알림 설정을 저장하지 못해 이전 값으로 되돌렸어요. 다시 시도해 주세요.');
       } finally {
         requestVersion++; control.checked=notificationSettings[key]; control.disabled=false; notificationPending.delete(key);
       }
@@ -628,13 +685,13 @@
         if (scope.lobby===null) positions.clear(); else positions.delete(scope.lobby);
         $('message-input').value=''; selected=''; query=''; resetTimeline(); $('message-search').value='';
       }
-      signature='';await refresh(true);toast('선택한 기록을 삭제했어요.');
+      signature='';await refresh(true);toast(t('선택한 기록을 삭제했어요.'));
     }catch(e){showError(e);}});
     refresh(true); setInterval(()=>refresh(),600);
   }
   if (typeof QWebChannel === 'function' && window.qt?.webChannelTransport) {
     new QWebChannel(qt.webChannelTransport, channel=>connect(channel.objects.bridge));
   } else {
-    $('connection-notice').hidden=false; $('connection-notice').textContent='Windows 앱에서 열어 주세요. 이 화면만으로는 게임에 연결할 수 없습니다.';
+    $('connection-notice').hidden=false; $('connection-notice').textContent=t('Windows 앱에서 열어 주세요. 이 화면만으로는 게임에 연결할 수 없습니다.');
   }
 })();

@@ -7,6 +7,9 @@ from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 import uuid
+from xml.sax.saxutils import escape
+
+from .localization import resolve_language, translate
 
 APP_ID = 'BongoCatChat.Desktop'
 TOAST_GROUP = 'incoming'
@@ -127,8 +130,9 @@ def repair_shortcut(root):
 
 
 class WindowsToast:
-    def __init__(self, root):
+    def __init__(self, root, language=resolve_language):
         self.root = root
+        self.language = language
         self.notifier = None
 
     def prepare(self):
@@ -152,7 +156,7 @@ class WindowsToast:
             if getattr(exc, 'winerror', 0) & 0xffffffff != 0x80070490:
                 raise
         document = XmlDocument()
-        document.load_xml(TOAST_XML)
+        document.load_xml(TOAST_XML.replace('새 메시지가 도착했어요.', escape(translate('새 메시지가 도착했어요.', self.language()))))
         toast = ToastNotification(document)
         toast.tag, toast.group = TOAST_TAG, TOAST_GROUP
         toast.expiration_time = datetime.now(timezone.utc) + timedelta(days=1)

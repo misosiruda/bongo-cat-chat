@@ -92,6 +92,7 @@ def test_notice_collection_keeps_licences_and_excludes_unused_fmod(tmp_path):
     assert 'SOURCES.md' in text and 'OpenSSL' in text and 'Mesa 11.2.2' in text
     assert 'PyWinRT-3.2.1-LICENSE.txt' in text and '2021-2025 David Lechner' in text
     assert (tmp_path / 'SOURCES.md').is_file()
+    assert (tmp_path / 'PRIVACY.en.md').read_bytes() == (ROOT / 'docs/privacy-policy.en.md').read_bytes()
     chromium = (tmp_path / 'CHROMIUM-LICENSES.html').read_text(encoding='utf-8')
     assert 'Chromium' in chromium and 'Copyright' in chromium and 'ffmpeg' in chromium
 

@@ -1,5 +1,9 @@
 # Bongo Cat Chat
 
+[한국어](README.md) · [English](README.en.md)
+
+`0.1.0.dev16` 소스는 **설정 → 언어 / Language**에서 한국어·English·시스템 설정을 지원한다. 시스템 설정은 Windows 표시 언어가 한국어이면 한국어, 그 외에는 영어를 사용한다. 선택은 즉시 반영하고 이 기기에 저장하며 대화·초안·이용자 이름·로비 이름은 번역하지 않는다. [영문 소개와 사용 안내](README.en.md), [번역 범위와 검증](docs/localization.md), [dev16 릴리스 노트](docs/releases/0.1.0.dev16.md)를 참고한다. 소스 변경과 공개 설치본 반영은 구분한다.
+
 Bongo Cat의 기존 로비 채팅을 메신저처럼 읽고 입력하며, 수신한 대화를 로컬에 보관하는 Windows용 서드파티 프로그램이다.
 
 **현재는 실제 게임에 연결하는 Windows 개발판을 구현·시험하는 단계다.** Python/Qt 메신저, Steam 작업자, SQLite 기록·검색, Windows 설치 파일이 있다. `0.1.0.dev6`부터 게임의 채팅·숨김·로비·프로필 관련 구조와 처리 코드로 호환성을 판정한다. Auto Chest Opener는 필수 조건이 아니다. 순정 설치·다른 PC·장시간 실행 인수는 남아 있다. 개발사의 공식 제품이나 승인된 연동으로 소개하지 않는다. [실행 방법과 구현 범위](docs/windows-app.md), [제품 검증 기록](docs/product-validation.md)을 먼저 확인한다.

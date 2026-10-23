@@ -24,6 +24,7 @@ from .updates import UpdateManager
 from .privacy import update_checks_allowed, set_update_checks_allowed
 from .notifications import Notifications
 from .windows_notifications import Attention, WindowsToast, set_app_id
+from .localization import ENGLISH, LANGUAGES, resolve_language, translate
 
 UI = Path(__file__).with_name("ui").resolve()
 LEGAL = Path(__file__).with_name('legal')
@@ -39,12 +40,14 @@ def launch_steam_profile(uri):
     raise ValueError('steam_profile_failed')
 
 
-def legal_document(document):
+def legal_document(document, language='ko'):
     names = {'privacy': 'PRIVACY.md', 'licenses': 'THIRD-PARTY-NOTICES.txt',
              'chromium': 'CHROMIUM-LICENSES.html', 'sources': 'SOURCES.md'}
     name = names.get(document)
     if name is None:
         raise ValueError('invalid_document')
+    if document == 'privacy' and language == 'en':
+        name = 'PRIVACY.en.md'
     try:
         path = LEGAL / name
         if not getattr(sys, 'frozen', False) and not path.is_file():
@@ -54,7 +57,13 @@ def legal_document(document):
                        'chromium': 'packaging/licenses/CHROMIUM-LICENSES.html',
                        'sources': 'docs/licensing/SOURCES.md'}
             path = SOURCE_ROOT / sources[document]
+            if language == 'en' and document == 'privacy':
+                path = SOURCE_ROOT / 'docs/privacy-policy.en.md'
             if document == 'licenses':
+                if language == 'en':
+                    return name, ('Source checkout: the distribution includes the complete third-party notices.\n\n'
+                                  + (SOURCE_ROOT / 'LICENSE').read_text(encoding='utf-8')
+                                  + '\n\n' + (SOURCE_ROOT / 'docs/licensing/SOURCES.md').read_text(encoding='utf-8'))
                 return name, ('소스 실행 환경: 자체 라이선스와 의존성 검토 안내입니다.\n'
                               '배포물의 전체 고지는 tools/collect_license_notices.py로 생성합니다.\n\n'
                               + (SOURCE_ROOT / 'LICENSE').read_text(encoding='utf-8')
@@ -92,15 +101,22 @@ class Page(QWebEnginePage):
 
 class Controller(QObject):
     restart_requested = Signal()
+    language_changed = Signal(str)
 
     def __init__(self, data, offline=False, read_only=False, parent=None, install_root=None, update_smoke=False,
                  notification_backend=None):
         super().__init__(parent)
         self.store = Store(data / "history.sqlite3")
         self.service = ChatService(self.store)
+        self.language_preference = 'system'
+        self.language = resolve_language()
+        try:
+            self.load_language()
+        except (sqlite3.Error, OSError):
+            self.service.storage_error = True
         backend = notification_backend
         if backend is None and os.name == 'nt' and install_root and not offline:
-            backend = WindowsToast(install_root)
+            backend = WindowsToast(install_root, language=lambda: self.language)
         self.notifications = Notifications(self.service, backend, enabled=not offline or notification_backend is not None)
         if update_smoke and (not offline or not install_root):
             raise ValueError('update_diagnostic_requires_offline_installation')
@@ -127,6 +143,14 @@ class Controller(QObject):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll)
         self.timer.start(100)
+
+    def load_language(self):
+        preference = self.store.setting('language', default='system')
+        if preference not in LANGUAGES:
+            preference = 'system'
+        self.language_preference = preference
+        self.language = resolve_language(preference)
+        self.language_changed.emit(self.language)
 
     def poll(self):
         try:
@@ -206,6 +230,10 @@ class Controller(QObject):
             if self.closed or self.restarting:
                 result['profile_targets'] = []
             result['notification_status'] = self.notifications.snapshot()
+            result['language'] = self.language
+            result['language_preference'] = self.language_preference
+            if args.get('language') != self.language:
+                result['translations'] = ENGLISH if self.language == 'en' else {}
             return result
         if action == 'open_steam_profile':
             if self.closed or self.restarting or self.opening_profile:
@@ -235,6 +263,14 @@ class Controller(QObject):
             self.store.draft(owner, args["lobby"], args["text"])
         elif action == "setting":
             key, value = args["key"], args["value"]
+            if key == 'language':
+                if value not in LANGUAGES:
+                    raise ValueError('invalid_setting')
+                self.store.setting(key, value)  # Publish only after persistence succeeds.
+                self.language_preference = value
+                self.language = resolve_language(value)
+                self.language_changed.emit(self.language)
+                return {"ok": True}
             if key == 'reactions_enabled':
                 self.service.set_reactions_enabled(value)
                 return {"ok": True}
@@ -251,6 +287,8 @@ class Controller(QObject):
             self.service.forget(account, args.get("lobby"))
         elif action == "refresh":
             try:
+                # Restore the saved choice before marking storage as recovered.
+                self.load_language()
                 self.service.recover_storage()
             except (sqlite3.Error, OSError):
                 self.service.storage_error = True
@@ -277,9 +315,9 @@ class Controller(QObject):
                 return {'error': 'update_permission_failed'}
             self.updates.set_allowed(args['allowed'])
         elif action == 'legal':
-            name, text = legal_document(args.get('document'))
+            name, text = legal_document(args.get('document'), self.language)
             dialog = QDialog()
-            dialog.setWindowTitle('개인정보 및 오픈소스 안내')
+            dialog.setWindowTitle(translate('개인정보 및 오픈소스 안내', self.language))
             dialog.resize(760, 620)
             layout = QVBoxLayout(dialog)
             viewer = QTextBrowser(dialog)
@@ -340,7 +378,8 @@ def window(controller):
     channel = QWebChannel(page)
     channel.registerObject("bridge", controller)
     page.setWebChannel(channel)
-    view.setWindowTitle("Bongo Cat Chat · 개발판")
+    view.setWindowTitle(translate('Bongo Cat Chat · 개발판', controller.language))
+    controller.language_changed.connect(lambda language: view.setWindowTitle(translate('Bongo Cat Chat · 개발판', language)))
     view.setWindowIcon(QIcon(str(UI / "app-icon.ico")))
     view.resize(1240, 840)
     view.setMinimumSize(400, 500)
@@ -369,12 +408,12 @@ def run(data, offline=False, read_only=False, smoke_report=None, connection_repo
             smoke_report.write_text(json.dumps({"startup_error": "profile_in_use", "version": __version__,
                                                 "offline": offline}), encoding="utf-8")
         else:
-            QMessageBox.information(None, "Bongo Cat Chat", "이미 실행 중인 앱이 있습니다.")
+            QMessageBox.information(None, "Bongo Cat Chat", translate('이미 실행 중인 앱이 있습니다.', resolve_language()))
         return PROFILE_IN_USE
     try:
         controller = Controller(data, offline, read_only, install_root=install_root, update_smoke=bool(update_smoke_dir))
     except (sqlite3.Error, OSError, RuntimeError):
-        QMessageBox.critical(None, "Bongo Cat Chat", "기록 저장소를 열 수 없습니다. 기존 파일은 보존했습니다.")
+        QMessageBox.critical(None, "Bongo Cat Chat", translate('기록 저장소를 열 수 없습니다. 기존 파일은 보존했습니다.', resolve_language()))
         return 1
     view = window(controller)
     if smoke_report or connection_report:
@@ -393,7 +432,7 @@ def run(data, offline=False, read_only=False, smoke_report=None, connection_repo
                 smoke_report.parent.mkdir(parents=True, exist_ok=True)
                 smoke_report.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
                 app.exit(0 if result and not view.page().console_errors else 2)
-            view.page().runJavaScript("document.querySelector('#connection-notice')?.textContent.includes('오프라인') && document.querySelector('#send-button')?.disabled", report)
+            view.page().runJavaScript("document.documentElement.dataset.notice === 'offline' && document.querySelector('#send-button')?.disabled", report)
         QTimer.singleShot(4000, finish)
     if connection_report:
         started, ready_since = time.monotonic(), [None]
@@ -426,7 +465,7 @@ def run(data, offline=False, read_only=False, smoke_report=None, connection_repo
                 connection_report.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
                 app.exit(0 if ready and result and not payload["send_enabled"] and not payload["console_error_count"] else 2)
 
-            view.page().runJavaScript("document.querySelector('#connection-notice')?.textContent.includes('읽기 전용') && document.querySelector('#send-button')?.disabled", report)
+            view.page().runJavaScript("document.documentElement.dataset.notice === 'read_only' && document.querySelector('#send-button')?.disabled", report)
 
         diagnostic.timeout.connect(inspect_connection)
         diagnostic.start(500)

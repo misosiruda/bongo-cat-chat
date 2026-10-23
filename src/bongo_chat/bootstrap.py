@@ -290,7 +290,7 @@ def main():
             atomic_json(args.smoke_report, {'bootstrap_error': type(exc).__name__})
         else:
             import ctypes
-            ctypes.windll.user32.MessageBoxW(None, '앱이 이미 실행 중이거나 설치를 확인할 수 없습니다. 기존 대화 기록은 보존됩니다.', 'Bongo Cat Chat', 0x10)
+            ctypes.windll.user32.MessageBoxW(None, 'The app is already running, or the installation could not be verified. Existing chat history is preserved.\n\n앱이 이미 실행 중이거나 설치를 확인할 수 없습니다. 기존 대화 기록은 보존됩니다.', 'Bongo Cat Chat', 0x10)
         return 1
 
 
