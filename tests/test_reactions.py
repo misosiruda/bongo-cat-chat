@@ -1,5 +1,6 @@
 """Synthetic reaction packets/assets only. No lobby traffic or game resources."""
 import json
+import sqlite3
 from types import SimpleNamespace as NS
 from uuid import uuid4
 
@@ -7,6 +8,8 @@ import pytest
 
 from bongo_chat.protocol import decode_event, decode, encode, InvalidMessage
 from bongo_chat.reactions import ReactionAssets, MAX_REACTIONS
+from bongo_chat.service import ChatService
+from bongo_chat.store import Store
 from test_core import service, store, state
 
 PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg=='
@@ -19,6 +22,101 @@ def reaction(service, **changes):
 
 def connect(service):
     service.update(state(profiles={'fixture-peer': {'name': '합성 고양이', 'avatar': PNG}}))
+
+
+@pytest.mark.parametrize('enabled', [False, True])
+def test_reaction_setting_defaults_on_and_survives_reopen(tmp_path, enabled):
+    path = tmp_path / 'history.sqlite3'
+    store = Store(path)
+    service = ChatService(store)
+    assert service.view()['reactions_enabled'] is True
+    service.set_reactions_enabled(enabled)
+    store.close()
+    reopened = Store(path)
+    try:
+        assert ChatService(reopened).view()['reactions_enabled'] is enabled
+        assert reopened.db.execute('PRAGMA user_version').fetchone()[0] == 1
+    finally:
+        reopened.close()
+
+
+def test_off_discards_pending_and_inflight_reactions_without_changing_chat(service):
+    connect(service)
+    before = service.view()
+    service.receive_reaction(reaction(service))
+    service.set_reactions_enabled(False)
+    assert not service.reactions
+    service.receive_reaction(reaction(service, kind='emote', image=PNG))
+    assert not service.reactions
+    assert not service.take_reactions(service.context()['lobby'], True)
+    # An asset/IPC reply observed while OFF can arrive after enabling again.
+    delayed = reaction(service, observed=100.1)
+    service.clock = lambda: 100.2
+    service.set_reactions_enabled(True)
+    service.receive_reaction(delayed)
+    assert not service.reactions
+    for kind in ('meow', 'emote'):
+        service.receive_reaction(reaction(service, kind=kind, image=PNG, observed=100.3))
+    # Future observations must still be rejected by the existing boundary.
+    assert not service.reactions
+    service.clock = lambda: 100.4
+    for kind in ('meow', 'emote'):
+        service.receive_reaction(reaction(service, kind=kind, image=PNG, observed=100.3))
+    assert len(service.take_reactions(service.context()['lobby'], True)) == 2
+    after = service.view()
+    assert {key: value for key, value in after.items() if key != 'revision'} == {
+        key: value for key, value in before.items() if key != 'revision'}
+    assert service.store.db.execute('SELECT count(*) FROM messages').fetchone()[0] == 0
+    assert service.store.db.execute('SELECT count(*) FROM receipts').fetchone()[0] == 0
+
+
+@pytest.mark.parametrize('enabled', [False, True])
+def test_reaction_setting_write_failure_preserves_committed_value(service, monkeypatch, enabled):
+    connect(service)
+    service.set_reactions_enabled(enabled)
+    service.receive_reaction(reaction(service))
+    before, pending = service.view(), list(service.reactions)
+
+    def fail(*args, **kwargs):
+        raise sqlite3.OperationalError('synthetic setting write failure')
+
+    with monkeypatch.context() as patch:
+        patch.setattr(service.store, 'setting', fail)
+        with pytest.raises(sqlite3.OperationalError):
+            service.set_reactions_enabled(not enabled)
+    assert service.view() == before
+    assert list(service.reactions) == pending
+    assert service.store.setting('reactions_enabled') is enabled
+
+
+def test_reaction_setting_read_failure_stays_off_until_recovery(store, monkeypatch):
+    store.setting('reactions_enabled', False)
+    original = store.setting
+
+    def read(key, *args, **kwargs):
+        if key == 'reactions_enabled':
+            raise sqlite3.OperationalError('synthetic setting read failure')
+        return original(key, *args, **kwargs)
+
+    monkeypatch.setattr(store, 'setting', read)
+    service = ChatService(store, clock=lambda: 100)
+    connect(service)
+    assert service.storage_error
+    assert service.view()['reactions_enabled'] is False
+    service.receive_reaction(reaction(service))
+    assert not service.reactions
+    monkeypatch.setattr(store, 'setting', original)
+    service.recover_storage()
+    assert not service.storage_error
+    assert service.reactions_enabled is False
+
+
+@pytest.mark.parametrize('value', ['false', 0, 1, [], {}, None])
+def test_reaction_setting_rejects_non_boolean_values(service, value):
+    with pytest.raises(ValueError, match='invalid_setting'):
+        service.set_reactions_enabled(value)
+    assert service.reactions_enabled is True
+    assert service.store.setting('reactions_enabled') is None
 
 
 @pytest.mark.parametrize('item', ['1','927','2147483647'])

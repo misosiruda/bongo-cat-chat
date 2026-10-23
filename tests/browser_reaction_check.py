@@ -24,7 +24,11 @@ class Reactions(Fixture):
         self.poll()
 
     def request(self,raw):
-        result=json.loads(super().request(raw));args=json.loads(raw)
+        args=json.loads(raw)
+        if args['action']=='setting' and args['key']=='reactions_enabled':
+            self.service.set_reactions_enabled(args['value'])
+            return json.dumps({'ok':True})
+        result=json.loads(super().request(raw))
         if args['action']=='view' and 'reactions' in args:
             result['reactions']=self.service.take_reactions(result['lobby'],args['reactions'] and not args.get('query'))
         return json.dumps(result,ensure_ascii=False)
@@ -33,6 +37,43 @@ class Reactions(Fixture):
         for i in range(count):
             self.service.receive_reaction(reaction(self.service,kind=kind,avatar=self.assets['cat'],
                 image=self.assets['item'] if i%2 else self.assets['rocket']))
+
+
+def check_reaction_setting(f, output):
+    page=f.page
+    page.emulate_media(reduced_motion='no-preference',color_scheme='light')
+    page.set_viewport_size({'width':1280,'height':800})
+    f.emit(2);expect(page.locator('.reaction-particle')).to_have_count(2)
+    before=f.snapshot()
+    page.locator('#settings-button').click()
+    control=page.locator('#reactions-enabled')
+    expect(control).to_be_checked()
+    control.focus();page.keyboard.press('Space')
+    expect(control).to_be_enabled();expect(control).not_to_be_checked()
+    expect(control).to_be_focused()
+    expect(page.locator('.reaction-particle')).to_have_count(0)
+    assert f.store.setting('reactions_enabled') is False
+    f.emit(10);f.emit(10,kind='meow');f.poll()
+    assert page.locator('.reaction-particle').count()==0 and not f.service.reactions
+    page.screenshot(path=str(output/'settings-reactions-off-wide.png'))
+    page.set_viewport_size({'width':390,'height':740})
+    page.emulate_media(color_scheme='dark')
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    expect(control).to_be_in_viewport()
+    expect(page.get_by_role('button',name='설정 닫기')).to_be_in_viewport()
+    page.screenshot(path=str(output/'settings-reactions-off-narrow-dark.png'))
+    # The product commits the check state only after the native save reply.
+    control.click();expect(control).to_be_checked();expect(control).to_be_enabled()
+    assert f.store.setting('reactions_enabled') is True
+    assert page.locator('.reaction-particle').count()==0
+    page.get_by_role('button',name='설정 닫기').click()
+    page.set_viewport_size({'width':1280,'height':800})
+    f.poll();same_anchor(before,f.snapshot())
+    f.emit(1);f.emit(1,kind='meow')
+    expect(page.locator('.reaction-item')).to_have_count(1)
+    expect(page.locator('.reaction-meow')).to_have_count(1)
+    expect(page.locator('#message-input')).to_have_value('반응이 떠도 계속 쓰는 초안')
+    expect(page.locator('.reaction-particle')).to_have_count(0)
 
 
 def check_continuous_replacement(f, output):
@@ -140,11 +181,12 @@ def main():
                 assert particle.evaluate('(el)=>getComputedStyle(el).animationDuration')=='2.2s'
                 page.wait_for_timeout(500);page.screenshot(path=str(args.output/'real-items-dark-reduced.png'))
                 expect(particle).to_have_count(0)
+                check_reaction_setting(f,args.output)
                 assert not f.errors and not f.warnings,(f.errors,f.warnings)
                 assert f.store.db.execute('SELECT count(*) FROM messages').fetchone()[0]==60
                 print(json.dumps(dict(passed=True,channel=args.channel,real_local_assets=bool(args.assets),
                     repeated=6,burst=100,peak=24,narrow_peak=10,continuous=continuous,
-                    history=60,errors=f.errors,warnings=f.warnings)))
+                    history=60,reaction_setting=True,errors=f.errors,warnings=f.warnings)))
             finally:f.close();browser.close()
     finally:server.shutdown();server.server_close();thread.join()
 

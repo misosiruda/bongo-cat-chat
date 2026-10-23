@@ -14,6 +14,17 @@
 
 dev14의 4~12개 상한과 새 입력 폐기 정책은 연속 입력 중 기존 파티클이 사라질 때까지 표시가 끊기는 원인이었다. 후속 소스는 상한을 두 배로 늘리고 최신 입력을 우선한다. 화면 조회 주기 600ms는 유지하므로 같은 조회에서 받은 반응은 함께 나타날 수 있다.
 
+## 반응 효과 ON/OFF
+
+2026-10-23 후속 소스는 **설정 → 고양이 반응 효과 → 이모티콘·야옹 효과 표시**를 제공한다. 이 설정은 고양이와 함께 올라오는 이모티콘·클릭 울음 전체에 적용하며 기본값은 ON이다. 이 기기의 기존 SQLite `settings` 테이블에 bool `reactions_enabled`로 저장하고 앱을 다시 실행해도 유지한다. DB 스키마 변경이나 별도 마이그레이션은 없다.
+
+- OFF를 선택하면 화면의 파티클과 정리 타이머를 즉시 제거한다. 저장에 성공하면 서비스의 대기 반응도 비우고 이후 반응을 폐기한다.
+- ON으로 다시 바꾼 시각보다 먼저 수신한 반응은 자원 준비·프로세스 간 전달이 늦어져도 표시하지 않는다. 설정 변경 전의 늦은 화면 조회 응답도 무시한다.
+- 저장 중에는 중복 조작을 막고 저장 성공 후 값을 확정한다. 실패하면 이전 설정과 체크 상태를 유지하고 오류를 표시한다. 시작 시 설정을 읽지 못하면 OFF 상태로 보류하며 저장소 복구 시 다시 읽는다. 키가 없는 기존 사용자만 기본 ON을 적용한다.
+- 일반 대화 수신·저장, 메시지 알림, 초안·검색·스크롤과 게임의 반응 동작은 이 설정으로 변경하지 않는다. 아이템 송신이나 파일 업로드를 추가하는 기능이 아니다.
+
+이 옵션은 앱 화면의 표시 설정이다. 게임 작업자의 패킷 수신·자원 준비를 중지하거나 게임에서 사용한 아이템을 취소하지 않는다. 공개 설치본 반영은 별도 배포 단계다.
+
 ## 확인한 게임 계약
 
 설치 게임 빌드 `25936063`을 파일 읽기와 Steam 아이템 정의 조회로 확인했다. 게임 어셈블리를 실행하거나 수정하지 않았다.
@@ -56,3 +67,13 @@ dev14의 4~12개 상한과 새 입력 폐기 정책은 연속 입력 중 기존 
 - 기존 60개 메시지·초안·스크롤 위치 보존, 숨김·검색·움직임 줄이기·다크 테마, 반응 만료 후 재생 없음, Edge JavaScript 오류·경고 0건을 확인했다. 순간 24개를 넘는 입력은 최신 항목만 유지하므로 모든 과부하 입력의 표시를 보장하지 않는다.
 
 이번 검사는 게임 실행·실사용 로비 송신 없이 진행했다. 실제 게임 이미지의 변경 후 중첩 가독성, 설치본 교체, 실제 로비 인수와 장시간 성능 측정은 포함하지 않는다. 게시된 dev14 릴리스 노트와 기존 검증 수치는 수정하지 않는다.
+
+### 2026-10-23 반응 효과 설정
+
+- 배포 검수 단계에서 같은 Qt 조건에 `BONGO_TEST_NSIS_PATH=dist/tooling/nsis-3.13`을 지정하고 `.venv/Scripts/python.exe -m pytest -q --tb=short --junitxml=artifacts/reaction-settings/full-pytest.xml`을 실행했다. **679 passed (145.84s), 실패·오류·건너뜀 0개**이며 실제 NSIS 컴파일러 검사를 포함한다. `.venv/Scripts/python.exe -m pip check`, `node --check src/bongo_chat/ui/app.js`, `git diff --check`도 통과했다. 원격 CI·서명 후보·공개 배포 결과와 구분한다.
+- `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu` 조건에서 `.venv/Scripts/python.exe -m pytest -q tests/test_reactions.py tests/test_reaction_desktop.py tests/test_core.py tests/test_desktop.py tests/test_notification_desktop.py tests/test_notifications.py --tb=short --junitxml=artifacts/reaction-settings/pytest.xml`: **242 passed (56.40s)**. 관련 회귀 검사이며 전체 테스트 모음·패키징 검사는 아니다. Qt `SharedImageManager` 진단 출력은 있었으나 테스트 실패와 페이지 JavaScript 오류는 없었다.
+- 기본 ON, ON/OFF 저장 후 SQLite 재열기, 스키마 버전 유지, 잘못된 입력 타입 거절, 시작 시 설정 읽기 실패·복구, 양방향 저장 실패의 이전 값 유지, OFF 중 반응 폐기와 늦은 자원/IPC 반응의 재활성화 후 차단을 확인했다.
+- 실제 Qt HTML/QWebChannel/Controller에서 두 반응 종류의 표시·즉시 제거·재활성화, 화면 재로드 후 OFF·초안 유지, 저장 오류 안내와 재시도, 설정 변경 전 지연된 화면 응답의 재생 차단을 확인했다. 저장 중 체크박스를 비활성화해 잃는 키보드 초점은 저장 후 같은 컨트롤로 복원한다. 다른 곳으로 옮긴 초점이나 닫은 설정창은 다시 열지 않는다.
+- `.venv/Scripts/python.exe tests/browser_reaction_check.py --channel msedge --output artifacts/reaction-settings/browser`: **통과**, 합성 PNG 사용, JavaScript 오류·경고 **0건**. 키보드 Space 조작, 1280px 라이트·390px 다크 설정 화면, 닫기 버튼 접근, OFF 중 이모티콘·울음 각 10개 폐기, 다시 켠 뒤 새 반응만 표시, 기존 60개 메시지·초안·스크롤 보존을 확인했다. 기존 동시 표시·연속 반응·검색·숨김·움직임 줄이기 검사도 통과했다.
+
+화면 캡처와 JUnit 결과는 Git 제외 경로 `artifacts/reaction-settings/`에 보관한다. 게임·Steam 작업자 실행, 실사용 로비 송신, 기존 사용자 데이터 변경, 설치본 교체·릴리스 게시는 수행하지 않았다. 실제 게임 수신과 설치판 인수는 별도다.
