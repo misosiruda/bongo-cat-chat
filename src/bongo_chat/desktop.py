@@ -235,6 +235,9 @@ class Controller(QObject):
             self.store.draft(owner, args["lobby"], args["text"])
         elif action == "setting":
             key, value = args["key"], args["value"]
+            if key == 'reactions_enabled':
+                self.service.set_reactions_enabled(value)
+                return {"ok": True}
             if key in NOTIFICATION_KEYS:
                 self.service.set_notification(key, value)
                 self.notifications.settings_changed(key, value)

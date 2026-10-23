@@ -3,7 +3,7 @@ from collections import deque
 import time
 
 REACTION_TTL = 1.2  # Decode/IPC grace, not an animation or replay queue.
-MAX_REACTIONS = 12
+MAX_REACTIONS = 24
 
 
 def png(value):
@@ -17,8 +17,8 @@ class ReactionAssets:
         self.pending = deque(maxlen=MAX_REACTIONS)
 
     def add(self, event):
-        if len(self.pending) < MAX_REACTIONS:
-            self.pending.append(dict(event))
+        # The bounded deque replaces the oldest pending reaction under load.
+        self.pending.append(dict(event))
 
     def ready(self, state, steam, avatars):
         now = self.clock()

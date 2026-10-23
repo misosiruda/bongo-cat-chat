@@ -41,6 +41,8 @@ class ChatService:
         self.revision = 0
         self.reactions = deque(maxlen=MAX_REACTIONS)
         self.reaction_receipts = deque(maxlen=256)
+        self.reactions_enabled = False
+        self.reactions_enabled_since = self.clock()
         # Keep the last committed values available even if a later DB read fails.
         # An unreadable setting is not a missing key: never turn a saved OFF
         # into ON while the DB is unavailable. Load both values atomically.
@@ -49,6 +51,28 @@ class ChatService:
             self.load_notifications()
         except (sqlite3.Error, OSError):
             self.storage_error = True
+        try:
+            self.load_reaction_setting()
+        except (sqlite3.Error, OSError):
+            self.storage_error = True
+
+    def apply_reaction_setting(self, value):
+        if self.reactions_enabled != value:
+            self.reactions.clear()
+            # Worker assets/IPC may still contain events observed while OFF.
+            self.reactions_enabled_since = self.clock()
+        self.reactions_enabled = value
+
+    def load_reaction_setting(self):
+        value = self.store.setting('reactions_enabled', default=True)
+        self.apply_reaction_setting(value if type(value) is bool else False)
+
+    def set_reactions_enabled(self, value):
+        if type(value) is not bool:
+            raise ValueError('invalid_setting')
+        self.store.setting('reactions_enabled', value)
+        self.apply_reaction_setting(value)
+        self.revision += 1
 
     def load_notifications(self):
         values = {}
@@ -77,6 +101,7 @@ class ChatService:
         if self.session:
             self.store.session(self.session, self.state['account'], self.state['lobby'], self.state.get('name') or '게임 로비')
         self.load_notifications()
+        self.load_reaction_setting()
         self.storage_error = False
 
     def save_message(self, row, receipt=None):
@@ -236,7 +261,8 @@ class ChatService:
 
     def reaction_allowed(self, event):
         sender = event["sender"]
-        return (self.verified() and event["context"] == self.context()
+        return (self.reactions_enabled and event["observed"] >= self.reactions_enabled_since
+                and self.verified() and event["context"] == self.context()
                 and sender in self.state.get("profiles", {})
                 and (sender == self.state.get("account") or sender in self.allowed())
                 and 0 <= self.clock() - event["observed"] < REACTION_TTL)
@@ -248,8 +274,7 @@ class ChatService:
                 or event["kind"] == "meow" and not is_meow_message(event.get("text", ""))):
             return
         self.reaction_receipts.append(event["id"])
-        if len(self.reactions) < MAX_REACTIONS:
-            self.reactions.append(event)
+        self.reactions.append(event)  # Keep the newest bounded batch for the UI.
 
     def take_reactions(self, lobby, enabled):
         events = list(self.reactions)
@@ -302,6 +327,7 @@ class ChatService:
                 "storage_error": self.storage_error, "revision": self.revision,
                 "theme": theme, "collapsed": collapsed,
                 "notifications": dict(self.notifications),
+                "reactions_enabled": self.reactions_enabled,
                 "lobby": lobby, "has_more": page['has_more'], "has_newer": page['has_newer'],
                 "latest_seq": page['latest_seq'], "unseen": page['unseen'], "unseen_seq": page['unseen_seq'],
                 "volatile_peer_ids": [r['id'] for r in visible_volatile if not r['own']]}

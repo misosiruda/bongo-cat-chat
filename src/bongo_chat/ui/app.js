@@ -11,6 +11,7 @@
   const notificationSettings = {notification_flash:true,notification_toast:true};
   const notificationPending = new Set();
   const notificationControls = {notification_flash:'notification-flash',notification_toast:'notification-toast'};
+  let reactionsEnabled = false, reactionSettingPending = false;
   let restartPlan = null, restarting = false, lastEdit = 0;
   let openingProfile = false, participantsSignature = '';
   let start = null, seenSeq = null, loadingHistory = false, restoring = false;
@@ -19,30 +20,38 @@
   let reactionContext = '', reactionLane = 0;
   const activeReactions = new Map();
   const reactionIds = new Set();
+  function removeReaction(el) {
+    clearTimeout(activeReactions.get(el)); activeReactions.delete(el); el.remove();
+  }
+  function trimReactions(limit) {
+    while (activeReactions.size > limit) removeReaction(activeReactions.keys().next().value);
+  }
   function clearReactions() {
-    for (const [el, timer] of activeReactions) {clearTimeout(timer); el.remove();}
-    activeReactions.clear();
+    trimReactions(0);
   }
   function renderReactions(data) {
     const context = JSON.stringify(data.context);
     if (context !== reactionContext) {clearReactions(); reactionIds.clear(); reactionContext = context;}
     const layer = $('reaction-layer');
-    if (document.hidden || query || switching || !data.connected || !data.lobby_verified || data.lobby !== data.context.lobby) {
+    if (!reactionsEnabled || reactionSettingPending || document.hidden || query || switching || !data.connected || !data.lobby_verified || data.lobby !== data.context.lobby) {
       clearReactions(); return;
     }
-    for (const [el, timer] of activeReactions) {
-      if (!data.profiles[el.dataset.sender]) {clearTimeout(timer); el.remove(); activeReactions.delete(el);}
+    for (const el of activeReactions.keys()) {
+      if (!data.profiles[el.dataset.sender]) removeReaction(el);
     }
     const width = layer.clientWidth;
-    const cap = Math.min(12, Math.max(4, Math.floor(width / 70)));
+    const cap = Math.min(24, Math.max(8, Math.floor(width / 70) * 2));
+    trimReactions(cap); // Also enforce a smaller viewport without new input.
     for (const event of data.reactions || []) {
       if (reactionIds.has(event.id)) continue;
       reactionIds.add(event.id);
       if (reactionIds.size > 256) reactionIds.delete(reactionIds.values().next().value);
       // A delayed bridge reply must not resurrect an old reaction.
       if (!(event.expires_in_ms > performance.now() - data.reactionRequestedAt)) continue;
-      if (activeReactions.size >= cap || !data.profiles[event.sender] || !event.avatar?.startsWith('data:image/png;base64,')) continue;
+      if (!data.profiles[event.sender] || !event.avatar?.startsWith('data:image/png;base64,')) continue;
       if (event.kind !== 'meow' && (event.kind !== 'emote' || !event.image?.startsWith('data:image/png;base64,'))) continue;
+      // Admit fresh valid input immediately; never wait for a full layer to expire.
+      trimReactions(cap - 1);
       const el = node('div', 'reaction-particle'); el.dataset.sender = event.sender;
       const cat = node('img', 'reaction-cat'); cat.src = event.avatar; cat.alt = '';
       let reaction;
@@ -58,7 +67,7 @@
       el.style.left = `${Math.max(8, Math.min(width - 132, left))}px`;
       el.style.setProperty('--reaction-drift', `${Math.random() * 20 - 10}px`);
       el.style.setProperty('--reaction-rise', `${Math.min(245, Math.max(100, layer.clientHeight - 75)) * (.85 + Math.random() * .15)}px`);
-      const remove = () => {clearTimeout(activeReactions.get(el)); activeReactions.delete(el); el.remove();};
+      const remove = () => removeReaction(el);
       el.addEventListener('animationend', remove, {once:true});
       cat.addEventListener('error', remove, {once:true}); reaction.addEventListener('error', remove, {once:true});
       activeReactions.set(el, setTimeout(remove, 2400)); layer.append(el);
@@ -431,6 +440,10 @@
   function render(data, resetDraft) {
     const position=pendingPosition || capturePosition();
     model = data;
+    if (!reactionSettingPending) {
+      reactionsEnabled = data.reactions_enabled === true;
+      $('reactions-enabled').checked = reactionsEnabled;
+    }
     for (const [key,id] of Object.entries(notificationControls)) {
       if (!notificationPending.has(key)) {
         notificationSettings[key] = data.notifications?.[key] !== false;
@@ -498,7 +511,7 @@
     refreshing++;
     try {
       const reactionRequestedAt = performance.now();
-      let data = await rpc('view',viewArgs({reactions:!document.hidden && !query && !switching}));
+      let data = await rpc('view',viewArgs({reactions:reactionsEnabled && !reactionSettingPending && !document.hidden && !query && !switching}));
       data.reactionRequestedAt = reactionRequestedAt;
       if (version !== requestVersion) return;
       let reset = !model || data.lobby !== model.lobby;
@@ -568,6 +581,25 @@
     $('refresh-button').addEventListener('click',()=>rpc('refresh').then(()=>refresh()).catch(showError));
     $('check-updates').addEventListener('click',()=>rpc('check_updates').then(()=>refresh(true)).catch(showError));
     $('allow-update-checks').addEventListener('change',event=>rpc('update_permission',{allowed:event.target.checked}).then(()=>refresh(true)).catch(error=>{showError(error);refresh(true);}));
+    $('reactions-enabled').addEventListener('change',async()=>{
+      if (reactionSettingPending) return;
+      const control=$('reactions-enabled'), value=control.checked;
+      const hadFocus=document.activeElement===control;
+      reactionSettingPending=true; requestVersion++; control.disabled=true; control.checked=reactionsEnabled;
+      clearReactions();
+      $('reaction-save-status').textContent='반응 효과 설정을 저장하고 있어요.';
+      try {
+        await rpc('setting',{key:'reactions_enabled',value});
+        reactionsEnabled=value;
+        if (model) model.reactions_enabled=value;
+        $('reaction-save-status').textContent='반응 효과 설정을 저장했어요.';
+      } catch(error) {
+        $('reaction-save-status').textContent='반응 효과 설정을 저장하지 못해 이전 값으로 되돌렸어요. 다시 시도해 주세요.';
+      } finally {
+        requestVersion++; control.checked=reactionsEnabled; control.disabled=false; reactionSettingPending=false;
+        if (hadFocus && document.activeElement===document.body && $('settings-dialog').open) control.focus();
+      }
+    });
     for (const [key,id] of Object.entries(notificationControls)) $(id).addEventListener('change',async()=>{
       if (notificationPending.has(key)) return;
       const control=$(id), value=control.checked, previous=notificationSettings[key];
