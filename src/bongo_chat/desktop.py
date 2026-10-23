@@ -108,14 +108,12 @@ class Controller(QObject):
         super().__init__(parent)
         self.store = Store(data / "history.sqlite3")
         self.service = ChatService(self.store)
+        self.language_preference = 'system'
+        self.language = resolve_language()
         try:
-            self.language_preference = self.store.setting('language', default='system')
+            self.load_language()
         except (sqlite3.Error, OSError):
-            self.language_preference = 'system'
             self.service.storage_error = True
-        if self.language_preference not in LANGUAGES:
-            self.language_preference = 'system'
-        self.language = resolve_language(self.language_preference)
         backend = notification_backend
         if backend is None and os.name == 'nt' and install_root and not offline:
             backend = WindowsToast(install_root, language=lambda: self.language)
@@ -145,6 +143,14 @@ class Controller(QObject):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.poll)
         self.timer.start(100)
+
+    def load_language(self):
+        preference = self.store.setting('language', default='system')
+        if preference not in LANGUAGES:
+            preference = 'system'
+        self.language_preference = preference
+        self.language = resolve_language(preference)
+        self.language_changed.emit(self.language)
 
     def poll(self):
         try:
@@ -281,6 +287,8 @@ class Controller(QObject):
             self.service.forget(account, args.get("lobby"))
         elif action == "refresh":
             try:
+                # Restore the saved choice before marking storage as recovered.
+                self.load_language()
                 self.service.recover_storage()
             except (sqlite3.Error, OSError):
                 self.service.storage_error = True

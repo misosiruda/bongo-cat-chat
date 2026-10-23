@@ -2,6 +2,8 @@
 
 ## 2026-10-23 한·영 UI와 영문 README
 
+PR #36 코드 리뷰의 저장소 복구 지적을 반영했다. 저장된 English 설정을 두고 최초 조회를 실패시키는 검사에서 새로고침이 오류를 잘못 해제하는 실패를 먼저 재현했다. 복구 시 언어를 다시 읽고, 실패 중에는 저장 오류·기존 값을 유지하며, 성공 시 저장된 언어와 Qt signal/view를 복원하도록 수정했다. 소프트웨어 렌더링 조건의 `pytest tests/test_localization.py tests/test_desktop.py -q --junitxml=artifacts/release-dev16/review-fix.xml`은 **55 passed / 49.63초**였다. Qt offscreen의 SharedImageManager 진단은 남았으며 기본 GPU 경로 인수와 구분한다.
+
 dev16 준비 시 번역·고지 생성 검사를 다시 실행했다. `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu` 조건의 `.venv/Scripts/python.exe -X utf8 -m pytest tests/test_localization.py tests/test_distribution.py -q --junitxml=artifacts/release-dev16/focused.xml`은 **31 passed / 6.39초**였다. 배포 번역표와 영어 개인정보 고지의 소스 일치 검사를 추가했으며 실제 동결 파일 검증 결과는 빌드 단계와 구분한다.
 
 사용자가 선택한 한·영 UI와 영문 README 범위를 `feat/english-localization`의 로컬 소스에 구현했다. [번역 범위](localization.md)와 D-029/FR-19를 따른다. 187개 영어 문구, 로컬 언어 선택·저장·복구, 영문 README와 개인정보 고지를 추가했다. 대화·이름·초안은 원문을 유지하고, 공개 배포와 설치본 적용은 수행하지 않았다.

@@ -138,6 +138,9 @@ def test_system_default_and_explicit_choice_survive_controller_restart(tmp_path,
 def test_unreadable_language_setting_keeps_app_available_with_storage_error(tmp_path,monkeypatch):
     from PySide6.QtWidgets import QApplication
     app=QApplication.instance() or QApplication([])
+    store=Store(tmp_path/'history.sqlite3')
+    store.setting('language','en')
+    store.close()
     original=Store.setting
     def fail(self,key,value=None,default=None):
         if key=='language':raise sqlite3.OperationalError('synthetic read failure')
@@ -145,8 +148,20 @@ def test_unreadable_language_setting_keeps_app_available_with_storage_error(tmp_
     monkeypatch.setattr(Store,'setting',fail)
     controller=Controller(tmp_path,offline=True)
     try:
+        changed=[]
+        controller.language_changed.connect(changed.append)
         assert controller.language=='ko' and controller.language_preference=='system'
         result=controller.dispatch({'action':'view'})
         assert result['storage_error'] and not result['can_send']
+        controller.dispatch({'action':'refresh'})
+        assert controller.service.storage_error and controller.language=='ko'
+        assert original(controller.store,'language')=='en' and not changed
+        monkeypatch.setattr(Store,'setting',original)
+        controller.dispatch({'action':'refresh'})
+        assert not controller.service.storage_error
+        assert controller.language=='en' and controller.language_preference=='en'
+        assert changed==['en']
+        result=controller.dispatch({'action':'view','language':'ko'})
+        assert result['language']=='en' and result['translations']==ENGLISH
     finally:controller.close()
     app.processEvents()
