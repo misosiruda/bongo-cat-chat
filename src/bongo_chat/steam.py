@@ -116,12 +116,12 @@ class Steam:
     def room_name(self, lobby):
         value = self.bind("ISteamMatchmaking_GetLobbyData", C.c_char_p, C.c_void_p, C.c_uint64, C.c_char_p)(
             self.matchmaking, int(lobby), b"LOBBY_NAME")
-        return self.text(value) or "게임 로비"
+        return self.text(value)
 
     def profile(self, lobby, uid):
         nickname = self.bind("ISteamFriends_GetPlayerNickname", C.c_char_p, C.c_void_p, C.c_uint64)(self.friends, int(uid))
         persona = self.bind("ISteamFriends_GetFriendPersonaName", C.c_char_p, C.c_void_p, C.c_uint64)(self.friends, int(uid))
-        row = {"name": self.text(nickname or persona) or "이름 확인 중"}
+        row = {"name": self.text(nickname or persona)}
         for slot in ("hat", "skin"):
             value = self.bind("ISteamMatchmaking_GetLobbyMemberData", C.c_char_p, C.c_void_p, C.c_uint64, C.c_uint64, C.c_char_p)(
                 self.matchmaking, int(lobby), int(uid), slot.encode())

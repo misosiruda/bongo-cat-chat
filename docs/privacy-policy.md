@@ -1,5 +1,9 @@
 # Privacy policy / 개인정보 처리 안내
 
+[English privacy policy](privacy-policy.en.md) · 한국어
+
+2026-10-23 후속 소스는 앱 표시 언어 선택을 로컬 settings에 저장한다. 시스템 설정은 Windows 표시 언어를 기준으로 한국어 또는 영어를 선택한다. 번역은 앱에 포함된 문구로만 처리하며 대화·초안·이용자 이름·로비 이름을 번역 서비스에 보내거나 자동 번역하지 않는다.
+
 기준: 2026-10-14, `0.1.0.dev7` 기반의 이번 서명 준비 변경. 독립 개발자가 유지하는 비공식 Bongo Cat 보조 프로그램이다. 문의는 [프로젝트 이슈](https://github.com/misosiruda/bongo-cat-chat/issues)를 사용한다. 공개 이슈에 대화 원문, 계정·로비 식별정보를 올리지 않는다.
 
 ## 로컬 기록과 게임 연동

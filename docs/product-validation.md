@@ -1,5 +1,21 @@
 # Windows 개발판 검증 기록
 
+## 2026-10-23 한·영 UI와 영문 README
+
+dev16 준비 시 번역·고지 생성 검사를 다시 실행했다. `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu` 조건의 `.venv/Scripts/python.exe -X utf8 -m pytest tests/test_localization.py tests/test_distribution.py -q --junitxml=artifacts/release-dev16/focused.xml`은 **31 passed / 6.39초**였다. 배포 번역표와 영어 개인정보 고지의 소스 일치 검사를 추가했으며 실제 동결 파일 검증 결과는 빌드 단계와 구분한다.
+
+사용자가 선택한 한·영 UI와 영문 README 범위를 `feat/english-localization`의 로컬 소스에 구현했다. [번역 범위](localization.md)와 D-029/FR-19를 따른다. 187개 영어 문구, 로컬 언어 선택·저장·복구, 영문 README와 개인정보 고지를 추가했다. 대화·이름·초안은 원문을 유지하고, 공개 배포와 설치본 적용은 수행하지 않았다.
+
+- 전체 `.venv/Scripts/python.exe -X utf8 -m pytest -q`: **686 passed, 5 skipped / 202.51초**. 건너뛴 5개는 NSIS 경로 환경 변수가 없는 설치기 통합 검사였다. 이후 `BONGO_TEST_NSIS_PATH=dist/tooling/nsis-3.13`의 절대 경로를 지정해 해당 5개만 실행하여 **5 passed / 30.29초**를 확인했다. 처음에는 실행 파일 경로를 지정해 경로 해석에 실패했으며, 컴파일러 폴더로 수정한 후 통과했다. 실제 인증서·기존 설치본 대신 격리된 fixture와 서명 test double을 사용한다.
+- 후속 영어 고지 검사를 추가한 집중 실행: `tests/test_localization.py`, `test_notice_collection_keeps_licences_and_excludes_unused_fmod`, 한·영 토스트 XML 검사 **15 passed / 2.73초**. 최종 언어 선택 키보드 포커스 복원 변경 후 `tests/test_localization.py` **12 passed / 1.63초**. 이 후속 검사 수를 전체 suite 결과에 합산하지 않는다.
+- 시작 시 언어 설정 읽기 실패가 앱 시작 전체를 막지 않도록 보완한 뒤 `tests/test_localization.py tests/test_desktop.py` 최종 집중 검사 **55 passed / 54.80초**를 확인했다. 저장 오류 상태·송신 차단을 유지하면서 시스템 언어로 화면을 열고 기존 값을 덮어쓰지 않는다.
+- Qt 실제 bridge·SQLite·렌더러: 시스템 언어 선택, 한↔영 전환, 창 제목, 재로드·Controller 재생성 후 유지, 저장 실패·잘못된 값 거부, 원문 이름/본문/초안과 검색 유지, 선택 제어의 포커스 복원을 검사했다. 기존 UI·반응·알림·프로필 집중 검사 72개도 통과했다.
+- Chrome/Playwright의 합성 제품 화면: `tests/browser_localization_check.py`로 1240×840·960×540·400×500, 라이트·다크 설정창 **6개 조합**, 대화 및 설정의 수평 넘침·고정 닫기 버튼·삭제 확인 접근을 확인했다. 초기 화면·제목·주소 일치, 빈 화면/오류 오버레이 없음, **콘솔 오류 0개**, 언어 전환 뒤 읽던 메시지 앵커 오차 **0px**. 설정 저장 실패와 오프라인·연결 확인·읽기 전용·숨김 확인·미지원 게임·작업자 종료 및 업데이트 진행/실패/롤백 문구를 확인했다.
+- 영어 선택을 저장한 별도 데이터 폴더에서 `python -m bongo_chat --offline --data-dir <격리 폴더> --smoke-report <검증 파일>`를 실행했다. **exit 0, renderer=true, console_errors=[], offline=true, steam_connected=false**였다. Qt offscreen의 GPU context/shared-image 진단 로그가 발생했으며, 이 결과를 실제 Windows GPU 화면 인수로 확대하지 않는다. 제품 GPU 설정은 변경하지 않았다.
+- `git diff --check`와 새 문서의 로컬 링크 검사를 통과했다. 스크린샷·JUnit·오프라인 DB는 저장소 밖의 현재 작업 검증 폴더에 보관하며, 합성 자료만 사용했다.
+
+게임 실행·실사용 송신·게임/Steam 종료·기존 사용자 DB 변경은 수행하지 않았다. 설치 마법사는 한국어를 유지한다. 공개 바이너리 빌드·코드 서명·릴리스 게시·실제 로비·영어 Windows 설치본·다른 PC 인수는 남아 있다.
+
 ## 2026-10-21 고양이 반응 파티클
 
 사용자 승인 시안의 아래→위 2.2초 효과를 제품 수신·Qt 채팅창에 연결했다. 실제 게임 코드의 채널 6과 아이템 아이콘 참조, Steam 아이템 정의, 설치 게임의 스킨·모자·아이콘 이미지 읽기를 확인했다. 상세 범위와 재현 방법은 [반응 검증](reaction-particles.md), 식별정보 없는 수치는 [검증 데이터](evidence/2026-10-21-reaction-particles.json)에 기록한다.

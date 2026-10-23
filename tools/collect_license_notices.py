@@ -68,6 +68,7 @@ def collect(output):
         sections.extend([path.name, path.read_text(encoding="utf-8")])
     shutil.copyfile(ROOT / "LICENSE", output / "LICENSE.txt")
     shutil.copyfile(ROOT / "docs/privacy-policy.md", output / "PRIVACY.md")
+    shutil.copyfile(ROOT / "docs/privacy-policy.en.md", output / "PRIVACY.en.md")
     shutil.copyfile(ROOT / "docs/licensing/SOURCES.md", output / "SOURCES.md")
     for name in ('sources.lock.json', 'CHROMIUM-LICENSES.html'):
         shutil.copyfile(ROOT / 'packaging/licenses' / name, output / name)

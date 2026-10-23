@@ -76,16 +76,17 @@ def test_runtime_never_creates_missing_or_changes_foreign_shortcut(installation,
     app.processEvents()
 
 
-def test_native_toast_builds_fixed_real_xml_and_respects_os(monkeypatch):
+@pytest.mark.parametrize('language,text', [('ko','새 메시지가 도착했어요.'),('en','You have a new message.')])
+def test_native_toast_builds_fixed_real_xml_and_respects_os(monkeypatch,language,text):
     app = QApplication.instance() or QApplication([])
     from winrt.windows.ui.notifications import NotificationSetting
-    adapter = native.WindowsToast(None)
+    adapter = native.WindowsToast(None,language=lambda:language)
     notifier = SimpleNamespace(setting=NotificationSetting.ENABLED, show=Mock())
     monkeypatch.setattr(adapter, 'prepare', lambda: notifier)
     assert adapter.show() == 'sent'
     toast = notifier.show.call_args.args[0]
     assert toast.tag == native.TOAST_TAG and toast.group == native.TOAST_GROUP
-    assert '새 메시지가 도착했어요.' in toast.content.get_xml()
+    assert text in toast.content.get_xml()
     assert toast.expiration_time is not None
     notifier.setting = NotificationSetting.DISABLED_FOR_APPLICATION
     assert adapter.show() == 'disabled'

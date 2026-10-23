@@ -99,7 +99,7 @@ class ChatService:
     def recover_storage(self):
         self.store.prune()
         if self.session:
-            self.store.session(self.session, self.state['account'], self.state['lobby'], self.state.get('name') or '게임 로비')
+            self.store.session(self.session, self.state['account'], self.state['lobby'], self.state.get('name') or '')
         self.load_notifications()
         self.load_reaction_setting()
         self.storage_error = False
@@ -139,7 +139,7 @@ class ChatService:
         self.updated = self.clock()
         if state.get("account") and state.get("lobby") and state.get("generation") and not self.session:
             self.session = str(uuid4())
-            self.write(self.store.session, self.session, state["account"], state["lobby"], state.get("name") or "게임 로비")
+            self.write(self.store.session, self.session, state["account"], state["lobby"], state.get("name") or "")
         self.revision += 1
 
     def end(self, reason):
@@ -188,7 +188,7 @@ class ChatService:
             raise ValueError("connection_changed")
         account = context["account"]
         row = dict(id=str(uuid4()), session=self.session, account=account, lobby=context["lobby"],
-                   sender=account, name=self.state.get("profiles", {}).get(account, {}).get("name", "나"),
+                   sender=account, name=self.state.get("profiles", {}).get(account, {}).get("name", ""),
                    body=text, received=time.time(), own=1, status="pending", echo=0)
         self.save_message(row)
         if self.storage_error:
@@ -238,7 +238,7 @@ class ChatService:
             return
         now = self.clock()
         row = dict(id=receipt, session=self.session, account=account, lobby=self.state["lobby"],
-                   sender=sender, name=self.state.get("profiles", {}).get(sender, {}).get("name", "이름 확인 중"),
+                   sender=sender, name=self.state.get("profiles", {}).get(sender, {}).get("name", ""),
                    body=event["text"], received=event.get("received", time.time()), own=int(sender == account),
                    status="received", echo=0)
         # FIFO is a correspondence candidate, never a globally unique Steam ID.

@@ -74,17 +74,19 @@ def main():
             raise ValueError(f'Incorrect signing metadata: {target.name}: {product}')
         products[str(target.relative_to(bundle))] = product
     # A developer's editable install must never supply stale UI/config assets.
-    for relative in ('ui/index.html', 'ui/app.js', 'ui/messenger.css', 'ui/app-icon.png',
+    for relative in ('ui/index.html', 'ui/app.js', 'ui/messenger.css', 'ui/translations.json', 'ui/app-icon.png',
                      'ui/app-icon.ico', 'ui/favicon.ico', 'update-config.json', 'feature-contract.json'):
         if (app / '_internal/bongo_chat' / relative).read_bytes() != (ROOT / 'src/bongo_chat' / relative).read_bytes():
             raise ValueError('Packaged resource differs from this checkout: ' + relative)
-    expected = ['LICENSE.txt', 'PRIVACY.md', 'THIRD-PARTY-NOTICES.txt', 'CHROMIUM-LICENSES.html', 'SOURCES.md', 'sources.lock.json']
+    expected = ['LICENSE.txt', 'PRIVACY.md', 'PRIVACY.en.md', 'THIRD-PARTY-NOTICES.txt', 'CHROMIUM-LICENSES.html', 'SOURCES.md', 'sources.lock.json']
     hashes = {}
     for name in expected:
         data = (legal / name).read_bytes()
         if len(data) < 100:
             raise ValueError('Missing or empty notice: ' + name)
         hashes[name] = hashlib.sha256(data).hexdigest()
+    if (legal / 'PRIVACY.en.md').read_bytes() != (ROOT / 'docs/privacy-policy.en.md').read_bytes():
+        raise ValueError('Packaged English privacy notice differs from this checkout')
     manifest = json.loads((legal / 'sources.lock.json').read_text())
     if hashes['CHROMIUM-LICENSES.html'] != manifest['notices']['CHROMIUM-LICENSES.html']:
         raise ValueError('Chromium notice changed during packaging')
