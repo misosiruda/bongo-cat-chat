@@ -32,14 +32,16 @@ class PresenceTracker:
                 # A departure is no longer a current member, but the account's
                 # persisted block list still applies to it.
                 if uid not in blocked and uid in self.names:
-                    events.append(('member_left', uid, self.names[uid]))
+                    events.append(('member_left', uid, self.names[uid], observed))
             for uid in sorted(current - self.members):
                 self.pending[uid] = observed
             for uid, started in list(self.pending.items()):
                 if uid not in current or uid in blocked or now - started >= JOIN_WAIT_SECONDS:
                     del self.pending[uid]
                 elif uid in names:
-                    events.append(('member_joined', uid, names[uid]))
+                    # Keep the first membership observation even when the name
+                    # arrives later, so an intervening block cannot be replayed.
+                    events.append(('member_joined', uid, names[uid], started))
                     del self.pending[uid]
         self.members, self.names = current, names
         return events

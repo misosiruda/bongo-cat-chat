@@ -181,8 +181,8 @@ class ChatService:
         if state.get("account") and state.get("lobby") and state.get("generation") and not self.session:
             self.session = str(uuid4())
             self.write(self.store.session, self.session, state["account"], state["lobby"], state.get("name") or "")
-        for kind, sender, name in self.presence.update(state, self.updated, self.blocked):
-            if not self.after_block_change(dict(sender=sender, observed=state.get('observed', self.updated))):
+        for kind, sender, name, observed in self.presence.update(state, self.updated, self.blocked):
+            if not self.after_block_change(dict(sender=sender, observed=observed)):
                 continue
             row = dict(id=str(uuid4()), session=self.session, account=state['account'], lobby=state['lobby'],
                        sender=sender, name=name, body='', received=time.time(), own=0,

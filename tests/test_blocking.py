@@ -164,14 +164,16 @@ def test_blocking_cancels_pending_join_before_unblocking(blocked_service):
     assert not service.store.db.execute('SELECT 1 FROM presence_events').fetchone()
 
 
-def test_delayed_membership_observed_while_blocked_does_not_replay(blocked_service):
+@pytest.mark.parametrize('delayed_profile', [False, True])
+def test_delayed_membership_observed_while_blocked_does_not_replay(blocked_service, delayed_profile):
     service = blocked_service
     service.update(profile_state(generation='presence', members=[SELF, SECOND]))
     service.clock = lambda: 101
     service.set_blocked(PEER, True, SELF)
     service.clock = lambda: 102
     service.set_blocked(PEER, False, SELF)
-    service.update(profile_state(generation='presence', observed=101.5))
+    changes = {'profiles': {}} if delayed_profile else {}
+    service.update(profile_state(generation='presence', observed=101.5, **changes))
     service.update(profile_state(generation='presence', observed=102))
     assert not service.store.db.execute('SELECT 1 FROM presence_events').fetchone()
 
