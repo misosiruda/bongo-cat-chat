@@ -2,7 +2,7 @@
 
 [English](privacy-policy.en.md) · [한국어](privacy-policy.md)
 
-Updated October 23, 2026 to describe the current source, including local language preferences. Bongo Cat Chat is an unofficial companion maintained by an independent developer. Questions can be raised in [project issues](https://github.com/misosiruda/bongo-cat-chat/issues). Do not post chat contents, account identifiers or lobby identifiers in public issues.
+Updated October 28, 2026 to describe the current source, including local language preferences. Bongo Cat Chat is an unofficial companion maintained by an independent developer. Questions can be raised in [project issues](https://github.com/misosiruda/bongo-cat-chat/issues). Do not post chat contents, account identifiers or lobby identifiers in public issues.
 
 ## Local history and game integration
 
@@ -10,9 +10,15 @@ The app stores received chat, messages you compose and send, drafts, display nam
 
 History is separated by account. Messages and drafts are retained for 30 days and cleaned up at startup and while the app is running. Cleanup does not run while the app is closed. Settings let you delete the selected lobby's history or all history for the current account after confirmation. Deletion does not guarantee that data cannot be recovered from the storage device. Uninstalling preserves history and preferences; use the app's deletion controls before uninstalling to delete history.
 
-To integrate with the existing lobby, the app loads the Steam API DLL from the locally installed game and reads compatibility information, the current lobby, cat appearance and hidden-player state. It reads installed game resources to display cat images in memory. It does not modify game files, inject DLLs or write to game memory. It does not recover conversations from periods when it was not running.
+To integrate with the existing lobby, the app loads the Steam API DLL from the locally installed game and reads compatibility information, the current lobby, cat appearance. It reads installed game resources to display cat images in memory. It does not modify game files, inject DLLs or write to game memory. It does not recover conversations from periods when it was not running.
 
 Messages you send are delivered through Steam's existing lobby chat to other participants in that lobby. Steam's handling is covered by [Valve's privacy policy](https://store.steampowered.com/privacy_agreement/). Acceptance for sending does not mean another participant has read the message.
+
+## Steam ID chat blocks
+
+Hiding a cat in the game does not prevent chat receipt or storage. The app stores the current account ID, blocked Steam ID and any display name known when blocking in its local database. Blocks do not expire, persist across lobbies and restarts, and are not synchronized to other PCs or Steam. A manually entered ID can have no stored name. Unblocking in Settings or the participant list deletes the block entry. History deletion, retention cleanup and uninstalling do not remove blocks.
+
+New messages from blocked users are not saved. Existing messages are excluded from chat, search, unread indicators, notifications and reactions. Unblocking restores retained history, but cannot recover messages discarded while blocked.
 
 ## Windows notifications
 

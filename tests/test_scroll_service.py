@@ -64,7 +64,7 @@ def test_unseen_metadata_is_filtered_even_outside_history_window(service):
     page = service.view(start=1, seen=110, limit=10)
     assert page['unseen'] and page['has_newer']
     assert page['unseen_seq'] == 111
-    service.update(state(hidden={'fixture-peer': True}))
+    service.blocked['fixture-peer'] = '합성 차단 대상'
     hidden = service.view(start=1, seen=110, limit=10)
     assert not hidden['unseen'] and hidden['latest_seq'] == 110
     assert hidden['unseen_seq'] == 0
@@ -93,7 +93,7 @@ def test_unsaved_peer_indicator_respects_hidden_filter(service, store, monkeypat
     monkeypatch.setattr(store, 'add', lambda *args: (_ for _ in ()).throw(sqlite3.OperationalError('full')))
     received(service, '미저장 가상 기록', id='fixture-unsaved')
     assert service.view()['volatile_peer_ids'] == ['fixture-unsaved']
-    service.update(state(hidden={'fixture-peer': True}))
+    service.blocked['fixture-peer'] = '합성 차단 대상'
     assert service.view()['volatile_peer_ids'] == []
 
 

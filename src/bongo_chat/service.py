@@ -31,7 +31,10 @@ class ChatService:
     def __init__(self, store, clock=time.monotonic):
         self.store, self.clock = store, clock
         self.state = {"state": "checking", "account": "", "lobby": "", "generation": "",
-                      "hidden_ok": False, "profiles": {}, "hidden": {}}
+                      "members": [], "profiles": {}}
+        self.blocked = None  # None means the account's list could not be loaded.
+        self.block_account = ""
+        self.block_changed_at = {}
         self.updated = 0.0
         self.session = ""
         self.storage_error = False
@@ -102,7 +105,34 @@ class ChatService:
             self.store.session(self.session, self.state['account'], self.state['lobby'], self.state.get('name') or '')
         self.load_notifications()
         self.load_reaction_setting()
+        self.load_blocks()
         self.storage_error = False
+
+    def load_blocks(self):
+        account = self.state.get('account', '')
+        self.blocked = None
+        self.block_account = account
+        self.blocked = self.store.blocked_users(account) if account else {}
+
+    def set_blocked(self, steam_id, blocked, account):
+        steam_profile_uri(steam_id)  # Canonical uint64 string; never a JS number.
+        if (type(blocked) is not bool or not account or account != self.state.get('account')
+                or account != self.block_account or self.blocked is None or steam_id == account):
+            raise ValueError('block_unavailable')
+        name = self.state.get('profiles', {}).get(steam_id, {}).get('name', '')
+        self.store.set_blocked(account, steam_id, blocked, name)
+        # Commit before publishing. A failed write keeps the previous policy.
+        if blocked:
+            self.blocked.setdefault(steam_id, name)
+        else:
+            self.blocked.pop(steam_id, None)
+        self.block_changed_at[(account, steam_id)] = self.clock()
+        self.reactions = deque((e for e in self.reactions if e['sender'] != steam_id), maxlen=MAX_REACTIONS)
+        self.revision += 1
+
+    def after_block_change(self, event):
+        return event.get('observed', self.clock()) >= self.block_changed_at.get(
+            (self.state.get('account'), event['sender']), float('-inf'))
 
     def save_message(self, row, receipt=None):
         try:
@@ -136,6 +166,11 @@ class ChatService:
             self.volatile.clear()
             self.session = ""
         self.state = dict(state)
+        if self.block_account != state.get('account', '') or self.blocked is None:
+            try:
+                self.load_blocks()
+            except (sqlite3.Error, OSError):
+                self.storage_error = True
         self.updated = self.clock()
         if state.get("account") and state.get("lobby") and state.get("generation") and not self.session:
             self.session = str(uuid4())
@@ -159,9 +194,9 @@ class ChatService:
         return self.connected() and self.state.get("lobby_verified", False)
 
     def allowed(self):
-        if not self.verified() or not self.state.get("privacy_ready", False):
+        if not self.verified() or self.blocked is None:
             return set()
-        return {uid for uid, hidden in self.state.get("hidden", {}).items() if hidden is False}
+        return set(self.state.get('members', [])) - self.blocked.keys()
 
     def can_send(self):
         return bool(self.session and self.verified()
@@ -234,7 +269,7 @@ class ChatService:
             self.receipts.popitem(last=False)
         sender = event["sender"]
         account = self.state["account"]
-        if sender != account and sender not in self.allowed():
+        if sender != account and (sender not in self.allowed() or not self.after_block_change(event)):
             return
         now = self.clock()
         row = dict(id=receipt, session=self.session, account=account, lobby=self.state["lobby"],
@@ -263,6 +298,7 @@ class ChatService:
         sender = event["sender"]
         return (self.reactions_enabled and event["observed"] >= self.reactions_enabled_since
                 and self.verified() and event["context"] == self.context()
+                and self.after_block_change(event)
                 and sender in self.state.get("profiles", {})
                 and (sender == self.state.get("account") or sender in self.allowed())
                 and 0 <= self.clock() - event["observed"] < REACTION_TTL)
@@ -289,11 +325,13 @@ class ChatService:
         account = self.state.get("account", "")
         lobby = lobby or self.state.get("lobby", "")
         allowed = self.allowed()
+        history_blocks = set(self.blocked) if self.verified() and self.blocked is not None else None
         theme, collapsed = 'system', False
         page = dict(messages=[], has_more=False, has_newer=False, latest_seq=0, unseen=False, unseen_seq=0)
         try:
             if account and lobby:
-                page = self.store.message_page(account, lobby, allowed, query, before, limit, start, seen)
+                page = self.store.message_page(account, lobby, allowed, query, before, limit, start, seen,
+                                               blocked=history_blocks)
             rows = page['messages']
             rooms = self.store.rooms(account) if account else []
             draft = self.store.draft(account, lobby) if account and lobby else ""
@@ -303,10 +341,12 @@ class ChatService:
             self.storage_error = True
             rows, rooms, draft = [], [], ""
             page = dict(has_more=False, has_newer=False, latest_seq=0, unseen=False, unseen_seq=0)
+        def visible_sender(sender):
+            return sender == account or history_blocks is not None and sender not in history_blocks
         visible_volatile = [r for r in self.volatile.values() if r["account"] == account
-                            and r["lobby"] == lobby and r["sender"] in allowed | {account} and not is_meow_message(r["body"])]
+                            and r["lobby"] == lobby and visible_sender(r["sender"]) and not is_meow_message(r["body"])]
         volatile = [dict(r, unsaved=True) for r in self.volatile.values() if r["account"] == account
-                    and r["lobby"] == lobby and r["sender"] in allowed | {account}
+                    and r["lobby"] == lobby and visible_sender(r["sender"])
                     and not is_meow_message(r["body"])
                     and query.lower() in r["body"].lower() and before is None
                     and (start is None or r.get('_before_seq', float('inf')) >= start)
@@ -319,8 +359,11 @@ class ChatService:
         return {"context": self.context(), "state": self.state.get("state"), "notice": self.state.get("notice", ""),
                 "game_build": self.state.get("game_build", ""),
                 "connected": self.connected(), "lobby_verified": self.verified(),
-                "privacy_ready": self.verified() and self.state.get("privacy_ready", False),
-                "hidden_ok": self.verified() and self.state.get("hidden_ok", False),
+                "blocks_ready": self.blocked is not None,
+                "blocked_users": [dict(steam_id=uid, name=name) for uid, name in sorted((self.blocked or {}).items())],
+                "participants": {uid: dict(p, blocked=uid in (self.blocked or {}))
+                                 for uid, p in self.state.get('profiles', {}).items()
+                                 if self.verified() and self.blocked is not None and uid in self.state.get('members', [])},
                 "can_send": self.can_send() and lobby == self.state.get("lobby"),
                 "profile_targets": sorted(self.profile_targets(lobby)),
                 "rooms": rooms, "messages": messages, "profiles": profiles, "draft": draft,

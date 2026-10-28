@@ -23,7 +23,7 @@ CONTEXT = {"account": "30", "lobby": "10", "generation": "fixture-segment"}
 def connect(store):
     service = ChatService(store, clock=lambda: 1.0)
     service.update(dict(CONTEXT, state="ready", connected=True, lobby_verified=True,
-                        privacy_ready=True, hidden_ok=True, hidden={"20": False},
+                        members=["30", "20"],
                         profiles={}, send_enabled=True, name="테스트 로비"))
     return service
 

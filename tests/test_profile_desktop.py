@@ -138,7 +138,7 @@ def profile_ui(profile_controller):
 def test_real_bridge_exact_id_context_one_click_and_busy_guard(profile_ui):
     app, controller, page, calls, _ = profile_ui
     assert not controller.service.can_send()  # Read-only profiles still work.
-    js(app, page, "document.querySelector('#participants-button').click();window.holdProfile=true;"
+    js(app, page, "document.querySelector('#participants-button').click();document.querySelector('.participant-more').click();window.holdProfile=true;"
        "const b=document.querySelector('.participant-profile');b.focus();b.click();b.click();")
     wait_until(app, lambda: len(calls) == 1)
     payload = json.loads(js(app, page, 'JSON.stringify(window.profileRequests)'))
@@ -149,7 +149,7 @@ def test_real_bridge_exact_id_context_one_click_and_busy_guard(profile_ui):
     wait_until(app, lambda: js(app, page, "document.querySelector('.participant-profile').getAttribute('aria-disabled')") == 'false')
     assert js(app, page, "document.querySelector('#participants-dialog').open")
     # The other identical display name must preserve its own, distinct ID.
-    js(app, page, "document.querySelectorAll('.participant-profile')[1].click()")
+    js(app, page, f"document.querySelector('#participant-more-{SECOND}').click();document.querySelector('.participant-profile').click()")
     wait_until(app, lambda: len(calls) == 2)
     assert calls == ['steam://url/SteamIDPage/' + PEER, 'steam://url/SteamIDPage/' + SECOND]
 
@@ -172,7 +172,7 @@ def test_actions_follow_connection_and_membership_without_message_changes(profil
 
 def test_old_buttons_keep_original_generation_and_participant_focus_survives_refresh(profile_ui):
     app, controller, page, calls, _ = profile_ui
-    js(app, page, "document.querySelector('#participants-button').click();"
+    js(app, page, "document.querySelector('#participants-button').click();document.querySelector('.participant-more').click();"
        "window.oldProfileButton=document.querySelector('.participant-profile');window.oldProfileButton.focus()")
     for index in range(3):
         profiles = dict(controller.service.state['profiles'])
@@ -181,7 +181,8 @@ def test_old_buttons_keep_original_generation_and_participant_focus_survives_ref
         wait_until(app, lambda: js(app, page, "document.activeElement.getAttribute('aria-label')") == f'Steam 프로필 열기 · 이름 갱신 {index}')
         assert js(app, page, "document.querySelector('#participants-dialog').open")
     controller.service.update(profile_state(generation='new-segment', hidden={PEER: False, SECOND: False}))
-    wait_until(app, lambda: js(app, page, "document.querySelector('.participant-profile').dataset.profileContext.includes('new-segment')"))
+    wait_until(app, lambda: js(app, page, "document.querySelector('.participant-more').dataset.profileContext.includes('new-segment')"))
+    assert js(app, page, "document.querySelector('#participant-menu').matches(':popover-open')") is False
     js(app, page, 'window.oldProfileButton.click()')
     assert not calls
 

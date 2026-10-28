@@ -44,7 +44,7 @@ def main():
         store.setting('language','en')
         service=ChatService(store,clock=lambda:100)
         ready=dict(state='ready',account='fixture-self',lobby='fixture-room',generation='fixture-generation',
-                   connected=True,lobby_verified=True,privacy_ready=True,hidden_ok=True,send_enabled=True,
+                   connected=True,lobby_verified=True,members=['fixture-self','fixture-peer'],send_enabled=True,
                    name='Community lounge (sample)',hidden={'fixture-peer':False},
                    profiles={'fixture-self':{'name':'Sample Cat'},'fixture-peer':{'name':'Demo Cat'}})
         service.update(ready)
@@ -134,7 +134,7 @@ def main():
             if width<=760:page.locator('#drawer-backdrop').click(position={'x':350,'y':250})
         page.set_viewport_size({'width':1240,'height':840})
         # Exercise error and progress copy with the real rendering code.
-        for notice in ('offline','discovering','read_only','hidden_unavailable','hidden_syncing','unsupported_game_build','worker_stopped'):
+        for notice in ('offline','discovering','read_only','unsupported_game_build','worker_stopped'):
             service.update(dict(ready,notice=notice))
             expect(page.locator('html')).to_have_attribute('data-notice',notice)
             assert not any('\uac00'<=c<='\ud7a3' for c in page.locator('#connection-notice').inner_text())

@@ -191,13 +191,32 @@ dialog::backdrop { background: #090d1880; }
 .settings-note { margin: 18px 0 26px; }
 .settings-footnote { padding-top: 20px; border-top: 1px solid var(--line); margin-bottom: 0; }
 .participant-description { margin: -14px 0 16px; }
-.participant-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 7px 18px; }
-.participant-list li { display: flex; gap: 12px; align-items: center; min-width: 0; padding: 8px 0; font-size: 14px; }
-.participant-list .avatar { width: 42px; height: 42px; }
-.participant-list .participant-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.participant-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.participant-list li { display: flex; gap: 10px; align-items: center; min-width: 0; height: 48px; font-size: 14px; }
+.participant-list .avatar { width: 34px; height: 34px; flex-shrink: 0; }
+.participant-list .participant-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.participant-badge { flex-shrink: 0; color: var(--muted); background: var(--hover); border-radius: 6px; padding: 3px 7px; font-size: 11px; }
+.participant-more { width: 34px; height: 34px; flex-shrink: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 24px; line-height: 1; }
+.participant-more:hover, .participant-more[aria-expanded=true] { background: var(--active); color: var(--accent-ink); }
+.participant-menu { position: fixed; inset: auto; margin: 0; padding: 10px; width: min(240px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--paper); box-shadow: 0 8px 32px var(--shadow); }
+.participant-menu-name { display: block; padding: 2px 6px 4px; font-size: 13px; overflow-wrap: anywhere; }
+.participant-menu > .steam-id { display: block; padding: 0 6px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line); user-select: text; }
+.participant-menu .participant-profile, .participant-menu .block-action { display: block; width: 100%; min-height: 38px; padding: 8px; font-size: 13px; }
+.participant-menu button:hover { background: var(--hover); text-decoration: none; }
 .participant-info { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; gap: 4px; }
 .participant-name { max-width: 100%; }
-.participant-profile { padding: 4px 0; background: transparent; color: var(--accent-ink); border-radius: 4px; font-size: 12px; text-align: left; }
+.steam-id {font-size:11px;color:var(--muted);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.block-panel {border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:20px}
+.block-panel h3 {font-size:15px;margin:0 0 8px}
+.block-panel label {font-size:13px}
+.block-input-row {display:flex;align-items:center;gap:8px}
+.block-input-row input {min-width:0;width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
+.block-input-row .page-button {flex-shrink:0;margin:8px 0}
+.blocked-list {list-style:none;padding:0;margin:8px 0}
+.blocked-list li {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.block-action {min-height:36px;flex-shrink:0}
+.block-action:disabled {opacity:.5;cursor:wait}
+.participant-profile, .block-action { padding: 4px 0; background: transparent; color: var(--accent-ink); border-radius: 4px; font-size: 12px; text-align: left; }
 .toast { position: fixed; z-index: 30; left: 50%; bottom: 30px; transform: translateX(-50%); padding: 12px 20px; border: 1px solid var(--line); background: var(--ink); color: var(--paper); box-shadow: 0 4px 30px var(--shadow); border-radius: 12px; font-size: 14px; max-width: calc(100vw - 32px); text-align: center; }
 .is-refreshing svg { animation: refresh-turn 650ms ease-out; }
 @keyframes refresh-turn { to { transform: rotate(360deg); } }

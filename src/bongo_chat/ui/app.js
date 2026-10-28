@@ -32,7 +32,7 @@
       }
       for (const [el,attr,source] of staticAttributes) if (el.isConnected) el.setAttribute(attr,t(source));
       signature=''; participantsSignature='';
-      for (const id of ['language-status','reaction-save-status','notification-save-status']) $(id).textContent='';
+      for (const id of ['language-status','reaction-save-status','notification-save-status','block-status']) $(id).textContent='';
       $('toast').hidden=true;
     }
     languagePreference=data.language_preference || 'system';
@@ -48,6 +48,8 @@
   let reactionsEnabled = false, reactionSettingPending = false;
   let restartPlan = null, restarting = false, lastEdit = 0;
   let openingProfile = false, participantsSignature = '';
+  let participantMenuTarget = null;
+  let blockPending = false, blockedSignature = '';
   let start = null, seenSeq = null, loadingHistory = false, restoring = false;
   let seenVolatile = new Set(), searchPosition = null, pendingPosition = {bottom:true};
   const positions = new Map();
@@ -108,15 +110,13 @@
     }
   }
   const notices = () => ({
-    checking: t('Steam과 게임의 채팅·숨김 연동 구조를 확인하고 있어요.'),
+    checking: t('Steam과 게임의 채팅 연동 구조를 확인하고 있어요.'),
     searching_lobby: t('Bongo Cat의 현재 로비를 확인하고 있어요. 연결이 확인되면 대화를 불러옵니다.'),
-    discovering: t('로비를 찾았어요. 현재 로비와 숨김 설정을 확인하는 동안 메시지를 미리 작성할 수 있어요.'),
+    discovering: t('로비를 찾았어요. 현재 연결을 확인하는 동안 메시지를 미리 작성할 수 있어요.'),
     discovery_failed: t('Steam 연결은 유지 중이에요. 현재 로비 검증을 다시 시도하고 있어요. 전송은 확인 후 사용할 수 있어요.'),
     read_only: t('읽기 전용으로 실행 중입니다. 메시지를 전송하지 않습니다.'),
     no_lobby: t('현재 게임 로비를 확인할 수 없어요. 게임에서 로비에 참여해 주세요.'),
-    hidden_unavailable: t('로비 연결은 유지 중이에요. 숨김 설정을 확인할 수 없어 상대 대화 표시와 신규 저장을 보류하고 있어요.'),
-    hidden_syncing: t('일부 참여자의 숨김 설정을 확인하고 있어요. 확인된 상대의 대화부터 표시하고 저장합니다.'),
-    unsupported_game_build: t('채팅·숨김 연동 구조의 호환성을 확인하지 못했어요. 대응 앱 업데이트를 확인하고 있습니다.'),
+    unsupported_game_build: t('채팅 연동 구조의 호환성을 확인하지 못했어요. 대응 앱 업데이트를 확인하고 있습니다.'),
     game_files_changed: t('게임 업데이트를 감지했어요. 연동 구조를 다시 확인하고 있습니다.'),
     compatibility_tool_missing: t('호환성 검사 파일이 없어 연결할 수 없어요. 앱을 다시 설치해 주세요.'),
     compatibility_timeout: t('호환성 검사에 시간이 걸리고 있어요. 연결을 보류하고 다시 확인합니다.'),
@@ -235,29 +235,142 @@
   }
   function preserveProfileFocus(container) {
     const active = document.activeElement;
-    if (!container.contains(active) || !active?.matches('.steam-profile-action')) return () => {};
+    if (!container.contains(active) || !active?.matches('.steam-profile-action, .block-action, .participant-more')) return () => {};
     const key = active.dataset.profileKey, context = active.dataset.profileContext;
     return () => {
-      const target = [...container.querySelectorAll('.steam-profile-action')].find(button =>
+      const target = [...container.querySelectorAll('.steam-profile-action, .block-action, .participant-more')].find(button =>
         button.dataset.profileKey === key && button.dataset.profileContext === context);
       const fallback = container === $('participant-list')
-        ? document.querySelector('#participants-dialog .dialog-heading button') : $('message-scroll');
+        ? document.querySelector('#participants-dialog .dialog-heading button')
+        : container === $('participant-menu') ? participantMenuTrigger() || document.querySelector('#participants-dialog .dialog-heading button')
+        : container === $('blocked-list') ? $('block-steam-id') : $('message-scroll');
       (target || fallback).focus({preventScroll:true});
     };
   }
+  function updateBlockBusy() {
+    document.querySelectorAll('.block-action, #block-submit, #block-steam-id').forEach(control => {
+      control.disabled = blockPending || restarting || !model?.context.account || !model?.blocks_ready;
+    });
+  }
+  async function setBlocked(uid, blocked, owner) {
+    if (blockPending || restarting || !owner || owner !== model?.context.account) return;
+    const focused = document.activeElement, focusKey = focused?.dataset.profileKey;
+    blockPending = true; requestVersion++; updateBlockBusy();
+    $('block-status').textContent = t('차단 설정을 저장하고 있어요.');
+    try {
+      await rpc('block_user', {steam_id:uid, blocked, account:owner});
+      requestVersion++;
+      await refresh(true);
+      const message = blocked ? t('채팅을 차단했어요.') : t('채팅 차단을 해제했어요.');
+      $('block-status').textContent = message; toast(message);
+    } catch (error) {
+      $('block-status').textContent = error.message === 'invalid_steam_id'
+        ? t('올바른 Steam ID를 숫자로 입력해 주세요.') : t('차단 설정을 저장하지 못했어요. 이전 설정을 유지합니다.');
+      toast($('block-status').textContent);
+    } finally {
+      blockPending = false; updateBlockBusy();
+      if (document.activeElement === document.body && owner === model?.context.account) {
+        const replacement = [...document.querySelectorAll('.block-action')].find(el => el.dataset.profileKey === focusKey);
+        const fallback = $('settings-dialog').open ? $('block-steam-id') : document.querySelector('#participants-dialog .dialog-heading button');
+        (replacement || (focused?.isConnected ? focused : fallback))?.focus({preventScroll:true});
+      }
+    }
+  }
+  function blockButton(uid, blocked, owner, key) {
+    const button = node('button', 'block-action', blocked ? t('차단 해제') : t('채팅 차단'));
+    button.type = 'button'; button.dataset.profileKey = key; button.dataset.profileContext = owner;
+    button.setAttribute('aria-label', t('{action} · Steam ID {id}', {action:button.textContent, id:uid}));
+    button.addEventListener('click', () => setBlocked(uid, !blocked, owner));
+    return button;
+  }
+  function renderBlocks(data) {
+    const next = JSON.stringify([data.context.account, data.blocked_users, language]);
+    if (next !== blockedSignature) {
+      blockedSignature = next;
+      const restoreFocus = preserveProfileFocus($('blocked-list'));
+      $('blocked-list').replaceChildren(...(data.blocked_users || []).map(person => {
+        const li = node('li'), info = node('span', 'participant-info');
+        if (person.name) info.append(node('span', 'participant-name', person.name));
+        info.append(node('span', 'steam-id', person.steam_id));
+        li.append(info, blockButton(person.steam_id, true, data.context.account, `blocked-${person.steam_id}`));
+        return li;
+      }));
+      restoreFocus();
+    }
+    $('blocked-empty').hidden = !!data.blocked_users?.length;
+    $('blocked-empty').textContent = data.blocks_ready ? t('차단한 사용자가 없습니다.') : t('차단 목록을 확인할 수 없어 상대 대화를 보류합니다. 연결 상태 새로고침 후 다시 확인해 주세요.');
+    updateBlockBusy();
+  }
   function renderParticipants(data, people) {
-    const nextSignature = JSON.stringify([people, data.profile_targets, data.context, data.lobby, data.connected, data.lobby_verified]);
+    const nextSignature = JSON.stringify([people, data.profile_targets, data.context, data.lobby, data.connected, data.lobby_verified, language]);
     if (participantsSignature === nextSignature) return;
     participantsSignature = nextSignature;
     const restoreFocus = preserveProfileFocus($('participant-list'));
     $('participant-list').replaceChildren(...people.map(([uid,p]) => {
-      const li = node('li'), info = node('span', 'participant-info');
-      info.append(node('span', 'participant-name', p.name || t('이름 확인 중')));
-      if (profileAvailable(data, uid)) info.append(profileButton(uid, p, data.context, `participant-${uid}`,
-        'participant-profile', document.createTextNode(t('Steam 프로필 열기'))));
-      li.append(avatar(p), info); return li;
+      const li = node('li'), name = node('span', 'participant-name', p.name || t('이름 확인 중'));
+      name.title = name.textContent;
+      li.append(avatar(p), name);
+      if (uid !== data.context.account) {
+        if (p.blocked) li.append(node('span', 'participant-badge', t('차단됨')));
+        const more = node('button', 'participant-more', '⋯');
+        more.type = 'button'; more.id = `participant-more-${uid}`;
+        more.dataset.profileKey = `more-${uid}`; more.dataset.profileContext = profileContext(data.context);
+        more.setAttribute('aria-label', t('참여자 메뉴 · {name}', {name:name.textContent}));
+        more.setAttribute('aria-haspopup', 'menu'); more.setAttribute('aria-controls', 'participant-menu');
+        more.setAttribute('aria-expanded', String(participantMenuTarget?.uid === uid));
+        const context = profileContext(data.context);
+        more.addEventListener('click', () => {
+          if (!model || context !== profileContext(model.context) || !$('participants-dialog').open) return;
+          if (participantMenuTarget?.uid === uid) { closeParticipantMenu(true); return; }
+          closeParticipantMenu(); participantMenuTarget = {uid, context};
+          renderParticipantMenu(model);
+          if (!participantMenuTarget) return;
+          $('participant-menu').showPopover(); more.setAttribute('aria-expanded', 'true');
+          positionParticipantMenu(); $('participant-menu').querySelector('button')?.focus();
+        });
+        li.append(more);
+      } else li.append(node('span', 'participant-badge', t('나')));
+      return li;
     }));
+    renderParticipantMenu(data);
     restoreFocus();
+    updateBlockBusy();
+  }
+  function participantMenuTrigger() {
+    return participantMenuTarget ? $(`participant-more-${participantMenuTarget.uid}`) : null;
+  }
+  function closeParticipantMenu(restoreFocus=false) {
+    const trigger = participantMenuTrigger();
+    trigger?.setAttribute('aria-expanded', 'false'); participantMenuTarget = null;
+    if ($('participant-menu').matches(':popover-open')) $('participant-menu').hidePopover();
+    $('participant-menu').replaceChildren();
+    if (restoreFocus) (trigger || document.querySelector('#participants-dialog .dialog-heading button')).focus({preventScroll:true});
+  }
+  function positionParticipantMenu() {
+    const menu = $('participant-menu'), trigger = participantMenuTrigger();
+    if (!trigger || !menu.matches(':popover-open')) return;
+    const rect = trigger.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(innerWidth - menu.offsetWidth - 8, rect.right - menu.offsetWidth))}px`;
+    const below = rect.bottom + 6;
+    menu.style.top = `${Math.max(8, Math.min(innerHeight - menu.offsetHeight - 8,
+      below + menu.offsetHeight <= innerHeight - 8 ? below : rect.top - menu.offsetHeight - 6))}px`;
+  }
+  function renderParticipantMenu(data) {
+    if (!participantMenuTarget) return;
+    const {uid, context} = participantMenuTarget, person = data.participants?.[uid];
+    if (!person || context !== profileContext(data.context) || !$('participants-dialog').open) {
+      closeParticipantMenu(true); return;
+    }
+    const menu = $('participant-menu'), restoreFocus = preserveProfileFocus(menu);
+    const name = node('strong', 'participant-menu-name', person.name || t('이름 확인 중'));
+    name.id = 'participant-menu-name'; name.setAttribute('role', 'presentation');
+    const id = node('span', 'steam-id', t('Steam ID {id}', {id:uid})); id.setAttribute('role', 'presentation');
+    menu.replaceChildren(name, id);
+    if (profileAvailable(data, uid)) menu.append(profileButton(uid, person, data.context, `participant-${uid}`,
+      'participant-profile', document.createTextNode(t('Steam 프로필 열기'))));
+    menu.append(blockButton(uid, person.blocked, data.context.account, `block-${uid}`));
+    menu.querySelectorAll('button').forEach(button => button.setAttribute('role', 'menuitem'));
+    updateBlockBusy(); updateProfileBusy(); positionParticipantMenu(); restoreFocus();
   }
   function updateSend() {
     const text = $('message-input').value;
@@ -429,7 +542,7 @@
     finally { switching--; updateSend(); }
   }
   function renderMessages(data, position) {
-    const nextSignature = JSON.stringify([data.messages,data.profiles,data.hidden_ok,query,
+    const nextSignature = JSON.stringify([data.messages,data.profiles,data.blocks_ready,query,
       data.profile_targets,data.context,data.lobby,data.connected,data.lobby_verified]);
     if (signature === nextSignature) {if (pendingPosition) restorePosition(position); pendingPosition=null; updateNavigation(); return;}
     signature = nextSignature;
@@ -469,7 +582,7 @@
     }
     $('empty-state').hidden = data.messages.length > 0;
     $('empty-title').textContent = query ? t('검색 결과가 없어요') : t('대화를 기다리고 있어요');
-    $('empty-description').textContent = data.hidden_ok ? t('앱이 연결된 동안 받은 대화만 표시합니다.') : t('게임의 숨김 상태를 확인하면 상대 대화를 표시합니다.');
+    $('empty-description').textContent = data.blocks_ready ? t('앱이 연결된 동안 받은 대화만 표시합니다.') : t('차단 목록을 확인할 수 없어 상대 대화를 보류합니다. 연결 상태 새로고침 후 다시 확인해 주세요.');
     restoreFocus(); restorePosition(position); pendingPosition=null;
   }
   function render(data, resetDraft) {
@@ -506,7 +619,7 @@
     const room = data.rooms.find(r => r.lobby === selected);
     $('room-title').textContent = room ? room.name || t('게임 로비') : 'Bongo Cat Chat';
     const connected = data.connected;
-    const connectionLabel = !data.lobby_verified ? t('로비 발견 · 연결 확인 중') : !data.hidden_ok ? t('게임과 연결됨 · 숨김 확인 중') : data.can_send ? t('게임과 연결됨') : t('게임 수신 연결됨');
+    const connectionLabel = !data.lobby_verified ? t('로비 발견 · 연결 확인 중') : data.can_send ? t('게임과 연결됨') : t('게임 수신 연결됨');
     $('connection-label').querySelector('span').textContent = selected && selected !== data.context.lobby ? t('보관 기록 · 읽기 전용') : connected ? connectionLabel : t('연결 확인 중');
     document.querySelectorAll('.status-dot').forEach(el => el.classList.toggle('unavailable',!connected));
     let notice = data.notice ? notices()[data.notice] || t('게임 상태를 확인하지 못했어요. 연동을 중단하고 다시 확인하고 있습니다.') : '';
@@ -521,19 +634,20 @@
         || t('아직 대응 버전이 없습니다. 앱 업데이트를 주기적으로 확인합니다.');
       notice = t('{build}의 호환성을 확인하지 못해 연동을 중단했어요. {progress}', {build,progress});
     }
-    $('connection-notice').textContent = notice || (!data.hidden_ok ? notices().hidden_unavailable : t('개발판 · 읽지 않은 구간과 숨김 중 대화는 복원하지 않습니다.'));
+    $('connection-notice').textContent = notice || (!data.blocks_ready ? t('차단 목록을 확인할 수 없어 상대 대화를 보류합니다. 연결 상태 새로고침 후 다시 확인해 주세요.') : t('개발판 · 게임의 고양이 숨김과 채팅 차단은 별개입니다. 받지 못한 대화는 복원하지 않습니다.'));
     $('connection-notice').hidden = false;
     $('storage-label').textContent = data.storage_error ? t('저장 실패 · 일부 기록 미보관') : t('이 기기에 30일 보관');
     document.querySelector('.account-copy strong').textContent = data.profiles[data.context.account]?.name || t('계정 확인 중');
     $('account-status').textContent = connected ? (data.lobby_verified ? t('Bongo Cat 연결됨') : t('Steam 연결됨 · 로비 확인 중')) : t('연결 확인 중');
     const accountAvatar = document.querySelector('.account-avatar');
     const replacement = avatar(data.profiles[data.context.account]); replacement.classList.add('account-avatar'); accountAvatar.replaceWith(replacement);
-    const people = Object.entries(data.profiles).sort(([a], [b]) => a.localeCompare(b));
+    const people = Object.entries(data.participants || {}).sort(([a], [b]) => a.localeCompare(b));
     $('member-count').textContent = t('{count}명', {count:people.length});
     $('participants-button').setAttribute('aria-label', t('확인된 참여자 {count}명 보기', {count:people.length}));
     document.querySelector('.avatar-stack').replaceChildren(...people.slice(0,3).map(([,p])=>avatar(p)));
     renderParticipants(data, people);
-    $('participants-description').textContent = t('현재 로비에서 확인된 상대의 Steam 프로필을 엽니다. 친구 추가는 Steam에서 진행해 주세요. 게임의 숨김 설정을 따르며 외형 조회 실패는 기본 윤곽으로 표시합니다.');
+    renderBlocks(data);
+    $('participants-description').textContent = t('⋯에서 Steam 프로필과 채팅 차단을 관리하세요.');
     if (resetDraft) $('message-input').value = data.draft;
     $('message-input').placeholder = selected === data.context.lobby ? t('메시지 입력') : t('이 로비에 남겨 둘 초안');
     $('search-status').hidden=!query; $('search-summary').textContent=t('현재 페이지 {count}개 결과', {count:data.messages.length});
@@ -568,7 +682,7 @@
       render(data,reset && (switching || editing === draftVersion));
     } catch (e) {
       if (version === requestVersion) {
-        if (model) render({...model,state:'unavailable',notice:'view_unavailable',connected:false,lobby_verified:false,privacy_ready:false,hidden_ok:false,can_send:false,messages:[],profiles:{},has_more:false,has_newer:false,unseen:false,unseen_seq:0,volatile_peer_ids:[]},false);
+        if (model) render({...model,state:'unavailable',notice:'view_unavailable',connected:false,lobby_verified:false,blocks_ready:false,participants:{},can_send:false,messages:[],profiles:{},has_more:false,has_newer:false,unseen:false,unseen_seq:0,volatile_peer_ids:[]},false);
         showError(e); $('send-button').disabled=true;
       }
     } finally {refreshing--; if (lockedEditor) switching--; updateSend(); maybeRestart();}
@@ -588,6 +702,10 @@
   }
   function connect(value) {
     bridge=value;
+    $('block-form').addEventListener('submit', event => {
+      event.preventDefault();
+      setBlocked($('block-steam-id').value, true, model?.context.account);
+    });
     document.addEventListener('visibilitychange', clearReactions);
     $('message-form').addEventListener('submit',send);
     $('message-input').addEventListener('compositionstart',()=>{composing=true;lastEdit=Date.now();updateSend();});
@@ -615,6 +733,25 @@
       $('settings-dialog').showModal(); $('settings-content').scrollTop=0;
     });
     $('participants-button').addEventListener('click',()=>$('participants-dialog').showModal());
+    $('participants-dialog').addEventListener('close', () => closeParticipantMenu());
+    $('participants-dialog').addEventListener('scroll', positionParticipantMenu);
+    window.addEventListener('resize', positionParticipantMenu);
+    $('participant-menu').addEventListener('toggle', event => {
+      if (event.newState === 'closed' && !$('participant-menu').matches(':popover-open')) closeParticipantMenu();
+    });
+    document.addEventListener('keydown', event => {
+      if (!$('participant-menu').matches(':popover-open')) return;
+      if (event.key === 'Escape') {
+        event.preventDefault(); event.stopPropagation(); closeParticipantMenu(true);
+      } else if (['ArrowDown','ArrowUp','Home','End'].includes(event.key)) {
+        event.preventDefault();
+        const buttons = [...$('participant-menu').querySelectorAll('button:not(:disabled)')];
+        const index = buttons.indexOf(document.activeElement);
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+          : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+        buttons[next]?.focus();
+      }
+    }, true);
     $('language-select').addEventListener('change',async()=>{
       if (languagePending) return;
       const control=$('language-select'), value=control.value, previous=languagePreference;

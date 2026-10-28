@@ -15,7 +15,7 @@ SECOND = '76561190000000002'
 
 
 def profile_state(**changes):
-    return state(**dict(dict(account=SELF, hidden={PEER: False, SECOND: None}, hidden_ok=False,
+    return state(**dict(dict(account=SELF, members=[SELF, PEER, SECOND], hidden={PEER: False, SECOND: None}, hidden_ok=False,
                             privacy_ready=True, send_enabled=False,
                             profiles={SELF: {'name': '시험 계정'}, PEER: {'name': '동일 이름'},
                                       SECOND: {'name': '동일 이름'}}), **changes))
@@ -48,21 +48,21 @@ def test_read_only_and_partial_privacy_allow_the_confirmed_peer(profile_service)
     service = profile_service
     assert not service.can_send() and not service.state['hidden_ok']
     assert service.profile_uri(PEER, service.context()).endswith('/' + PEER)
-    assert service.view()['profile_targets'] == [PEER]
-    assert SECOND not in service.view()['profiles']
+    assert service.view()['profile_targets'] == [PEER, SECOND]
+    assert SECOND in service.view()['profiles']
     # A storage failure does not turn a read-only profile action into a send action.
     service.storage_error = True
     assert service.profile_uri(PEER, service.context()).endswith('/' + PEER)
 
 
-@pytest.mark.parametrize('uid', [SELF, SECOND, '76561190000000003'])
+@pytest.mark.parametrize('uid', [SELF, '76561190000000003'])
 def test_self_unconfirmed_and_absent_peers_are_rejected(profile_service, uid):
     with pytest.raises(ValueError, match='steam_profile_unavailable'):
         profile_service.profile_uri(uid, profile_service.context())
 
 
 @pytest.mark.parametrize('changes', [dict(connected=False), dict(lobby_verified=False),
-    dict(privacy_ready=False), dict(hidden={PEER: True}), dict(hidden={}),
+    dict(members=[]),
     dict(profiles={}), dict(account=''), dict(lobby=''), dict(generation='')])
 def test_ineligible_states_remove_actions_and_reject_requests(profile_service, changes):
     service = profile_service
@@ -92,7 +92,7 @@ def test_stale_offline_and_archived_views_have_no_targets(profile_service):
     assert service.view()['profile_targets'] == []
 
 
-def test_worker_removes_departed_and_hidden_peers_before_profile_cache_refresh(monkeypatch):
+def test_worker_removes_departed_but_keeps_hidden_peers_before_profile_cache_refresh(monkeypatch):
     members = {'fixture-self', 'fixture-peer'}
     steam, memory = FakeSteam(), FakeMemory()
     steam.members = lambda lobby: set(members)
@@ -107,7 +107,7 @@ def test_worker_removes_departed_and_hidden_peers_before_profile_cache_refresh(m
     members.add('fixture-peer')
     memory.hidden = lambda: {'fixture-peer': True}
     hidden, _, _ = live.snapshot()
-    assert 'fixture-peer' not in hidden['profiles']
+    assert 'fixture-peer' in hidden['profiles']
     memory.hidden = lambda: {}
     unknown, _, _ = live.snapshot()
-    assert 'fixture-peer' not in unknown['profiles']
+    assert 'fixture-peer' in unknown['profiles']

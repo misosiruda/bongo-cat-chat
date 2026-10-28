@@ -42,6 +42,9 @@ class Store:
                 account TEXT NOT NULL, lobby TEXT NOT NULL, body TEXT NOT NULL,
                 changed REAL NOT NULL, PRIMARY KEY(account,lobby));
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS blocked_users(
+                account TEXT NOT NULL, steam_id TEXT NOT NULL, name TEXT NOT NULL,
+                PRIMARY KEY(account,steam_id));
             PRAGMA user_version=1;
         """)
         with self.db:
@@ -95,24 +98,26 @@ class Store:
 
     @contextmanager
     def visible(self, account, allowed):
-        # A verified allow-list, not NOT IN(hidden): unknown users are also excluded.
+        # Bind the caller's sender filter in a temp table, without SQL ID interpolation.
+        # A nonempty account adds the owner for the legacy allow-list query mode.
         with self.db:
             self.db.execute("CREATE TEMP TABLE IF NOT EXISTS visible_users(id TEXT PRIMARY KEY)")
             self.db.execute("DELETE FROM visible_users")
-            self.db.executemany("INSERT OR IGNORE INTO visible_users VALUES(?)", ((uid,) for uid in allowed | {account}))
+            self.db.executemany("INSERT OR IGNORE INTO visible_users VALUES(?)", ((uid,) for uid in allowed | ({account} if account else set())))
             try:
                 yield
             finally:
                 self.db.execute("DELETE FROM visible_users")
 
-    def message_page(self, account, lobby, allowed, query="", before=None, limit=100, start=None, seen=None):
+    def message_page(self, account, lobby, allowed, query="", before=None, limit=100, start=None, seen=None, blocked=None):
         """A bounded, freshly filtered window plus navigation and unread metadata."""
         limit = max(1, min(1000, int(limit)))
         cutoff = time.time() - RETENTION_SECONDS
-        scope = "account=? AND lobby=? AND sender IN (SELECT id FROM visible_users) AND received>=? AND is_meow_message(body)=0"
+        membership = "IN" if blocked is None else "NOT IN"
+        scope = f"account=? AND lobby=? AND sender {membership} (SELECT id FROM visible_users) AND received>=? AND is_meow_message(body)=0"
         matching = scope + " AND (?='' OR instr(lower(body),lower(?))>0)"
         params = (account, lobby, cutoff, query, query)
-        with self.visible(account, allowed):
+        with self.visible(account if blocked is None else "", allowed if blocked is None else blocked - {account}):
             bounds = " AND (? IS NULL OR seq<?) AND (? IS NULL OR seq>=?)"
             order = "ASC" if start is not None else "DESC"
             fetched = self.db.execute(f"SELECT * FROM messages WHERE {matching}{bounds} ORDER BY seq {order} LIMIT ?",
@@ -157,6 +162,17 @@ class Store:
                 self.db.execute("INSERT OR REPLACE INTO settings VALUES(?,?)", (key, json.dumps(value)))
         row = self.db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
         return json.loads(row[0]) if row else default
+
+    def blocked_users(self, account):
+        return {row['steam_id']: row['name'] for row in self.db.execute(
+            "SELECT steam_id,name FROM blocked_users WHERE account=? ORDER BY steam_id", (account,))}
+
+    def set_blocked(self, account, steam_id, blocked, name=""):
+        with self.db:
+            if blocked:
+                self.db.execute("INSERT OR IGNORE INTO blocked_users VALUES(?,?,?)", (account, steam_id, name))
+            else:
+                self.db.execute("DELETE FROM blocked_users WHERE account=? AND steam_id=?", (account, steam_id))
 
     def delete(self, account, lobby=None):
         with self.db:

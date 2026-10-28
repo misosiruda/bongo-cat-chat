@@ -1,5 +1,7 @@
 # Bongo Cat Chat
 
+The October 28, 2026 source separates **in-game cat visibility from chat blocking**. Chat from hidden cats remains visible. Block or unblock by Steam ID in the participant list or **Settings → Chat blocking**. Blocks persist across lobbies and restarts for the current Steam account on this device. New messages from blocked users are not saved; existing history is hidden until unblocked. This source change has not been released or accepted in a live lobby. Earlier game-visibility descriptions below are historical.
+
 [English](README.en.md) · [한국어](README.md)
 
 A third-party Windows messenger for **Bongo Cat's existing lobby chat**. Read and write lobby messages in a separate window, and search the messages the app has received and saved on your PC. Other players do not need this app to chat with you.

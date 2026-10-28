@@ -30,7 +30,7 @@ class ReactionAssets:
             profile = state.get("profiles", {}).get(sender)
             if (not avatars or not state.get("lobby_verified") or event["context"] != context
                     or not 0 <= now - event["observed"] < REACTION_TTL or not profile
-                    or sender != context["account"] and state.get("hidden", {}).get(sender) is not False):
+                    or sender not in state.get("members", [])):
                 continue
             if event["kind"] == "emote":
                 if "item_name" not in event:
