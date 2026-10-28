@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bongo-cat-chat"
-version = "0.1.0.dev16"
+version = "0.1.0.dev17"
 description = "Windows messenger for the existing Bongo Cat lobby"
 license = "MIT"
 license-files = ["LICENSE"]
