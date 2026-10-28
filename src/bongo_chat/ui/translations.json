@@ -209,5 +209,7 @@
   "차단됨": "Blocked",
   "참여자 메뉴 · {name}": "Participant options · {name}",
   "Steam ID {id}": "Steam ID {id}",
-  "⋯에서 Steam 프로필과 채팅 차단을 관리하세요.": "Open ⋯ for Steam profiles and chat blocking."
+  "⋯에서 Steam 프로필과 채팅 차단을 관리하세요.": "Open ⋯ for Steam profiles and chat blocking.",
+  "{name}님이 들어왔습니다.": "{name} joined the lobby.",
+  "{name}님이 나갔습니다.": "{name} left the lobby."
 }

@@ -14,7 +14,8 @@ A third-party Windows messenger for **Bongo Cat's existing lobby chat**. Read an
 - View your outgoing messages in the messenger, with separate sending, accepted, failed and unknown states.
 - Keep received messages and drafts locally for 30 days, with conversation search and manual deletion.
 - Show the current lobby's player names and static cat profiles using locally installed game resources.
-- Respect the game's individual hidden-player settings. Messages from players whose hidden status is unknown are withheld.
+- The October 28 source adds centered join/leave notices for observed lobby membership changes, with local 30-day retention. Initial connection and reconnection do not announce everyone. Notices follow app chat-block settings and do not send chat or trigger message alerts. See [behavior, database compatibility and validation](docs/lobby-presence.md) before using this source with existing data; release and live-game acceptance are separate.
+- Respect the account-local chat block list. Messages from blocked players are withheld; hiding a cat in the game does not block chat.
 - Open a verified participant's Steam profile. Friend requests are handled by you in Steam.
 - Show temporary cat, meow and game-emote reactions, with an on/off preference. Reactions do not become chat history or message notifications.
 - Choose light, dark or system appearance, and collapse the sidebar.
@@ -61,7 +62,7 @@ User-authored chat travels through Steam lobby chat. Optional update checks cont
 
 ## How it connects
 
-The app runs as a separate Python/PySide6 process. It uses the locally installed game's Steam API DLL for lobby chat and reads supported game structures, process memory and installed resources to verify the lobby, hidden-player state and cat appearance.
+The app runs as a separate Python/PySide6 process. It uses the locally installed game's Steam API DLL for lobby chat and reads supported game structures, process memory and installed resources to verify the lobby and cat appearance.
 
 The product does not modify game files, inject DLLs, patch the game or write to game memory. Game updates can still break compatibility. If the required structures cannot be verified, the app pauses the relevant integration rather than assuming it is safe to proceed. It does not automatically join, leave or move game lobbies.
 

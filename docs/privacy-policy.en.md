@@ -6,6 +6,8 @@ Updated October 28, 2026 to describe the current source, including local languag
 
 ## Local history and game integration
 
+The October 28, 2026 source also stores observed lobby join/leave events, including the display name at observation, player Steam ID, lobby ID and observation time, in the same local database for 30 days. The account-local app block list and history deletion apply. Notices are not sent as lobby chat or Windows notifications. Activity before connection or during connection gaps is not reconstructed. Published-build availability is separate.
+
 The app stores received chat, messages you compose and send, drafts, display names, Steam account IDs, lobby IDs and app preferences on this PC. The default database is `%LOCALAPPDATA%/BongoCatChat/history.sqlite3`. It is an unencrypted SQLite file. There is no separate encryption or cloud backup, and anyone who can access the file may be able to read it.
 
 History is separated by account. Messages and drafts are retained for 30 days and cleaned up at startup and while the app is running. Cleanup does not run while the app is closed. Settings let you delete the selected lobby's history or all history for the current account after confirmation. Deletion does not guarantee that data cannot be recovered from the storage device. Uninstalling preserves history and preferences; use the app's deletion controls before uninstalling to delete history.

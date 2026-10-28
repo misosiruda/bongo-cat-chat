@@ -557,6 +557,17 @@
       }
       const row = node('article', `message${message.own ? ' is-own' : ''}`);
       row.id = `message-${message.id}`; row.setAttribute('role','listitem');
+      if (message.kind === 'member_joined' || message.kind === 'member_left') {
+        row.classList.add('presence-notice');
+        const name = message.name || t('이름 확인 중');
+        row.append(node('span','presence-text',message.kind === 'member_joined'
+          ? t('{name}님이 들어왔습니다.', {name}) : t('{name}님이 나갔습니다.', {name})));
+        const time = node('time','presence-time',date.toLocaleTimeString(language === 'ko' ? 'ko-KR' : 'en-US',{hour:'2-digit',minute:'2-digit'}));
+        time.dateTime = date.toISOString(); row.append(time);
+        if (message.unsaved) row.append(node('span','message-status',t('이 기록은 저장되지 않았어요')));
+        $('message-list').append(row);
+        continue;
+      }
       const profile = data.profiles[message.sender];
       const canOpen = !message.own && profileAvailable(data, message.sender);
       row.append(canOpen ? profileButton(message.sender, profile, data.context, `${message.id}-avatar`, 'profile-avatar', avatar(profile)) : avatar(profile));

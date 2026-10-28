@@ -153,6 +153,40 @@ def test_delayed_events_cannot_reappear_after_unblock(blocked_service):
     assert incoming(service, observed=102.1) is not None
 
 
+def test_blocking_cancels_pending_join_before_unblocking(blocked_service):
+    service = blocked_service
+    service.update(profile_state(generation='presence', members=[SELF, SECOND]))
+    service.update(profile_state(generation='presence', profiles={}))
+    assert PEER in service.presence.pending
+    service.set_blocked(PEER, True, SELF)
+    service.set_blocked(PEER, False, SELF)
+    service.update(profile_state(generation='presence'))
+    assert not service.store.db.execute('SELECT 1 FROM presence_events').fetchone()
+
+
+def test_delayed_membership_observed_while_blocked_does_not_replay(blocked_service):
+    service = blocked_service
+    service.update(profile_state(generation='presence', members=[SELF, SECOND]))
+    service.clock = lambda: 101
+    service.set_blocked(PEER, True, SELF)
+    service.clock = lambda: 102
+    service.set_blocked(PEER, False, SELF)
+    service.update(profile_state(generation='presence', observed=101.5))
+    service.update(profile_state(generation='presence', observed=102))
+    assert not service.store.db.execute('SELECT 1 FROM presence_events').fetchone()
+
+
+def test_departure_history_obeys_account_blocks_after_lobby_move(blocked_service):
+    service = blocked_service
+    service.update(profile_state(members=[SELF, SECOND]))
+    assert [r['kind'] for r in service.view()['messages']] == ['member_left']
+    service.update(profile_state(lobby='next-room', generation='next'))
+    service.set_blocked(PEER, True, SELF)
+    assert not service.view(lobby='fixture-room-a')['messages']
+    service.set_blocked(PEER, False, SELF)
+    assert [r['kind'] for r in service.view(lobby='fixture-room-a')['messages']] == ['member_left']
+
+
 def test_real_bridge_block_controls_keep_draft_and_survive_reload(profile_controller):
     app, controller, _ = profile_controller
     service = controller.service

@@ -122,6 +122,10 @@ h1 { font-size: calc(var(--u) * 32); font-weight: 700; line-height: 1.3; letter-
 .date-divider::before, .date-divider::after { content: ''; height: 1px; background: var(--line); flex: 1; }
 .message { display: flex; align-items: flex-start; gap: calc(var(--u) * 24); min-width: 0; position: relative; }
 .message .avatar { margin-top: 0; }
+.message.presence-notice { justify-content: center; align-items: center; flex-wrap: wrap; gap: 5px 10px; color: var(--muted); text-align: center; font-size: 13px; line-height: 1.6; padding: 2px 12px; }
+.presence-text { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; unicode-bidi: plaintext; }
+.presence-time { flex-shrink: 0; font-size: 11px; }
+.presence-notice .message-status { flex-basis: 100%; margin: 0; }
 .message-content { display: flex; flex-direction: column; align-items: flex-start; max-width: min(82%, 860px); min-width: 0; padding-top: calc(var(--u) * 3); }
 .message-meta { display: flex; align-items: baseline; gap: 10px; min-height: calc(var(--u) * 28); margin-bottom: 5px; font-size: calc(var(--u) * 16); color: var(--muted); line-height: 1.45; }
 .message-meta strong { font-size: calc(var(--u) * 17); font-weight: 650; color: var(--ink); }

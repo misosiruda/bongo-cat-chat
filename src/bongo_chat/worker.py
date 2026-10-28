@@ -86,6 +86,7 @@ class LiveConnection:
         state = {"type": "state", "account": account, "lobby": lobby if valid else "",
                  "generation": self.generation, "connected": valid, "lobby_verified": verified,
                  "members": sorted(members) if verified else [],
+                 "observed": time.monotonic(),
                  # Profiles refresh once a second, membership every tick.
                  "profiles": {uid: row for uid, row in self.profiles.items()
                               if verified and uid in members},

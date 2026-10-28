@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from .protocol import encode, is_meow_message
 from .profiles import steam_profile_uri
+from .presence import PresenceTracker
 from .reactions import MAX_REACTIONS, REACTION_TTL, png
 
 
@@ -42,6 +43,7 @@ class ChatService:
         self.pending = deque(maxlen=200)
         self.receipts = OrderedDict()
         self.revision = 0
+        self.presence = PresenceTracker()
         self.reactions = deque(maxlen=MAX_REACTIONS)
         self.reaction_receipts = deque(maxlen=256)
         self.reactions_enabled = False
@@ -124,6 +126,8 @@ class ChatService:
         # Commit before publishing. A failed write keeps the previous policy.
         if blocked:
             self.blocked.setdefault(steam_id, name)
+            self.presence.pending.pop(steam_id, None)
+            self.presence.names.pop(steam_id, None)
         else:
             self.blocked.pop(steam_id, None)
         self.block_changed_at[(account, steam_id)] = self.clock()
@@ -159,6 +163,8 @@ class ChatService:
         old = self.state
         boundary = (old.get("account"), old.get("lobby"), old.get("generation")) != (
             state.get("account"), state.get("lobby"), state.get("generation"))
+        if boundary or not self.fresh():
+            self.presence.reset()
         if boundary:
             self.reactions.clear()
             self.end("connection_changed")
@@ -175,6 +181,16 @@ class ChatService:
         if state.get("account") and state.get("lobby") and state.get("generation") and not self.session:
             self.session = str(uuid4())
             self.write(self.store.session, self.session, state["account"], state["lobby"], state.get("name") or "")
+        for kind, sender, name in self.presence.update(state, self.updated, self.blocked):
+            if not self.after_block_change(dict(sender=sender, observed=state.get('observed', self.updated))):
+                continue
+            row = dict(id=str(uuid4()), session=self.session, account=state['account'], lobby=state['lobby'],
+                       sender=sender, name=name, body='', received=time.time(), own=0,
+                       status='received', echo=0, kind=kind)
+            if not self.save_message(row):
+                self.volatile[row['id']] = row
+                while len(self.volatile) > 200:
+                    self.volatile.popitem(last=False)
         self.revision += 1
 
     def end(self, reason):
@@ -196,7 +212,7 @@ class ChatService:
     def allowed(self):
         if not self.verified() or self.blocked is None:
             return set()
-        return set(self.state.get('members', [])) - self.blocked.keys()
+        return set(self.state.get('members') or []) - self.blocked.keys()
 
     def can_send(self):
         return bool(self.session and self.verified()
@@ -348,7 +364,7 @@ class ChatService:
         volatile = [dict(r, unsaved=True) for r in self.volatile.values() if r["account"] == account
                     and r["lobby"] == lobby and visible_sender(r["sender"])
                     and not is_meow_message(r["body"])
-                    and query.lower() in r["body"].lower() and before is None
+                    and (not query or r.get('kind', 'chat') == 'chat' and query.lower() in r["body"].lower()) and before is None
                     and (start is None or r.get('_before_seq', float('inf')) >= start)
                     and (not page['has_newer'] or rows and r.get('_before_seq', float('inf')) <= rows[-1]['seq'])]
         messages = sorted(rows + volatile, key=lambda r: (
@@ -363,7 +379,7 @@ class ChatService:
                 "blocked_users": [dict(steam_id=uid, name=name) for uid, name in sorted((self.blocked or {}).items())],
                 "participants": {uid: dict(p, blocked=uid in (self.blocked or {}))
                                  for uid, p in self.state.get('profiles', {}).items()
-                                 if self.verified() and self.blocked is not None and uid in self.state.get('members', [])},
+                                 if self.verified() and self.blocked is not None and uid in (self.state.get('members') or [])},
                 "can_send": self.can_send() and lobby == self.state.get("lobby"),
                 "profile_targets": sorted(self.profile_targets(lobby)),
                 "rooms": rooms, "messages": messages, "profiles": profiles, "draft": draft,
@@ -373,4 +389,4 @@ class ChatService:
                 "reactions_enabled": self.reactions_enabled,
                 "lobby": lobby, "has_more": page['has_more'], "has_newer": page['has_newer'],
                 "latest_seq": page['latest_seq'], "unseen": page['unseen'], "unseen_seq": page['unseen_seq'],
-                "volatile_peer_ids": [r['id'] for r in visible_volatile if not r['own']]}
+                "volatile_peer_ids": [r['id'] for r in visible_volatile if not r['own'] and r.get('kind', 'chat') == 'chat']}
