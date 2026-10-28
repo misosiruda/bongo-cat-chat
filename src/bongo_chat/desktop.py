@@ -204,7 +204,7 @@ class Controller(QObject):
             # Don't return native exception messages or paths through the renderer.
             code = str(exc)
             if code not in {"connection_changed", "development_limit_50", "control_character", "storage_failed_before_send", "legal_unavailable",
-                            "invalid_steam_id", "steam_profile_unavailable", "steam_profile_failed"}:
+                            "invalid_steam_id", "steam_profile_unavailable", "steam_profile_failed", "block_unavailable"}:
                 code = "request_failed"
             return json.dumps({"error": code})
 
@@ -235,6 +235,12 @@ class Controller(QObject):
             if args.get('language') != self.language:
                 result['translations'] = ENGLISH if self.language == 'en' else {}
             return result
+        if action == 'block_user':
+            if self.closed or self.restarting:
+                raise ValueError('block_unavailable')
+            self.service.set_blocked(args.get('steam_id'), args.get('blocked'), args.get('account'))
+            self.notifications.sync()
+            return {'ok': True}
         if action == 'open_steam_profile':
             if self.closed or self.restarting or self.opening_profile:
                 raise ValueError('steam_profile_unavailable')

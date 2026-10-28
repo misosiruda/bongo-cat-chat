@@ -149,7 +149,7 @@ def main():
         resources.callback(store.close)
         state=dict(state='ready',account='fixture-self',lobby='fixture-room',generation='fixture-generation',name='오후의 대화',hidden_ok=True,
                    hidden={'fixture-peer':False},profiles={'fixture-self':{'name':'테스트 계정'},'fixture-peer':{'name':'연습 고양이'}},send_enabled=True)
-        state.update(connected=True, lobby_verified=True, privacy_ready=True)
+        state.update(connected=True, lobby_verified=True, members=['fixture-self','fixture-peer'])
         service.update(state)
         for index,text in enumerate(['오늘의 한글 입력을 확인해요.','이 기록은 실제 Steam 채팅이 아닌 시험 자료입니다.','같은 말을 두 번 해도 두 개의 발언으로 보관해요.','긴 대화의 스크롤 위치도 함께 확인합니다.']*12):
             service.receive(dict(id=f'fixture-{index}',sender='fixture-peer',text=text,context=service.context()))
@@ -207,7 +207,7 @@ def main():
         service.receive(dict(id='fixture-new-visible',sender='fixture-peer',text='추가 시험 발언',context=service.context()))
         page.wait_for_timeout(800)
         assert page.locator('#new-messages').is_visible()
-        service.update(dict(state,hidden={'fixture-peer':True}));page.wait_for_timeout(800)
+        service.blocked['fixture-peer']='합성 차단 대상';page.wait_for_timeout(800)
         assert page.locator('.message-bubble').count()==0
         assert page.locator('#new-messages').is_hidden()
         service.update(dict(state,state='syncing',notice='discovering',lobby_verified=False,privacy_ready=False,hidden_ok=False,send_enabled=False));page.wait_for_timeout(800)
@@ -215,10 +215,10 @@ def main():
         assert '로비 발견' in page.locator('#connection-label').inner_text()
         assert page.locator('#message-input').is_enabled()
         page.screenshot(path=str(args.output/'messenger-syncing.png'))
-        service.update(dict(state,state='syncing',notice='hidden_unavailable',privacy_ready=False,hidden_ok=False));page.wait_for_timeout(800)
+        service.update(dict(state,hidden={'fixture-peer':True}));page.wait_for_timeout(800)
         assert page.locator('#send-button').is_enabled()
         assert page.locator('.message-bubble').count()==0
-        service.update(state);page.set_viewport_size({'width':480,'height':800});page.wait_for_timeout(800)
+        service.blocked.clear();service.update(state);page.set_viewport_size({'width':480,'height':800});page.wait_for_timeout(800)
         page.screenshot(path=str(args.output/'messenger-narrow.png'))
         assert page.locator('#mobile-menu').is_visible()
         page.locator('#mobile-menu').click();assert page.locator('#message-search').is_visible()

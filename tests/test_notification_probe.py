@@ -28,17 +28,17 @@ def test_focus_and_independent_switches(policy, foreground, flash, toast):
                          flash=flash and not foreground, toast=toast and not foreground)
 
 
-@pytest.mark.parametrize('case', ['self', 'hidden', 'unknown', 'privacy_pending', 'duplicate', 'meow', 'old_lobby', 'stale'])
+@pytest.mark.parametrize('case', ['self', 'blocked', 'unknown', 'privacy_pending', 'duplicate', 'meow', 'old_lobby', 'stale'])
 def test_filtered_messages_do_not_notify(policy, case):
     changes = {}
     if case == 'self':
         changes['sender'] = 'fixture-self'
-    elif case == 'hidden':
-        policy.service.update(probe.fixture_state(hidden={'fixture-peer': True}))
+    elif case == 'blocked':
+        policy.service.blocked['fixture-peer'] = '합성 차단 대상'
     elif case == 'unknown':
         changes['sender'] = 'fixture-unknown'
     elif case == 'privacy_pending':
-        policy.service.update(probe.fixture_state(privacy_ready=False))
+        policy.service.blocked = None
     elif case == 'duplicate':
         changes['id'] = 'fixture-repeat'
         assert policy.receive(False, **changes)['toast']

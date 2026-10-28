@@ -108,6 +108,18 @@
         <label><input type="radio" name="appearance" value="system"><span><svg aria-hidden="true"><use href="#i-monitor"/></svg>시스템</span></label>
       </div></fieldset>
       <p class="settings-note" id="theme-note">시스템의 밝기 설정을 따릅니다.</p>
+      <section class="block-panel" aria-labelledby="block-title">
+        <h3 id="block-title">채팅 차단</h3>
+        <p class="settings-note" id="block-help">게임의 고양이 숨김과 별개입니다. 차단은 이 기기의 현재 Steam 계정에 저장되며, 다른 로비와 앱 재실행 후에도 유지됩니다.</p>
+        <form id="block-form">
+          <label for="block-steam-id">차단할 Steam ID (SteamID64)</label>
+          <div class="block-input-row"><input id="block-steam-id" type="text" inputmode="numeric" maxlength="20" pattern="[1-9][0-9]{0,19}" required autocomplete="off" aria-describedby="block-help"><button class="page-button" id="block-submit" type="submit">차단</button></div>
+        </form>
+        <p class="settings-note" id="block-status" role="status"></p>
+        <ul id="blocked-list" class="blocked-list"></ul>
+        <p class="settings-note" id="blocked-empty">차단한 사용자가 없습니다.</p>
+        <p class="settings-note">차단한 상대의 대화·검색·알림·반응 효과를 숨기고 새 메시지는 저장하지 않습니다. 해제하면 기존 기록은 다시 보이지만 차단 중 대화는 복구되지 않습니다.</p>
+      </section>
       <fieldset class="reaction-panel"><legend>고양이 반응 효과</legend>
         <label><input type="checkbox" id="reactions-enabled" aria-describedby="reaction-help"> 이모티콘·야옹 효과 표시</label>
         <p class="settings-note" id="reaction-help">고양이와 함께 올라오는 이모티콘·야옹 효과를 표시합니다. 끄면 표시 중인 효과도 사라지고, 다시 켠 뒤 새로 받은 반응부터 표시합니다.</p>
@@ -123,12 +135,13 @@
       </fieldset>
       <section class="update-panel" aria-labelledby="update-title"><h3 id="update-title">앱 업데이트 <span id="app-version"></span></h3><label><input type="checkbox" id="allow-update-checks"> GitHub 업데이트 확인 및 다운로드 허용</label><p class="settings-note">허용하면 새 버전을 내려받고 30초 안내 후 자동으로 재시작해 적용합니다. 입력·전송 중에는 기다리며 초안을 저장합니다. 끄면 자동·수동 확인과 자동 재시작이 중지됩니다. 이미 준비된 업데이트는 다음 실행에 적용될 수 있습니다.</p><p id="update-status" class="settings-note" role="status">업데이트 상태를 확인하고 있어요.</p><button id="check-updates" class="page-button" type="button">업데이트 확인</button></section>
       <section aria-label="개인정보 및 오픈소스 안내"><button class="page-button" data-legal="privacy" type="button">개인정보 안내</button><button class="page-button" data-legal="licenses" type="button">오픈소스 라이선스</button><button class="page-button" data-legal="chromium" type="button">Chromium 고지</button><button class="page-button" data-legal="sources" type="button">대응 소스와 교체 방법</button></section>
-      <p class="settings-note">받은 대화와 초안을 이 기기에 30일 보관합니다. 게임에서 숨긴 동안에는 새 대화를 저장하지 않습니다. 숨김 미확인 상대의 대화는 표시·저장하지 않으며, 전송은 로비 확인 후 사용할 수 있습니다.</p><button id="delete-room" class="page-button">선택한 로비 기록 삭제</button><button id="delete-all" class="page-button">현재 계정 기록 전체 삭제</button><p id="delete-confirm" hidden>삭제한 기록은 되돌릴 수 없습니다. <button id="confirm-delete" class="page-button">기록 삭제 확인</button></p><p class="settings-footnote">테마·사이드바·반응 효과·알림 설정은 이 기기에 저장돼요.</p>
+      <p class="settings-note">받은 대화와 초안을 이 기기에 30일 보관합니다. 게임에서 숨긴 고양이의 채팅도 저장하며, 앱에서 차단한 상대의 새 대화는 저장하지 않습니다. 기록을 삭제해도 차단 목록은 유지됩니다.</p><button id="delete-room" class="page-button">선택한 로비 기록 삭제</button><button id="delete-all" class="page-button">현재 계정 기록 전체 삭제</button><p id="delete-confirm" hidden>삭제한 기록은 되돌릴 수 없습니다. <button id="confirm-delete" class="page-button">기록 삭제 확인</button></p><p class="settings-footnote">테마·사이드바·반응 효과·알림 설정은 이 기기에 저장돼요.</p>
     </div>
   </dialog>
   <dialog class="participants-dialog" id="participants-dialog" aria-labelledby="participants-title" aria-describedby="participants-description">
     <div class="dialog-heading"><h2 id="participants-title">함께 있는 고양이</h2><form method="dialog"><button class="icon-button" aria-label="참여자 목록 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></form></div>
     <p class="participant-description" id="participants-description"></p><ul class="participant-list" id="participant-list"></ul>
+    <div id="participant-menu" class="participant-menu" popover="auto" role="menu" aria-labelledby="participant-menu-name"></div>
   </dialog>
   <div class="toast" id="toast" role="status" hidden></div>
 </body>

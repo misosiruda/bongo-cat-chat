@@ -25,7 +25,7 @@ def fixture_state(**changes):
     return dict(dict(state='ready', account='fixture-self', lobby='fixture-room',
                      generation='fixture-generation', connected=True,
                      lobby_verified=True, privacy_ready=True, hidden_ok=True,
-                     hidden={'fixture-peer': False}, profiles={}, send_enabled=False,
+                     members=['fixture-self', 'fixture-peer'], profiles={}, send_enabled=False,
                      name='알림 검증 전용'), **changes)
 
 

@@ -88,7 +88,7 @@ def test_actual_qt_bridge_history_theme_hide_ime(tmp_path):
         js(app,page,"document.querySelector('#sidebar-toggle').click()")
         wait_until(app,lambda:controller.store.setting("collapsed") is True)
         assert js(app,page,"document.querySelector('#message-input').value") == "작성 중 한글"
-        controller.service.update(state(hidden={"fixture-peer":True}))
+        controller.service.blocked['fixture-peer'] = '합성 차단 대상'
         wait_until(app,lambda:js(app,page,"document.querySelectorAll('.message-bubble').length") == 0)
         assert js(app,page,"document.body.textContent.includes('한글 <script>')") is False
         assert not page.console_errors, page.console_errors
@@ -491,10 +491,10 @@ def test_early_lobby_keeps_draft_and_separates_privacy_from_send(qt_chat):
     js(app, page, "document.querySelector('#message-input').value='연결 확인 중 작성';document.querySelector('#message-input').dispatchEvent(new Event('input'))")
     assert js(app, page, "document.querySelector('#send-button').disabled") is True
     wait_until(app, lambda: controller.store.draft('fixture-self', 'fixture-room-a') == '연결 확인 중 작성')
-    controller.service.update(state(state='syncing', notice='hidden_unavailable', privacy_ready=False, hidden_ok=False))
-    wait_until(app, lambda: js(app, page, "document.querySelector('#connection-label').textContent.includes('숨김 확인 중')"))
+    controller.service.update(state(hidden={'fixture-peer':True}))
+    wait_until(app, lambda: js(app, page, "document.querySelector('#connection-label').textContent.includes('게임과 연결됨')"))
     assert js(app, page, "document.querySelector('#send-button').disabled") is False
-    assert js(app, page, "document.querySelectorAll('.message-bubble').length") == 0
+    assert js(app, page, "document.querySelectorAll('.message-bubble').length") == 1
     assert js(app, page, "document.querySelector('#message-input').value") == '연결 확인 중 작성'
     controller.service.update(state())
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") == 1)

@@ -159,9 +159,9 @@ def main():
                 assert page.locator('.reaction-particle').count()==0
                 page.set_viewport_size({'width':1280,'height':800})
                 f.emit(3,kind='meow');expect(page.locator('.reaction-meow')).to_have_count(3)
-                f.service.update(dict(f.state,hidden={'fixture-peer':True}))
+                f.service.blocked['fixture-peer'] = '합성 차단 대상'
                 expect(page.locator('.reaction-particle')).to_have_count(0)
-                f.service.update(f.state);f.poll()
+                f.service.blocked.clear();f.service.update(f.state);f.poll()
                 page.locator('#message-search').fill('검증')
                 f.emit(3);f.poll();assert page.locator('.reaction-particle').count()==0
                 page.locator('#message-search').fill('');f.poll()

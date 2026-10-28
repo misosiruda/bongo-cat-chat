@@ -147,11 +147,11 @@ def test_each_repeat_is_transient_with_no_history_receipts_unread_or_revision(se
     assert service.store.db.execute('SELECT count(*) FROM receipts').fetchone()[0]==0
 
 
-@pytest.mark.parametrize('change', ['hidden','privacy','departed','generation','expired','future','stale','unverified'])
+@pytest.mark.parametrize('change', ['blocked','privacy','departed','generation','expired','future','stale','unverified'])
 def test_pending_reactions_recheck_boundaries_before_delivery(service, change):
     connect(service);service.receive_reaction(reaction(service))
-    if change=='hidden':service.update(dict(service.state,hidden={'fixture-peer':True}))
-    if change=='privacy':service.update(dict(service.state,privacy_ready=False))
+    if change=='blocked':service.blocked['fixture-peer'] = '합성 차단 대상'
+    if change=='privacy':service.blocked = None
     if change=='departed':service.update(dict(service.state,profiles={}))
     if change=='generation':service.update(dict(service.state,generation='new'))
     if change in ('expired','future','stale'):service.clock=lambda: {'expired':101.2,'future':99,'stale':103}[change]
@@ -201,7 +201,7 @@ def test_asset_loading_waits_briefly_rechecks_hide_and_uses_real_item_name(servi
     ready=loader.ready(service.state,steam,assets)
     assert ready[0]['avatar']==PNG and ready[0]['image']==PNG
     loader.add(event)
-    assert not loader.ready(dict(service.state,hidden={'fixture-peer':True}),steam,assets)
+    assert not loader.ready(dict(service.state,members=[]),steam,assets)
     loader.add(dict(event,observed=98))
     assert not loader.ready(service.state,steam,assets)
     loader.add(event);steam.definition=lambda *args:'itemslot:hat'

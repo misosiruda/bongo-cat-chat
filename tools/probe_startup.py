@@ -64,17 +64,17 @@ def main():
             if last_emit is not None and first.get('connected') is not None:
                 gaps.append(elapsed-last_emit)
             last_emit = elapsed
-            for key in ('connected', 'lobby_verified', 'privacy_ready', 'hidden_ok'):
+            for key in ('connected', 'lobby_verified'):
                 if event.get(key) and key not in first:
                     first[key] = round(elapsed, 4)
             status = {key: event.get(key) for key in
-                      ('state', 'notice', 'connected', 'lobby_verified', 'privacy_ready', 'hidden_ok', 'send_enabled')}
+                      ('state', 'notice', 'connected', 'lobby_verified', 'send_enabled')}
             if status != previous:
                 previous = status
                 row = dict(seconds=round(elapsed, 4), **status)
                 observations.append(row)
                 print(json.dumps(row), flush=True)
-            if 'hidden_ok' in first and elapsed-first['hidden_ok'] >= 3:
+            if 'lobby_verified' in first and elapsed-first['lobby_verified'] >= 3:
                 stop.set()
 
     import queue
@@ -92,11 +92,11 @@ def main():
         GameMemory.discover = original_discover
     print(json.dumps(dict(first_seconds=first, scan_seconds=scans, discoveries=discoveries,
                           maximum_state_gap_seconds=round(max(gaps, default=0), 4),
-                          avatars_enabled=args.avatars, ready='hidden_ok' in first,
+                          avatars_enabled=args.avatars, ready='lobby_verified' in first,
                           sends=0, decoded_messages=0, chat_database_opened=False,
                           lobby_mutations=0, game_writes=0,
                           game_still_running=game.alive() if game else None)), flush=True)
-    return 0 if 'hidden_ok' in first else 2
+    return 0 if 'lobby_verified' in first else 2
 
 
 if __name__ == '__main__':

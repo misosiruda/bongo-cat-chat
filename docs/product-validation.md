@@ -1,5 +1,54 @@
 # Windows 개발판 검증 기록
 
+## 2026-10-28 입퇴장 안내와 채팅 차단 결합 검수
+
+#37의 실제 병합 커밋 `e35456f672929fdd60ed22dca10b2649dff68578`을 차단 브랜치에 반영했다. 별도 `presence_events`·공유 순번·구버전 롤백 호환성을 유지하면서 입퇴장 감지·기존 안내 조회에도 계정별 앱 차단을 적용했다. 차단 시 이름 확인을 기다리던 후보를 버리고, 차단 중 관찰한 지연 표본이 해제 뒤 안내로 저장되지 않도록 원래 관찰 시각을 검사한다. 현재 구성원에서 빠진 퇴장 대상도 계정 차단 목록으로 판단한다.
+
+- `tests/test_blocking.py tests/test_presence.py tests/test_presence_desktop.py tests/test_presence_rollback.py -q --tb=short --show-capture=no`: **57 passed / 6.13초**. 차단/해제·목록 읽기 실패·기준 표본 재설정·지연 입장·보관 로비의 퇴장 안내·실제 Qt 화면·구버전 복귀를 확인했다.
+- `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`, `BONGO_TEST_NSIS_PATH=<dist/tooling/nsis-3.13 절대 경로>`에서 `.venv/Scripts/python.exe -m pytest -q --tb=short --show-capture=no --junitxml=<작업 산출물>/combined-pytest.xml`: **747 passed / 147.27초, 실패·skip 0개**. Qt SharedImageManager 진단은 남았다.
+- 결합 후 개인정보 안내 문구를 맞춘 뒤 `tests/test_distribution.py tests/test_localization.py -q --tb=short --show-capture=no`: **31 passed / 2.69초**.
+- 최종 경계 검토에서 차단 중 관찰한 입장 표본이 늦게 도착하고 이름도 해제 후 확인되는 경우 안내가 재생되는 실패를 먼저 재현했다(`test_delayed_membership_observed_while_blocked_does_not_replay[True]`). 입장 후보의 최초 관찰 시각을 이벤트까지 보존하도록 보완했다. 이후 `tests/test_blocking.py tests/test_presence.py tests/test_presence_desktop.py tests/test_presence_rollback.py tests/test_core.py tests/test_worker.py tests/test_notifications.py tests/test_scroll_service.py -q --tb=short --show-capture=no`: **228 passed / 10.13초**. 위 전체 747개 검사 이후의 수정이며 최종 전체 검사는 원격 CI와 구분해 확인한다.
+- 합성 Playwright/Edge의 한 줄 목록·메뉴 검사를 재실행해 1240×840 / 400×500, 한영·밝음/어두움·차단·키보드·포커스·연결 변경을 확인했다. `tests/browser_profile_check.py`도 1240×840 / 960×540 / 400×500, 9개 캡처에서 통과했고 두 검사 모두 콘솔 오류·경고 0건이다. Steam 프로토콜은 mock이고 게임은 연결하지 않았다.
+- PR #38 최초 Ready 자동 Code Review·Security는 `4d451fc6b3bf91c5999ca3805ae8adf740caccc0`에서 지적 없이 완료됐다. 위 결합 수정은 이후의 자체 검수·로컬 검사이며 최초 자동 리뷰가 결합 수정까지 검사했다고 표현하지 않는다. 최종 head의 원격 CI는 PR에서 별도로 확인한다.
+
+#37 병합 선행 조건은 충족했지만 사용자 요청에 따라 배포 보류를 유지한다. 버전·태그·릴리스·업데이트 manifest·실사용 설치본을 변경하지 않았고 실제 게임 인수도 수행하지 않았다.
+
+## 2026-10-28 채팅 차단 출하 검수
+
+최종 한 줄 참여자 UI를 포함한 `feat/steam-id-chat-blocking`에서 전체 회귀 검사를 다시 실행했다. `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu` 조건의 `.venv/Scripts/python.exe -m pytest -q --tb=short --show-capture=no --junitxml=<작업 산출물>/shipping-pytest.xml` 결과는 **709 passed, 5 skipped / 125.89초**다. skip은 NSIS 환경 변수 미지정에 따른 설치기 통합 검사다.
+
+`BONGO_TEST_NSIS_PATH=dist/tooling/nsis-3.13`의 절대 경로를 지정한 `tests/test_windows_signing.py -k nsis`는 **4 passed / 6.27초**, `test_installer_update_choice_is_shared_and_preserved`는 **1 passed / 8.66초**였다. 별도 임시 설치 대상·서명 test double을 사용했으며 실사용 설치본을 바꾸지 않았다. Python compileall, `node --check src/bongo_chat/ui/app.js`, `git diff --check`도 통과했다. Qt offscreen의 SharedImageManager 진단은 남았다.
+
+사용자 요청에 따라 공개 배포를 보류한다. 로비 입·퇴장 안내 #37 병합은 향후 배포 선행 조건이며, 이 검증 결과는 해당 변경과 합친 결과가 아니다. 결정 번호는 #37의 D-030과 겹치지 않도록 차단 정책을 D-031로 지정했다. 게임·Steam·실사용 데이터 연결은 수행하지 않았다.
+
+## 2026-10-28 참여자 목록 한 줄 정리
+
+후속 UI 피드백에 따라 참여자 목록을 높이 48px의 `고양이 · 이름 · ⋯` 한 줄로 줄였다. Steam ID·프로필 열기·차단/해제는 ⋯ 메뉴에 묶고 차단한 상대만 작은 상태 표시를 붙인다. 긴 이름은 목록에서 말줄임하고 메뉴에서 전체 이름을 확인한다. 메뉴는 창 밖으로 잘리지 않도록 배치하며 계정·로비·연결 구간 변경이나 대상 퇴장 시 닫는다.
+
+- 실제 Qt·QWebChannel 차단/프로필·언어 검사: `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`에서 `pytest tests/test_profile_desktop.py tests/test_blocking.py tests/test_localization.py -q --tb=short --show-capture=no`, **55 passed / 9.58초**. Qt offscreen의 SharedImageManager 진단은 기존처럼 남았다.
+- Browser plugin not available 조건에서 Playwright/Edge와 합성 로컬 서버를 사용했다. 1240×840 및 400×500의 한 줄 높이·말줄임·메뉴 위치, 라이트/다크·한국어/영어, 정확한 ID 차단, Enter/방향키/Escape, 포커스 복귀, 바깥 클릭·같은 버튼으로 닫기, 프로필 갱신과 연결 구간 변경을 확인했다. 콘솔 오류·경고 0건이며 화면 캡처는 저장소 밖에 보관했다.
+- 메뉴 진입 경로를 반영한 `tests/browser_profile_check.py --browser <Edge> --output <작업 산출물>/compact-profiles`도 통과했다. 1240×840 / 960×540 / 400×500의 라이트·다크 화면 9개, Enter/Space, 초안·검색·스크롤 보존, 프로필 갱신 포커스와 이전 연결 구간 요청 거절을 확인했다. 콘솔 오류·경고는 0건이며 Steam 프로토콜은 mock으로 처리했다.
+- 게임·Steam·실사용 데이터 연결과 설치본 배포는 수행하지 않았다. 변경 범위는 참여자 목록·메뉴와 관련 접근성·번역·회귀 검사다.
+
+
+## 2026-10-28 게임 숨김 분리와 Steam ID 채팅 차단
+
+[요구사항과 정책](chat-blocking.md), D-031에 따라 게임 숨김을 수신 조건에서 제거하고 계정별 `blocked_users`를 추가했다. 참여자 버튼과 설정의 ID 입력·해제를 제공하며 같은 계정의 모든 로비·검색·알림·반응·기록에 적용한다. 기존 게임 숨김 목록은 자동 이전하지 않는다.
+
+- 소프트웨어 렌더링 환경(`QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`)의 `.venv/Scripts/python.exe -m pytest -q --tb=short --show-capture=no`: **709 passed, 5 skipped / 126.95초**. NSIS 경로 환경 변수가 없는 설치기 통합 5개를 건너뛰었다. Qt offscreen의 `SharedImageManager` 진단은 남았으며 GPU 경로 인수와 구분한다.
+- 초기 화면 검사에서 새 차단 버튼이 기존 `.participant-profile` 선택자를 공유하던 문제를 발견해 별도 `.block-action`으로 분리했다. 테스트의 화면 재로드 완료 대기도 보완한 뒤 실제 Qt 브리지·기존 프로필 검사 **19 passed / 7.02초**를 확인했다. 이 검사는 위 전체 실행보다 앞선 집중 검사이며 합산하지 않는다.
+- Browser plugin not available. 기존 Playwright와 설치된 Edge를 사용해 로컬 합성 HTTP 화면과 실제 `ChatService`·SQLite를 연결했다. 게임 숨김 `True`·미확인 상태에서 채팅 표시, 키보드 차단, 인접 SteamID64·동명이인 분리, 직접 입력, uint64 초과 거절, 저장 실패 시 이전 목록 유지, 해제, 재로드, 다른 로비의 신규 저장 차단을 확인했다. 초안·검색·포커스를 보존했다.
+- 합성 차단 화면: 1240×840 / 400×680, 한국어·영어, 라이트·다크. 페이지 URL·제목·내용·오류 오버레이 없음·스크린샷·가로 넘침 없음·콘솔 오류/경고 0건을 확인했다. 사용자 데이터 대신 명시적인 샘플 이름·합성 ID·문장만 사용했다. 스크린샷과 임시 검증 코드는 저장소 밖의 작업 산출물 폴더에 보관했다.
+- `tests/browser_scroll_check.py --browser <Edge> --output <작업 산출물>/scroll`: 7개 시나리오 통과, 1280×800 / 480×800, 콘솔 오류·경고 0건. `tests/browser_profile_check.py`는 1240×840 / 960×540 / 400×500에서 라이트·다크·Enter/Space와 9개 화면을 검사했고 오류·경고 0건이었다.
+
+- 최종 검토에서 작업자가 콜백의 원래 `observed`를 그대로 전달하도록 유지하고 이를 작업자 회귀 검사에 고정했다. 차단·작업자·기록·검색·번역표 집중 검사 **134 passed / 3.56초**를 확인했다. 전체 709개 결과 이후의 변경이므로 합산하지 않는다.
+- 설정 상단에 차단 항목을 넣으면 좁은 창에서 언어 선택이 첫 화면 밖으로 밀리는 회귀를 발견했다. 기존 언어·테마 순서를 유지하고 차단을 테마 아래로 옮겼다. 최종 Qt 차단·언어 검사 **37 passed / 2.44초**, 차단 브라우저 흐름 재검사, 언어 브라우저 6개 레이아웃 검사가 통과했다. 읽던 위치 변화는 0px, 브라우저 콘솔 오류는 0건이었다.
+- 반응 브라우저 검사도 통과했다. 합성 반응 100개 순간 입력, 24개 동시 표시, 좁은 창 10개, 연속 80개 및 앱 차단 시 제거를 확인했고 콘솔 오류·경고는 0건이었다. 실제 게임 리소스·Steam 연결 없이 합성 PNG를 사용했다.
+- `git diff --check` 통과. 변경한 읽기 전용 진단 스크립트 3개는 AST 구문 검사만 실행했다. 새 작업자 상태의 `members`·`lobby_verified`에 맞춰 진단 필드를 갱신했으며 실사용 진단을 실행한 것은 아니다.
+
+실제 Steam 초기화·게임 조작·실사용 로비 전송·실사용 DB 열기·설치본 교체·빌드·커밋·공개 배포는 수행하지 않았다. 게임에서 고양이 숨김을 직접 조작한 실제 자연 수신, 다른 PC·순정 게임·장시간 운영 인수는 미검증이다. 과거 실제 숨김 조회 검증을 이번 분리 정책의 게임 인수로 대체하지 않는다.
+
+
 ## 2026-10-28 로비 입·퇴장 안내
 
 `origin/main`의 `7658736`에서 별도 `feat/lobby-presence-notices` 워크트리를 만들고 [입·퇴장 안내](lobby-presence.md)를 구현했다. 기존 `C:\Project\bongo-cat-chat` 작업 폴더의 브랜치·파일을 수정하지 않았다. 아래 결과는 게임/Steam 작업자를 실행하지 않은 합성 검증이다.

@@ -44,7 +44,7 @@ class Fixture:
         self.store=Store(Path(self.temp.name)/'fixture.sqlite3')
         self.service=ChatService(self.store,clock=lambda:100)
         self.state=dict(state='ready',account='fixture-self',lobby='fixture-room-a',generation='fixture-a',
-            connected=True,lobby_verified=True,privacy_ready=True,
+            connected=True,lobby_verified=True,privacy_ready=True,members=['fixture-self','fixture-peer'],
             name='가상 스크롤 검증',hidden_ok=True,hidden={'fixture-peer':False},send_enabled=True,
             profiles={'fixture-self':{'name':'테스트 계정'},'fixture-peer':{'name':'검증 고양이'}})
         self.service.update(self.state); self.index=0
@@ -213,10 +213,10 @@ def main():
           with fixture(browser,url,48) as f:
             f.middle(); f.add(); f.poll()
             expect(f.page.locator('#new-messages')).to_be_visible()
-            f.service.update(dict(f.state,hidden={'fixture-peer':True})); f.poll()
+            f.service.blocked['fixture-peer'] = '합성 차단 대상'; f.poll()
             expect(f.page.locator('.message')).to_have_count(0)
             expect(f.page.locator('#new-messages')).to_be_hidden()
-            passed('hidden_messages_and_unread_metadata_removed')
+            passed('blocked_messages_and_unread_metadata_removed')
           result=dict(url=url,browser=browser.version,viewports=['1280x800','480x800'],checks=checks,
               page_identity='passed',not_blank='passed',framework_overlay='none',console_errors=[],
               console_warnings=[],screenshots='captured',interactions='passed',steam_connected=False)

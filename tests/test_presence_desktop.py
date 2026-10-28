@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 from test_desktop import js, qt_chat, seed_history, wait_until
 from test_localization import choose_language
-from test_presence import SELF, PEER, NEW, snapshot
+from test_presence import SELF, PEER, NEW, snapshot, persisted_block
 from test_scroll_desktop import scroll_anchor
 
 
@@ -33,7 +33,7 @@ def test_membership_notice_renders_safely_without_message_or_os_alert(qt_chat, m
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.presence-notice').length") == 2)
 
 
-def test_notices_preserve_reading_position_draft_search_and_hide_policy(qt_chat):
+def test_notices_preserve_reading_position_draft_search_and_block_policy(qt_chat):
     app, controller, page = qt_chat
     service = controller.service
     service.update(snapshot())
@@ -53,7 +53,9 @@ def test_notices_preserve_reading_position_draft_search_and_hide_policy(qt_chat)
     assert js(app, page, "document.querySelectorAll('.message-bubble').length") == 100
     js(app, page, "document.querySelector('#clear-search').click()")
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.presence-notice').length") == 2)
-    service.update(snapshot(hidden={PEER: False, NEW: True}))
+    persisted_block(service, NEW, True)
+    service.update(snapshot())
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.presence-notice').length") == 0)
+    persisted_block(service, NEW, False)
     service.update(snapshot())
     wait_until(app, lambda: js(app, page, "document.querySelectorAll('.presence-notice').length") == 2)

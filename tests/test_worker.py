@@ -28,7 +28,7 @@ def test_worker_connects_and_drains_callbacks_while_memory_is_pending(monkeypatc
         def pump(self, context, members, accept):
             frames.append((stop.tick, set(members), accept))
             if accept and 'fixture-peer' in members:
-                return [dict(type='message', context=context, sender='fixture-peer', text='합성 발언')]
+                return [dict(type='message', context=context, sender='fixture-peer', text='합성 발언', observed=99)]
             return []
     class Discovery:
         memory = None if failure else FakeMemory()
@@ -64,13 +64,14 @@ def test_worker_connects_and_drains_callbacks_while_memory_is_pending(monkeypatc
         assert states[-1]['connected'] == provisional and states[-1]['notice'] == 'discovery_failed'
         assert not states[-1]['lobby_verified'] and order.count('steam') == 1
     else:
-        assert states[-1]['lobby_verified'] and states[-1]['hidden_ok']
+        assert states[-1]['lobby_verified'] and states[-1]['lobby_verified']
     assert (states[1]['generation'] == states[-1]['generation']) == (provisional or failure)
     assert states[-1]['send_enabled'] == (not failure and not read_only)
     assert all(not state['send_enabled'] for state in states if not state['lobby_verified'])
     assert [tick for tick, _, _ in frames] == list(range(6))
     assert all(not members for tick, members, _ in frames if tick <= 3)
     assert sum(row['type'] == 'message' for row in rows) == (0 if failure else 2)
+    assert all(row['observed'] == 99 for row in rows if row['type'] == 'message')
     assert order.count('steam_closed') == order.count('discovery_closed') == 1
     assert order.count('avatars') == order.count('avatars_closed') == (0 if failure else 1)
 

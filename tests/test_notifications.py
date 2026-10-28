@@ -79,7 +79,7 @@ def test_product_focus_and_independent_switches(rig, active, flash, toast_on):
     assert focus[0] is (active is True)  # No focus mutation.
 
 
-@pytest.mark.parametrize('case', ['self', 'echo', 'hidden', 'unknown', 'partial_unknown', 'old_context', 'stale', 'unverified', 'meow', 'no_session'])
+@pytest.mark.parametrize('case', ['self', 'echo', 'blocked', 'unknown', 'partial_unknown', 'old_context', 'stale', 'unverified', 'meow', 'no_session'])
 def test_no_result_for_excluded_incoming(rig, case):
     service, notifications, toast, attention, now, _ = rig
     incoming = event(service)
@@ -87,12 +87,12 @@ def test_no_result_for_excluded_incoming(rig, case):
         incoming['sender'] = 'fixture-self'
         if case == 'echo':
             service.prepare(service.context(), incoming['text'])
-    elif case == 'hidden':
-        service.update(state(hidden={'fixture-peer': True}))
+    elif case == 'blocked':
+        service.blocked['fixture-peer'] = '합성 차단 대상'
     elif case == 'unknown':
-        service.update(state(privacy_ready=False))
+        service.blocked = None
     elif case == 'partial_unknown':
-        service.update(state(hidden_ok=False, privacy_ready=True, hidden={}))
+        service.update(state(members=[]))
     elif case == 'old_context':
         incoming['context'] = dict(service.context(), generation='old')
     elif case == 'stale':
@@ -152,15 +152,15 @@ def test_burst_is_bounded_with_no_deferred_delivery(rig):
     assert toast.shown == 2
 
 
-@pytest.mark.parametrize('boundary', ['active', 'hidden', 'room', 'account', 'generation', 'stale', 'close'])
+@pytest.mark.parametrize('boundary', ['active', 'blocked', 'room', 'account', 'generation', 'stale', 'close'])
 def test_boundaries_clear_owned_attention_and_never_replay(rig, boundary):
     service, notifications, toast, attention, now, active = rig
     receipt = service.receive(event(service))
     notifications.incoming(receipt)
     if boundary == 'active':
         active[0] = True
-    elif boundary == 'hidden':
-        service.update(state(hidden={'fixture-peer': True}))
+    elif boundary == 'blocked':
+        service.blocked['fixture-peer'] = '합성 차단 대상'
     elif boundary in ('room', 'account', 'generation'):
         service.update(state(**{dict(room='lobby', account='account', generation='generation')[boundary]: 'changed'}))
     elif boundary == 'stale':

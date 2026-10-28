@@ -22,6 +22,13 @@ def notices(service, **kwargs):
     return [row for row in service.view(**kwargs)['messages'] if row.get('kind') != 'chat']
 
 
+def persisted_block(service, uid, value):
+    # These unit fixtures use non-Steam names; load an account-scoped DB policy.
+    # Canonical ID validation and the public action are covered in test_blocking.
+    service.store.set_blocked(SELF, uid, value)
+    service.load_blocks()
+
+
 @pytest.fixture
 def tracked(store):
     service = ChatService(store, clock=lambda: 100)
@@ -53,7 +60,7 @@ def test_identity_change_starts_silent_baseline(tracked, changes):
 
 
 @pytest.mark.parametrize('changes', [dict(connected=False), dict(lobby_verified=False),
-                                    dict(privacy_ready=False), dict(members=None), dict(observed=90),
+                                    dict(members=None), dict(observed=90),
                                     dict(observed=101), dict(members=[NEW])])
 def test_unverified_or_stale_sample_does_not_invent_activity(tracked, changes):
     tracked.update(snapshot((SELF, NEW), **changes))
@@ -79,15 +86,17 @@ def test_hide_unhide_profile_delay_and_rename_are_not_membership_events(tracked)
     assert [(row['kind'], row['name']) for row in notices(tracked)] == [('member_left', '변경한 이름')]
 
 
-def test_pending_new_join_waits_for_name_and_privacy_without_replaying_hidden_users(tracked):
+def test_pending_new_join_waits_for_name_without_replaying_blocked_users(tracked):
     tracked.update(snapshot((SELF, PEER, NEW), hidden={PEER: False}, profiles={}))
     assert notices(tracked) == []
     tracked.update(snapshot((SELF, PEER, NEW)))
     assert [row['kind'] for row in notices(tracked)] == ['member_joined']
-    tracked.update(snapshot(hidden={PEER: False, NEW: True}))
-    tracked.update(snapshot((SELF, PEER, NEW), hidden={PEER: False, NEW: True}))
+    persisted_block(tracked, NEW, True)
+    tracked.update(snapshot())
     tracked.update(snapshot((SELF, PEER, NEW)))
-    # Re-showing a hidden peer is not a new join. Existing history may reappear.
+    persisted_block(tracked, NEW, False)
+    tracked.update(snapshot((SELF, PEER, NEW)))
+    # Unblocking a current peer is not a new join. Existing history may reappear.
     assert len(notices(tracked)) == 1
 
 
@@ -109,13 +118,33 @@ def test_pending_join_expires_and_quick_unknown_visit_is_not_replayed(store):
 
 
 @pytest.mark.parametrize('hidden', [{PEER: True}, {}])
-def test_departure_requires_current_privacy_allowance(tracked, hidden):
-    tracked.update(snapshot((SELF,), hidden=hidden))
-    assert notices(tracked) == []
+def test_game_hidden_state_does_not_suppress_departure(tracked, hidden):
+    tracked.update(snapshot((SELF,), hidden=hidden, privacy_ready=False))
+    assert [row['kind'] for row in notices(tracked)] == ['member_left']
     assert tracked.store.db.execute("SELECT count(*) FROM messages").fetchone()[0] == 0
 
 
-def test_notice_history_obeys_privacy_and_does_not_count_as_unread_or_search(tracked):
+def test_blocked_departure_is_not_saved_and_unblock_does_not_replay(tracked):
+    persisted_block(tracked, PEER, True)
+    tracked.update(snapshot((SELF,)))
+    persisted_block(tracked, PEER, False)
+    tracked.update(snapshot((SELF,)))
+    assert notices(tracked) == []
+    assert tracked.store.db.execute('SELECT count(*) FROM presence_events').fetchone()[0] == 0
+
+
+def test_block_list_read_failure_rebaselines_presence(tracked, monkeypatch):
+    original = tracked.store.blocked_users
+    monkeypatch.setattr(tracked.store, 'blocked_users', lambda *args: (_ for _ in ()).throw(sqlite3.OperationalError('fixture')))
+    tracked.blocked = None
+    tracked.update(snapshot((SELF, NEW)))
+    assert notices(tracked) == []
+    monkeypatch.setattr(tracked.store, 'blocked_users', original)
+    tracked.update(snapshot((SELF, NEW)))
+    assert notices(tracked) == []
+
+
+def test_notice_history_obeys_blocks_and_does_not_count_as_unread_or_search(tracked):
     tracked.update(snapshot((SELF, PEER, NEW), send_enabled=False))
     view = tracked.view(seen=0)
     assert len(view['messages']) == 1 and view['latest_seq'] > 0
@@ -123,8 +152,10 @@ def test_notice_history_obeys_privacy_and_does_not_count_as_unread_or_search(tra
     assert notices(tracked, query='새 고양이') == []
     received(tracked, '안내 이후 대화')
     assert tracked.view(seen=0)['unseen']
-    tracked.update(snapshot((SELF, PEER, NEW), hidden={PEER: False, NEW: True}))
+    persisted_block(tracked, NEW, True)
+    tracked.update(snapshot((SELF, PEER, NEW)))
     assert notices(tracked) == []
+    persisted_block(tracked, NEW, False)
     tracked.update(snapshot((SELF, PEER, NEW)))
     assert len(notices(tracked)) == 1
 
@@ -217,6 +248,6 @@ def test_worker_membership_sample_is_separate_from_profile_cache(monkeypatch):
     members.add(NEW)
     changed, _, _ = live.snapshot()
     assert set(changed['members']) == {SELF, PEER, NEW}
-    assert NEW not in changed['profiles']  # Unknown privacy/profile is not absence.
+    assert NEW not in changed['profiles']  # Delayed profile caching is not absence.
     assert initial['generation'] == changed['generation']
     assert not changed['send_enabled'] and not steam.sent

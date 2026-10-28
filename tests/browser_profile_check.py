@@ -21,7 +21,7 @@ class Profiles(Fixture):
     def __init__(self, browser, url):
         self.calls, self.payloads, self.fail = [], [], False
         super().__init__(browser, url, 0, {'width': 1240, 'height': 840})
-        self.state = dict(self.state, account=SELF, name='가상 프로필 검증', notice='hidden_syncing', hidden_ok=False, send_enabled=False,
+        self.state = dict(self.state, account=SELF, members=[SELF, PEER, SECOND], name='가상 프로필 검증', notice='read_only', hidden_ok=False, send_enabled=False,
                           hidden={PEER: False, SECOND: False, '76561190000000003': None},
                           profiles={SELF: {'name': '시험 계정'}, PEER: {'name': '같은 이름의 고양이'},
                                     SECOND: {'name': '같은 이름의 고양이'}})
@@ -48,8 +48,9 @@ def check_actions(f):
     page = f.page
     page.locator('#message-input').fill('작성 중인 한글')
     page.locator('#participants-button').click()
+    page.locator(f'#participant-more-{PEER}').click()
     buttons = page.locator('.participant-profile')
-    expect(buttons).to_have_count(2)
+    expect(buttons).to_have_count(1)
     buttons.first.focus()
     page.keyboard.press('Enter')
     expect(page.locator('#toast')).to_contain_text('Steam에 프로필 열기를 요청')
@@ -60,12 +61,16 @@ def check_actions(f):
     buttons.first.dblclick()
     page.wait_for_timeout(150)
     assert len(f.calls) == 3  # The second click of a double click is ignored.
-    buttons.nth(1).click()
+    page.keyboard.press('Escape')
+    page.locator(f'#participant-more-{SECOND}').click()
+    buttons.first.click()
     expect(page.locator('#participants-dialog')).to_be_visible()
-    expect(buttons.nth(1)).to_have_attribute('aria-busy', 'false')
+    expect(buttons.first).to_have_attribute('aria-busy', 'false')
     assert f.calls[-1] == 'steam://url/SteamIDPage/' + SECOND
     assert f.payloads[0]['steam_id'] == PEER and f.payloads[0]['context'] == f.service.context()
     assert f.store.db.execute('SELECT count(*) FROM messages WHERE own=1').fetchone()[0] == 0
+    page.keyboard.press('Escape')
+    page.locator(f'#participant-more-{PEER}').click()
     buttons.first.focus()
     for index in range(3):
         profiles = dict(f.state['profiles'], **{PEER: {'name': f'가상 이름 갱신 {index}'}})
@@ -73,10 +78,10 @@ def check_actions(f):
         expect(buttons.first).to_have_accessible_name(f'Steam 프로필 열기 · 가상 이름 갱신 {index}')
         expect(buttons.first).to_be_focused()
     f.service.update(dict(f.state, profiles={SELF: f.state['profiles'][SELF], SECOND: f.state['profiles'][SECOND]}))
-    expect(buttons).to_have_count(1)
+    expect(buttons).to_have_count(0)
     expect(page.get_by_role('button', name='참여자 목록 닫기')).to_be_focused()
     f.service.update(f.state)
-    expect(buttons).to_have_count(2)
+    expect(page.locator('.participant-more')).to_have_count(2)
     page.keyboard.press('Escape')
     expect(page.locator('#participants-dialog')).not_to_be_visible()
     assert page.locator('#message-input').input_value() == '작성 중인 한글'
@@ -139,13 +144,17 @@ def check_layouts(f, output):
             f.store.setting('theme', theme)
             expect(page.locator('html')).to_have_attribute('data-theme', theme)
             page.locator('#participants-button').click()
-            expect(page.locator('.participant-profile').first).to_be_in_viewport(ratio=1)
+            expect(page.locator('.participant-more').first).to_be_in_viewport(ratio=1)
             assert page.locator('#participant-list').evaluate('el=>el.scrollWidth<=el.clientWidth')
             page.get_by_role('button', name='참여자 목록 닫기').focus()
             page.keyboard.press('Tab')
+            expect(page.locator('.participant-more').first).to_be_focused()
+            page.keyboard.press('Enter')
             expect(page.locator('.participant-profile').first).to_be_focused()
             assert page.locator('.participant-profile').first.evaluate('el=>getComputedStyle(el).outlineStyle') != 'none'
             page.screenshot(path=str(output / f'profiles-{theme}-{width}x{height}.png'))
+            page.keyboard.press('Escape')
+            expect(page.locator('.participant-more').first).to_be_focused()
             page.keyboard.press('Escape')
             assert page.locator('#message-scroll').evaluate('el=>el.scrollWidth<=el.clientWidth')
         page.screenshot(path=str(output / f'messages-dark-{width}x{height}.png'))

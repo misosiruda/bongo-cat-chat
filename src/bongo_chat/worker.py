@@ -4,7 +4,7 @@ import time
 from uuid import uuid4
 
 from .environment import UnsupportedGameBuild, running_game, verify_compatibility
-from .memory import MemoryDiscovery, MemoryUnavailable
+from .memory import MemoryDiscovery
 from .steam import APP_ID, Steam
 from .reactions import ReactionAssets
 
@@ -12,7 +12,7 @@ from .reactions import ReactionAssets
 def unavailable(notice):
     return {"type": "state", "state": "unavailable", "notice": notice, "account": "", "lobby": "",
             "generation": "", "connected": False, "lobby_verified": False,
-            "privacy_ready": False, "hidden_ok": False, "hidden": {}, "profiles": {}, "send_enabled": False}
+            "members": [], "profiles": {}, "send_enabled": False}
 
 
 class LiveConnection:
@@ -60,18 +60,9 @@ class LiveConnection:
             self.identity, self.generation = identity, str(uuid4())
             self.profiles = {}
             self.profile_time = 0
-        hidden, privacy_ready = {}, False
-        if verified:
-            try:
-                hidden = self.memory.hidden()
-                privacy_ready = True
-            except (MemoryUnavailable, UnicodeError):
-                pass  # Keep the verified lobby and retry privacy on the next tick.
         if valid and time.monotonic()-self.profile_time >= 1:
             profiles = {}
             for uid in members:
-                if uid != account and hidden.get(uid) is not False:
-                    continue
                 row = self.steam.profile(lobby, uid)
                 # The game publishes -1 for an explicitly unequipped slot.
                 # Its default body/paw sprites are CatLeft/CatRight. Unknown
@@ -82,41 +73,27 @@ class LiveConnection:
                     row["avatar"] = self.avatars.get(skin.replace(" ", ""), hat.replace(" ", "") if hat else None)
                 profiles[uid] = row
             self.profiles, self.profile_time = profiles, time.monotonic()
-        if verified:
-            try:
-                hidden = self.memory.hidden()
-                privacy_ready = True
-            except (MemoryUnavailable, UnicodeError):
-                hidden, privacy_ready = {}, False
         if (self.steam.account() != account or self._lobby_candidate(account) != lobby
                 or not self.game.alive()):
             raise RuntimeError("connection_changed")
-        complete = privacy_ready and (members-{account}) <= hidden.keys()
         discovering = self.memory is None
         if discovering:
             notice = "discovery_failed" if self.discovery_failed else ("discovering" if valid else "searching_lobby")
         elif not valid:
             notice = "no_lobby"
-        elif not privacy_ready:
-            notice = "hidden_unavailable"
-        elif not complete:
-            notice = "hidden_syncing"
         else:
             notice = "read_only" if self.read_only else ""
         state = {"type": "state", "account": account, "lobby": lobby if valid else "",
                  "generation": self.generation, "connected": valid, "lobby_verified": verified,
-                 "privacy_ready": privacy_ready, "hidden_ok": complete, "hidden": hidden,
-                 # Private IPC membership sample, independent of profile caching.
-                 "members": sorted(members) if verified else None,
+                 "members": sorted(members) if verified else [],
                  "observed": time.monotonic(),
-                 # Profiles refresh once a second, membership/privacy every tick.
-                 # Never offer a departed or newly hidden peer from that cache.
+                 # Profiles refresh once a second, membership every tick.
                  "profiles": {uid: row for uid, row in self.profiles.items()
-                              if uid in members and (uid == account or hidden.get(uid) is False)},
+                              if verified and uid in members},
                  "send_enabled": verified and not self.read_only,
                  "avatar_stage": getattr(self.avatars, "stage", "disabled"),
                  "avatar_error": getattr(self.avatars, "error", ""),
-                 "state": "ready" if complete else ("syncing" if valid or discovering else "no_lobby"),
+                 "state": "ready" if verified else ("syncing" if valid or discovering else "no_lobby"),
                  "name": self.steam.room_name(lobby) if valid else "",
                  "notice": notice}
         self.state = state
@@ -186,10 +163,8 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
                     emit(state)
                     last_state, last_emit = state, time.monotonic()
                 # Drain callbacks after transitions without attributing old payloads to a new segment.
-                allowed = {state["account"]} if state["lobby_verified"] else set()
-                if state["privacy_ready"]:
-                    allowed.update(uid for uid, hidden in state["hidden"].items() if hidden is False)
-                # Drop unknown/hidden senders before copying a body. Also drain
+                allowed = set(state["members"])
+                # Drop nonmembers before copying a body. Also drain
                 # the first batch after verification so pending-period callbacks
                 # cannot be relabelled as messages received after synchronization.
                 for message in steam.pump(context, members & allowed & receive_senders,
@@ -197,7 +172,7 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
                     if message["type"] == "reaction":
                         reactions.add(message)
                     else:
-                        emit(message)
+                        emit(message)  # Preserve the callback's original observed timestamp.
                 for reaction in reactions.ready(state, steam, avatars):
                     # Flavor can be dropped under load; never stop chat for it.
                     try:

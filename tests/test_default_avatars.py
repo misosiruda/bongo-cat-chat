@@ -90,7 +90,7 @@ def test_unknown_slot_or_definition_is_not_an_unequipped_slot(slot, unknown):
     state, _, _ = live.snapshot()
     assert not calls
     assert "avatar" not in state["profiles"]["fixture-peer"]
-    assert state["hidden_ok"] and state["send_enabled"]
+    assert state["lobby_verified"] and state["send_enabled"]
 
 
 @pytest.mark.parametrize("raw, expected", [(b"-1", -1), (b"", None), (None, None),
