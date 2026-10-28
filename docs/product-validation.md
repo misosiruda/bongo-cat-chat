@@ -1,5 +1,23 @@
 # Windows 개발판 검증 기록
 
+## 2026-10-28 로비 입·퇴장 안내
+
+`origin/main`의 `7658736`에서 별도 `feat/lobby-presence-notices` 워크트리를 만들고 [입·퇴장 안내](lobby-presence.md)를 구현했다. 기존 `C:\Project\bongo-cat-chat` 작업 폴더의 브랜치·파일을 수정하지 않았다. 아래 결과는 게임/Steam 작업자를 실행하지 않은 합성 검증이다.
+
+- Python 3.13.16, pytest 9.1.1, PySide6 6.12.0. 기존 개발 환경의 Python 실행 파일을 재사용하되 작업 디렉터리와 `PYTHONPATH`는 새 워크트리로 지정했다. 실제 사용자 DB 대신 테스트별 임시 SQLite만 열었다.
+- 집중 검사: `python -m pytest -q tests/test_presence.py tests/test_presence_desktop.py tests/test_core.py tests/test_worker.py tests/test_scroll_service.py tests/test_privacy.py tests/test_localization.py` → **156 passed / 8.38초**. 최초 실행에서 새 테스트 도우미의 중복 인자 오류 3건을 수정한 뒤의 결과다.
+- 전체 검사: `python -m pytest -q` → **713 passed, 5 skipped / 138.12초**. 건너뛴 5개는 `BONGO_TEST_NSIS_PATH` 미지정으로 생략된 실제 NSIS 컴파일러 통합 검사다. 기본 Qt offscreen GPU 경로에서 D3D/Skia/SharedImage 진단이 출력됐지만 테스트 실패는 없었다. 제품 GPU 설정은 변경하지 않았다.
+- 실제 Qt 렌더러·QWebChannel 검사에서 입장 → 퇴장 안내, HTML처럼 생긴 이름의 텍스트 표시, 이름 보존, 한·영 전환, 다시 로드, 읽던 위치와 초안 유지, 대화 검색 복귀, 숨김/해제 반영을 확인했다. 작업자 없음·송신 명령 없음·메시지 알림 경로 호출 없음도 확인했다.
+- Browser 플러그인이 제공되지 않아 기존 Playwright 방식으로 Edge **156.0.4314.50**에서 실제 제품 화면을 확인했다. 로컬 fixture 주소 `http://127.0.0.1:63402/`, **1240×840 / 480×800**, 밝은/어두운 테마와 긴 이름 줄바꿈을 검사했다. 화면 식별, 비어 있지 않음, 오류 오버레이 없음, 입장 → 대화 → 퇴장, 언어·초안·검색·스크롤 유지, 새 메시지 배지 제외를 확인했고 앱 콘솔 오류/경고는 **0개**다. 테스트 서버는 종료했다. 최초 브라우저 검사의 새 메시지 배지 단언은 미읽음 일반 대화 60건을 먼저 읽도록 fixture 순서를 보완한 뒤 통과했다.
+- `node --check src/bongo_chat/ui/app.js`, 변경 Python 파일의 `compileall`, `git diff --check`가 통과했다.
+- 안내·개인정보 문서를 갱신한 후 `python -m pytest -q tests/test_distribution.py tests/test_localization.py`를 실행해 **31 passed / 2.66초**를 확인했다. 이 수치는 전체 suite 결과와 합산하지 않는다.
+
+위 수치는 최초 구현 단계의 결과다. PR #37 리뷰에서 자동 업데이트 롤백과의 충돌을 지적받아 schema 2 전환을 제거했다. 최종 구현은 기존 schema 1·messages 형식을 유지하고 별도 presence_events 테이블을 추가한다. 실제 dev16 Store 원문 fixture와 bootstrap.run_app()으로 새 버전 DB 기록 후 조기 실패·구버전 선택·대화/초안/설정 읽기·추가 쓰기·새 버전 재열기까지 검사했다. 관련 집중 검사 tests/test_presence.py, tests/test_presence_rollback.py, tests/test_presence_desktop.py, tests/test_updates.py는 80 passed / 6.29초였다.
+
+최종 전체 검사는 `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`, `BONGO_TEST_NSIS_PATH=C:\Project\bongo-cat-chat\dist\tooling\nsis-3.13` 조건의 `python -m pytest -q --junitxml=<저장소 밖 검증 폴더>/presence-shipping-tests.xml`로 **722 passed, 0 skipped, 0 failed / JUnit 150.62초**를 확인했다. NSIS 5개 검사도 실제 사용 설치본과 분리된 임시 fixture에서 실행했다. 최종 저장 구조로 Edge 화면 검사도 다시 통과했다(1240×840 / 480×800, 밝은/어두운 테마, 한·영 전환, 초안·검색·스크롤 유지, 미읽음 제외, 긴 이름 줄바꿈, 콘솔 오류/경고 0개). 검사 서버와 브라우저는 종료했다.
+
+실제 사용자 데이터의 변환·복원, 실제 사용 설치본 교체·배포, 실제 로비 입·퇴장·빠른 방문·순정 설치·다른 PC·장시간 실행은 수행하지 않았다. PR의 자동 Windows 빌드 산출물은 검토용이며 공개 릴리스 게시와 구분한다.
+
 ## 2026-10-23 한·영 UI와 영문 README
 
 PR #36 코드 리뷰의 저장소 복구 지적을 반영했다. 저장된 English 설정을 두고 최초 조회를 실패시키는 검사에서 새로고침이 오류를 잘못 해제하는 실패를 먼저 재현했다. 복구 시 언어를 다시 읽고, 실패 중에는 저장 오류·기존 값을 유지하며, 성공 시 저장된 언어와 Qt signal/view를 복원하도록 수정했다. 소프트웨어 렌더링 조건의 `pytest tests/test_localization.py tests/test_desktop.py -q --junitxml=artifacts/release-dev16/review-fix.xml`은 **55 passed / 49.63초**였다. Qt offscreen의 SharedImageManager 진단은 남았으며 기본 GPU 경로 인수와 구분한다.

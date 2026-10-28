@@ -12,6 +12,7 @@ A third-party Windows messenger for **Bongo Cat's existing lobby chat**. Read an
 - View your outgoing messages in the messenger, with separate sending, accepted, failed and unknown states.
 - Keep received messages and drafts locally for 30 days, with conversation search and manual deletion.
 - Show the current lobby's player names and static cat profiles using locally installed game resources.
+- The October 28 source adds centered join/leave notices for observed lobby membership changes, with local 30-day retention. Initial connection and reconnection do not announce everyone. Notices follow hidden-player settings and do not send chat or trigger message alerts. See [behavior, database compatibility and validation](docs/lobby-presence.md) before using this source with existing data; release and live-game acceptance are separate.
 - Respect the game's individual hidden-player settings. Messages from players whose hidden status is unknown are withheld.
 - Open a verified participant's Steam profile. Friend requests are handled by you in Steam.
 - Show temporary cat, meow and game-emote reactions, with an on/off preference. Reactions do not become chat history or message notifications.

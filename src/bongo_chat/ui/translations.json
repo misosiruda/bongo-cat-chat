@@ -185,5 +185,7 @@
   "Windows 앱에서 열어 주세요. 이 화면만으로는 게임에 연결할 수 없습니다.": "Please open this in the Windows app. This page alone cannot connect to the game.",
   "이미 실행 중인 앱이 있습니다.": "The app is already running.",
   "기록 저장소를 열 수 없습니다. 기존 파일은 보존했습니다.": "Could not open the history database. Existing files have been preserved.",
-  "새 메시지가 도착했어요.": "You have a new message."
+  "새 메시지가 도착했어요.": "You have a new message.",
+  "{name}님이 들어왔습니다.": "{name} joined the lobby.",
+  "{name}님이 나갔습니다.": "{name} left the lobby."
 }

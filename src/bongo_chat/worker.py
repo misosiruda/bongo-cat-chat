@@ -106,6 +106,9 @@ class LiveConnection:
         state = {"type": "state", "account": account, "lobby": lobby if valid else "",
                  "generation": self.generation, "connected": valid, "lobby_verified": verified,
                  "privacy_ready": privacy_ready, "hidden_ok": complete, "hidden": hidden,
+                 # Private IPC membership sample, independent of profile caching.
+                 "members": sorted(members) if verified else None,
+                 "observed": time.monotonic(),
                  # Profiles refresh once a second, membership/privacy every tick.
                  # Never offer a departed or newly hidden peer from that cache.
                  "profiles": {uid: row for uid, row in self.profiles.items()
