@@ -12,7 +12,11 @@
 - `node --check src/bongo_chat/ui/app.js`, 변경 Python 파일의 `compileall`, `git diff --check`가 통과했다.
 - 안내·개인정보 문서를 갱신한 후 `python -m pytest -q tests/test_distribution.py tests/test_localization.py`를 실행해 **31 passed / 2.66초**를 확인했다. 이 수치는 전체 suite 결과와 합산하지 않는다.
 
-DB schema 1 → 2에서 기존 메시지·순번·receipt·초안·언어 설정 보존과 반복 열기를 검사했다. schema 1 전용 앱은 schema 2를 열지 못하므로 공개 배포 전 자동 업데이트 롤백과 DB 복구 정책 검토가 필요하다. 실제 사용자 데이터의 변환·복원, 새 설치본 제작·설치·배포, 실제 로비 입·퇴장·빠른 방문·순정 설치·다른 PC·장시간 실행은 수행하지 않았다.
+위 수치는 최초 구현 단계의 결과다. PR #37 리뷰에서 자동 업데이트 롤백과의 충돌을 지적받아 schema 2 전환을 제거했다. 최종 구현은 기존 schema 1·messages 형식을 유지하고 별도 presence_events 테이블을 추가한다. 실제 dev16 Store 원문 fixture와 bootstrap.run_app()으로 새 버전 DB 기록 후 조기 실패·구버전 선택·대화/초안/설정 읽기·추가 쓰기·새 버전 재열기까지 검사했다. 관련 집중 검사 tests/test_presence.py, tests/test_presence_rollback.py, tests/test_presence_desktop.py, tests/test_updates.py는 80 passed / 6.29초였다.
+
+최종 전체 검사는 `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`, `BONGO_TEST_NSIS_PATH=C:\Project\bongo-cat-chat\dist\tooling\nsis-3.13` 조건의 `python -m pytest -q --junitxml=<저장소 밖 검증 폴더>/presence-shipping-tests.xml`로 **722 passed, 0 skipped, 0 failed / JUnit 150.62초**를 확인했다. NSIS 5개 검사도 실제 사용 설치본과 분리된 임시 fixture에서 실행했다. 최종 저장 구조로 Edge 화면 검사도 다시 통과했다(1240×840 / 480×800, 밝은/어두운 테마, 한·영 전환, 초안·검색·스크롤 유지, 미읽음 제외, 긴 이름 줄바꿈, 콘솔 오류/경고 0개). 검사 서버와 브라우저는 종료했다.
+
+실제 사용자 데이터의 변환·복원, 실제 사용 설치본 교체·배포, 실제 로비 입·퇴장·빠른 방문·순정 설치·다른 PC·장시간 실행은 수행하지 않았다. PR의 자동 Windows 빌드 산출물은 검토용이며 공개 릴리스 게시와 구분한다.
 
 ## 2026-10-23 한·영 UI와 영문 README
 

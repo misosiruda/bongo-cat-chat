@@ -8,8 +8,8 @@ import time
 from .protocol import is_meow_message
 
 RETENTION_SECONDS = 30 * 24 * 60 * 60
-SCHEMA_VERSION = 2
-MESSAGE_COLUMNS = "id,session,account,lobby,sender,name,body,received,own,status,echo,kind"
+SCHEMA_VERSION = 1
+MESSAGE_COLUMNS = "id,session,account,lobby,sender,name,body,received,own,status,echo"
 
 
 class Store:
@@ -22,7 +22,7 @@ class Store:
         self.db.execute("PRAGMA secure_delete=ON")
         self.db.execute("PRAGMA journal_mode=WAL")
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, SCHEMA_VERSION):
+        if version not in (0, SCHEMA_VERSION):
             self.db.close()
             raise RuntimeError("unsupported_database_version")
         self.db.executescript("""
@@ -43,15 +43,22 @@ class Store:
                 account TEXT NOT NULL, lobby TEXT NOT NULL, body TEXT NOT NULL,
                 changed REAL NOT NULL, PRIMARY KEY(account,lobby));
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS presence_events(
+                seq INTEGER PRIMARY KEY, id TEXT UNIQUE NOT NULL,
+                session TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                account TEXT NOT NULL, lobby TEXT NOT NULL, sender TEXT NOT NULL,
+                name TEXT NOT NULL, received REAL NOT NULL,
+                kind TEXT NOT NULL CHECK(kind IN ('member_joined','member_left')));
+            CREATE INDEX IF NOT EXISTS presence_room ON presence_events(account,lobby,seq);
+            CREATE INDEX IF NOT EXISTS presence_age ON presence_events(received);
+            CREATE TEMP VIEW timeline AS
+                SELECT *, 'chat' AS kind FROM messages
+                UNION ALL
+                SELECT seq,id,session,account,lobby,sender,name,'' AS body,received,
+                       0 AS own,'received' AS status,0 AS echo,kind FROM presence_events;
+            PRAGMA user_version=1;
         """)
         with self.db:
-            self.db.execute('BEGIN')
-            # Additive migration: keep existing rows, IDs, receipts and sequence.
-            # Older apps reject version 2 instead of displaying notices as chat.
-            if 'kind' not in {row['name'] for row in self.db.execute('PRAGMA table_info(messages)')}:
-                self.db.execute("ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat' "
-                                "CHECK(kind IN ('chat','member_joined','member_left'))")
-            self.db.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
             self.db.execute("UPDATE messages SET status='unknown' WHERE status='pending'")
             self.db.execute("UPDATE sessions SET ended=?,reason='app_interrupted' WHERE ended IS NULL", (time.time(),))
         self.prune()
@@ -68,17 +75,34 @@ class Store:
 
     def _insert(self, row):
         cursor = self.db.execute(f"INSERT OR IGNORE INTO messages({MESSAGE_COLUMNS}) VALUES({','.join('?' for _ in MESSAGE_COLUMNS.split(','))})",
-                                 tuple(row.get('kind', 'chat') if k == 'kind' else row[k] for k in MESSAGE_COLUMNS.split(',')))
+                                 tuple(row[k] for k in MESSAGE_COLUMNS.split(',')))
         if cursor.rowcount:
             return cursor.lastrowid
         return self.db.execute("SELECT seq FROM messages WHERE id=?", (row['id'],)).fetchone()[0]
 
     def add(self, row, receipt=None):
         with self.db:
+            if row.get('kind', 'chat') != 'chat':
+                return self._insert_presence(row)
             sequence = self._insert(row)
             if receipt:
                 self.db.execute("INSERT OR IGNORE INTO receipts VALUES(?,?)", (receipt, row['id']))
         return sequence
+
+    def _insert_presence(self, row):
+        previous = self.db.execute('SELECT seq FROM presence_events WHERE id=?', (row['id'],)).fetchone()
+        if previous:
+            return previous[0]
+        # Reserve from the existing AUTOINCREMENT sequence in the same write
+        # transaction. A rolled-back schema-1 app continues above this value;
+        # no placeholder message can leak into its chat or unread queries.
+        self.db.execute("INSERT INTO sqlite_sequence(name,seq) SELECT 'messages',0 "
+                        "WHERE NOT EXISTS(SELECT 1 FROM sqlite_sequence WHERE name='messages')")
+        seq = self.db.execute("UPDATE sqlite_sequence SET seq=seq+1 WHERE name='messages' RETURNING seq").fetchone()[0]
+        columns = 'id,session,account,lobby,sender,name,received,kind'
+        self.db.execute(f"INSERT INTO presence_events(seq,{columns}) VALUES(?,?,?,?,?,?,?,?,?)",
+                        (seq, *(row[key] for key in columns.split(','))))
+        return seq
 
     def seen(self, receipt):
         return self.db.execute("SELECT 1 FROM receipts WHERE id=?", (receipt,)).fetchone() is not None
@@ -122,19 +146,19 @@ class Store:
         with self.visible(account, allowed):
             bounds = " AND (? IS NULL OR seq<?) AND (? IS NULL OR seq>=?)"
             order = "ASC" if start is not None else "DESC"
-            fetched = self.db.execute(f"SELECT * FROM messages WHERE {matching}{bounds} ORDER BY seq {order} LIMIT ?",
+            fetched = self.db.execute(f"SELECT * FROM timeline WHERE {matching}{bounds} ORDER BY seq {order} LIMIT ?",
                                      (*params, before, before, start, start, limit + 1)).fetchall()
             rows = fetched[:limit] if start is not None else list(reversed(fetched[:limit]))
             first = rows[0]['seq'] if rows else start
             last = rows[-1]['seq'] if rows else before
             has_more = first is not None and self.db.execute(
-                f"SELECT EXISTS(SELECT 1 FROM messages WHERE {matching} AND seq<?)", (*params, first)).fetchone()[0]
+                f"SELECT EXISTS(SELECT 1 FROM timeline WHERE {matching} AND seq<?)", (*params, first)).fetchone()[0]
             has_newer = last is not None and self.db.execute(
-                f"SELECT EXISTS(SELECT 1 FROM messages WHERE {matching} AND seq>?)", (*params, last)).fetchone()[0]
-            latest_seq = self.db.execute(f"SELECT coalesce(max(seq),0) FROM messages WHERE {scope}",
+                f"SELECT EXISTS(SELECT 1 FROM timeline WHERE {matching} AND seq>?)", (*params, last)).fetchone()[0]
+            latest_seq = self.db.execute(f"SELECT coalesce(max(seq),0) FROM timeline WHERE {scope}",
                                          (account, lobby, cutoff)).fetchone()[0]
             unseen_seq = 0 if seen is None else self.db.execute(
-                f"SELECT coalesce(max(seq),0) FROM messages WHERE {scope} AND kind='chat' AND sender<>? AND seq>?",
+                f"SELECT coalesce(max(seq),0) FROM messages WHERE {scope} AND sender<>? AND seq>?",
                 (account, lobby, cutoff, account, seen)).fetchone()[0]
         return dict(messages=[dict(r) for r in rows], has_more=bool(has_more), has_newer=bool(has_newer),
                     latest_seq=latest_seq, unseen=bool(unseen_seq), unseen_seq=unseen_seq)
@@ -167,7 +191,7 @@ class Store:
 
     def delete(self, account, lobby=None):
         with self.db:
-            for table in ("messages", "drafts"):
+            for table in ("messages", "drafts", "presence_events"):
                 self.db.execute(f"DELETE FROM {table} WHERE account=? AND (? IS NULL OR lobby=?)", (account, lobby, lobby))
             self.db.execute("DELETE FROM sessions WHERE account=? AND ended IS NOT NULL AND (? IS NULL OR lobby=?)", (account,lobby,lobby))
         self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -176,8 +200,10 @@ class Store:
         cutoff = time.time() - RETENTION_SECONDS
         with self.db:
             self.db.execute("DELETE FROM messages WHERE received<?", (cutoff,))
+            self.db.execute("DELETE FROM presence_events WHERE received<?", (cutoff,))
             self.db.execute("DELETE FROM drafts WHERE changed<?", (cutoff,))
-            self.db.execute("DELETE FROM sessions WHERE ended<? AND id NOT IN (SELECT session FROM messages)", (cutoff,))
+            self.db.execute("DELETE FROM sessions WHERE ended<? AND id NOT IN "
+                            "(SELECT session FROM messages UNION SELECT session FROM presence_events)", (cutoff,))
         self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
     def close(self):

@@ -278,7 +278,7 @@ def test_committed_settings_survive_reopen_and_old_schema(tmp_path, flash, toast
     try:
         assert ChatService(reopened).view()['notifications'] == dict(notification_flash=flash, notification_toast=toast_on)
         assert reopened.setting('theme', default='system') == 'system'
-        assert reopened.db.execute('PRAGMA user_version').fetchone()[0] == 2
+        assert reopened.db.execute('PRAGMA user_version').fetchone()[0] == 1
     finally:
         reopened.close()
 

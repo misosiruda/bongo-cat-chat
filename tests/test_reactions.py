@@ -35,7 +35,7 @@ def test_reaction_setting_defaults_on_and_survives_reopen(tmp_path, enabled):
     reopened = Store(path)
     try:
         assert ChatService(reopened).view()['reactions_enabled'] is enabled
-        assert reopened.db.execute('PRAGMA user_version').fetchone()[0] == 2
+        assert reopened.db.execute('PRAGMA user_version').fetchone()[0] == 1
     finally:
         reopened.close()
 

@@ -166,7 +166,7 @@ def test_legacy_history_filter_precedes_pagination_and_search_and_survives_reope
         assert len(service.view(query="야옹 야옹")["messages"]) == 100
         # Hiding history does not delete it or change the database schema.
         assert store.db.execute("SELECT count(*) FROM messages").fetchone()[0] == len(with_legacy)
-        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert store.db.execute("PRAGMA user_version").fetchone()[0] == 1
     finally:
         store.close()
 

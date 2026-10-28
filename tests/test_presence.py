@@ -172,19 +172,19 @@ def test_notice_history_reopens_pages_prunes_and_deletes_like_chat(tmp_path):
         older = service.view(before=page['messages'][0]['seq'], limit=10)
         assert len(older['messages']) == 4 and older['has_newer']
         assert len(notices(service)) == 6  # Reopening does not synthesize joins.
-        reopened.db.execute('UPDATE messages SET received=? WHERE seq=?',
+        reopened.db.execute('UPDATE presence_events SET received=? WHERE seq=?',
                             (time.time() - RETENTION_SECONDS - 1, older['messages'][0]['seq']))
         reopened.db.commit()
         assert len(notices(service)) == 5
         reopened.prune()
-        assert reopened.db.execute('SELECT count(*) FROM messages').fetchone()[0] == 5
+        assert reopened.db.execute('SELECT count(*) FROM presence_events').fetchone()[0] == 5
         service.forget(SELF)
         assert service.view()['messages'] == []
     finally:
         reopened.close()
 
 
-def test_v1_migration_preserves_chat_receipts_draft_setting_and_sequence(tmp_path):
+def test_v1_extension_preserves_chat_receipts_draft_setting_and_sequence(tmp_path):
     path = tmp_path / 'v1.sqlite3'
     original = Store(path)
     service = ChatService(original, clock=lambda: 100)
@@ -192,7 +192,7 @@ def test_v1_migration_preserves_chat_receipts_draft_setting_and_sequence(tmp_pat
     received(service, '이전 버전 대화', id='fixture-receipt')
     original.draft(SELF, 'fixture-room-a', '작성 중')
     original.setting('language', 'en')
-    original.db.execute('ALTER TABLE messages DROP COLUMN kind')
+    original.db.execute('DROP TABLE presence_events')
     original.db.execute('PRAGMA user_version=1')
     original.close()
     for _ in range(2):
