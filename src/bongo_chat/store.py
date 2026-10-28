@@ -8,7 +8,8 @@ import time
 from .protocol import is_meow_message
 
 RETENTION_SECONDS = 30 * 24 * 60 * 60
-MESSAGE_COLUMNS = "id,session,account,lobby,sender,name,body,received,own,status,echo"
+SCHEMA_VERSION = 2
+MESSAGE_COLUMNS = "id,session,account,lobby,sender,name,body,received,own,status,echo,kind"
 
 
 class Store:
@@ -21,7 +22,7 @@ class Store:
         self.db.execute("PRAGMA secure_delete=ON")
         self.db.execute("PRAGMA journal_mode=WAL")
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1):
+        if version not in (0, 1, SCHEMA_VERSION):
             self.db.close()
             raise RuntimeError("unsupported_database_version")
         self.db.executescript("""
@@ -42,9 +43,15 @@ class Store:
                 account TEXT NOT NULL, lobby TEXT NOT NULL, body TEXT NOT NULL,
                 changed REAL NOT NULL, PRIMARY KEY(account,lobby));
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-            PRAGMA user_version=1;
         """)
         with self.db:
+            self.db.execute('BEGIN')
+            # Additive migration: keep existing rows, IDs, receipts and sequence.
+            # Older apps reject version 2 instead of displaying notices as chat.
+            if 'kind' not in {row['name'] for row in self.db.execute('PRAGMA table_info(messages)')}:
+                self.db.execute("ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat' "
+                                "CHECK(kind IN ('chat','member_joined','member_left'))")
+            self.db.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
             self.db.execute("UPDATE messages SET status='unknown' WHERE status='pending'")
             self.db.execute("UPDATE sessions SET ended=?,reason='app_interrupted' WHERE ended IS NULL", (time.time(),))
         self.prune()
@@ -61,7 +68,7 @@ class Store:
 
     def _insert(self, row):
         cursor = self.db.execute(f"INSERT OR IGNORE INTO messages({MESSAGE_COLUMNS}) VALUES({','.join('?' for _ in MESSAGE_COLUMNS.split(','))})",
-                                 tuple(row[k] for k in MESSAGE_COLUMNS.split(',')))
+                                 tuple(row.get('kind', 'chat') if k == 'kind' else row[k] for k in MESSAGE_COLUMNS.split(',')))
         if cursor.rowcount:
             return cursor.lastrowid
         return self.db.execute("SELECT seq FROM messages WHERE id=?", (row['id'],)).fetchone()[0]
@@ -110,7 +117,7 @@ class Store:
         limit = max(1, min(1000, int(limit)))
         cutoff = time.time() - RETENTION_SECONDS
         scope = "account=? AND lobby=? AND sender IN (SELECT id FROM visible_users) AND received>=? AND is_meow_message(body)=0"
-        matching = scope + " AND (?='' OR instr(lower(body),lower(?))>0)"
+        matching = scope + " AND (?='' OR (kind='chat' AND instr(lower(body),lower(?))>0))"
         params = (account, lobby, cutoff, query, query)
         with self.visible(account, allowed):
             bounds = " AND (? IS NULL OR seq<?) AND (? IS NULL OR seq>=?)"
@@ -127,7 +134,7 @@ class Store:
             latest_seq = self.db.execute(f"SELECT coalesce(max(seq),0) FROM messages WHERE {scope}",
                                          (account, lobby, cutoff)).fetchone()[0]
             unseen_seq = 0 if seen is None else self.db.execute(
-                f"SELECT coalesce(max(seq),0) FROM messages WHERE {scope} AND sender<>? AND seq>?",
+                f"SELECT coalesce(max(seq),0) FROM messages WHERE {scope} AND kind='chat' AND sender<>? AND seq>?",
                 (account, lobby, cutoff, account, seen)).fetchone()[0]
         return dict(messages=[dict(r) for r in rows], has_more=bool(has_more), has_newer=bool(has_newer),
                     latest_seq=latest_seq, unseen=bool(unseen_seq), unseen_seq=unseen_seq)
