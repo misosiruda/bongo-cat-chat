@@ -46,6 +46,13 @@
         <section class="room-section"><h2 class="section-label">현재 로비</h2><div id="live-rooms"></div></section>
         <section class="room-section archived-section"><h2 class="section-label">보관한 대화</h2><div id="archived-rooms"></div></section>
       </nav>
+      <div class="merge-sidebar">
+        <button type="button" class="merge-entry" id="merge-open" aria-label="아이템 자동 합성" aria-haspopup="dialog" aria-controls="merge-dialog">
+          <svg aria-hidden="true"><use href="#i-refresh"/></svg>
+          <span class="merge-entry-copy"><strong>아이템 자동 합성</strong><span id="merge-sidebar-status">게임 연동 준비 중</span></span>
+        </button>
+        <button type="button" class="merge-quick-stop" id="merge-sidebar-stop" aria-label="자동 합성 중지" hidden><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
       <div class="account-row">
         <span class="avatar account-avatar" role="img" aria-label="고양이 외형 확인 중"></span>
         <div class="account-copy"><strong>계정 확인 중</strong><span><i class="status-dot" aria-hidden="true"></i><span id="account-status">연결 확인 중</span></span></div>
@@ -64,6 +71,10 @@
           <button type="button" class="icon-button" id="refresh-button" aria-label="연결 상태 새로고침"><svg aria-hidden="true"><use href="#i-refresh"/></svg></button>
         </div>
       </header>
+      <div class="merge-run-bar" id="merge-run-bar" hidden>
+        <button type="button" id="merge-run-details" aria-label="자동 합성 진행 상황 보기"><span id="merge-run-status"></span></button>
+        <button type="button" class="merge-stop-button" id="merge-run-stop">중지</button>
+      </div>
 
       <div class="connection-notice" id="connection-notice" role="status" hidden></div>
       <div class="connection-notice update-notice" id="update-notice" role="status" hidden></div>
@@ -90,6 +101,37 @@
       </div>
     </main>
   </div>
+
+  <dialog class="merge-dialog" id="merge-dialog" aria-labelledby="merge-title" aria-describedby="merge-intro">
+    <div class="dialog-heading"><h2 id="merge-title">아이템 자동 합성</h2><form method="dialog"><button class="icon-button" aria-label="자동 합성 패널 닫기" autofocus><svg aria-hidden="true"><use href="#i-close"/></svg></button></form></div>
+    <div class="merge-content">
+      <p id="merge-intro">선택한 그룹에서 게임의 중복 자동 선택과 합성 함수를 사용합니다. 게임 탭을 열어 둘 필요가 없습니다.</p>
+      <div id="merge-connection" class="merge-connection" hidden><div><strong id="merge-connection-title">게임 연결</strong><p id="merge-connection-message">게임에 연결한 뒤 그룹과 횟수를 선택해 주세요. 연결만으로 합성하지 않습니다.</p></div><button type="button" id="merge-connect">게임에 연결</button></div>
+      <div class="merge-state-card" role="status" aria-live="polite" aria-atomic="true"><strong id="merge-state">게임 연동 준비 중</strong><p id="merge-reason">게임 내부 연결 모듈이 연결되지 않았습니다. 현재는 시작할 수 없습니다.</p></div>
+      <label class="merge-group-label" for="merge-target-group">합성할 그룹<select id="merge-target-group" disabled><option value="cosmetics">캐릭터·모자·봉고</option><option value="emotes">이모티콘·UI 테마</option></select></label>
+      <div class="merge-availability"><div><span id="merge-available-label">현재 그룹에서 합성 가능</span><strong id="merge-available">확인 필요</strong></div><button type="button" class="page-button" id="merge-maximum" aria-describedby="merge-maximum-help" disabled>최대값으로 설정</button></div>
+      <p class="settings-note" id="merge-maximum-help">현재 그룹의 확인된 횟수만 입력합니다. 다른 그룹과 합산하지 않으며, 합성은 시작 버튼을 눌러야 실행됩니다.</p>
+      <label class="merge-limit-label" for="merge-limit">이번 실행의 최대 합성 횟수<input id="merge-limit" type="number" inputmode="numeric" min="1" max="9007199254740991" step="1" value="10" aria-describedby="merge-planned"></label>
+      <p class="settings-note" id="merge-planned" role="status">이번 실행 예정: 확인 필요</p>
+      <p class="settings-note">현재 보유분 기준입니다. 합성 보상으로 생기는 추가 가능 횟수는 결과를 받은 뒤 다시 확인합니다.</p>
+      <p class="settings-note">합성 1회에 재료 10개가 소비됩니다. 매회 결과를 확인한 뒤 다음 1회를 요청합니다.</p>
+      <dl class="merge-facts">
+        <div><dt>합성 대상 그룹</dt><dd id="merge-group">게임에서 확인 필요</dd></div>
+        <div><dt>종류별 1개 보존</dt><dd>게임의 중복 선택 규칙 적용</dd></div>
+        <div><dt>즐겨찾기 포함</dt><dd id="merge-favorites">게임에서 확인 필요</dd></div>
+        <div><dt>이벤트 아이템 제외</dt><dd id="merge-events">게임에서 확인 필요</dd></div>
+      </dl>
+      <p class="settings-note" id="merge-group-help">앱에서 합성할 그룹을 선택해 주세요. 두 그룹의 재료와 가능 횟수는 합산하지 않습니다.</p>
+      <p class="settings-note">보호 옵션은 게임에서 변경해 주세요. 직접 선택해 둔 재료가 있으면 시작하지 않습니다.</p>
+      <div class="merge-counts"><span>확인된 완료 <strong id="merge-completed">0</strong></span><span>결과 대기 <strong id="merge-pending">0</strong></span></div>
+      <p class="settings-note">게임은 실행 중이어야 합니다. 수동 합성 화면은 닫아 주세요. 중지는 새 요청을 막으며, 이미 요청한 합성은 취소하지 못합니다. 이 패널을 닫아도 실행은 유지됩니다.</p>
+    </div>
+    <div class="merge-footer">
+      <button type="button" class="page-button" id="merge-acknowledge" hidden>게임에서 결과를 확인했습니다</button>
+      <button type="button" class="merge-stop-button" id="merge-stop" disabled>중지</button>
+      <button type="button" class="merge-start-button" id="merge-start" disabled>자동 합성 시작</button>
+    </div>
+  </dialog>
 
   <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
     <div class="dialog-heading"><h2 id="settings-title">설정</h2><form method="dialog"><button class="icon-button" aria-label="설정 닫기" autofocus><svg aria-hidden="true"><use href="#i-close"/></svg></button></form></div>

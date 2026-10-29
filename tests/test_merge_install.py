@@ -1,0 +1,72 @@
+"""Distribution preparation tests; no live process discovery or injection."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+from types import SimpleNamespace
+
+import pytest
+from bongo_chat.merge_install import validate_assets,compile_helper,HELPER
+
+ROOT=Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture
+def assets(tmp_path):
+    folder=tmp_path/'assets';folder.mkdir()
+    game=tmp_path/'game';game.mkdir()
+    (game/'metadata').write_bytes(b'synthetic metadata')
+    contract=dict(schema=2,files={'metadata':hashlib.sha256(b'synthetic metadata').hexdigest()})
+    for name,key in [('Bridge.cs','source_sha256'),('MergePrepare.exe','prepare_sha256'),('Mono.Cecil.dll','cecil_sha256')]:
+        content=('synthetic '+name).encode();(folder/name).write_bytes(content)
+        contract[key]=hashlib.sha256(content).hexdigest()
+    (folder/'contract.json').write_text(json.dumps(contract))
+    return SimpleNamespace(root=game),folder,contract
+
+
+def test_payload_and_game_metadata_are_verified_before_compilation(assets):
+    game,folder,contract=assets
+    assert validate_assets(game,folder)==(folder,contract)
+    (folder/'Bridge.cs').write_text('changed')
+    with pytest.raises(RuntimeError,match='bridge_binary_changed'):validate_assets(game,folder)
+
+
+def test_wrong_game_build_is_refused(assets):
+    game,folder,_=assets
+    (game.root/'metadata').write_bytes(b'changed game')
+    with pytest.raises(RuntimeError,match='unsupported_game_build'):validate_assets(game,folder)
+
+
+def test_compilation_uses_fixed_commands_and_stops_before_validation_on_failure(assets,tmp_path,monkeypatch):
+    game,folder,_=assets
+    system=tmp_path/'system';compiler=system/'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+    compiler.parent.mkdir(parents=True);compiler.write_bytes(b'never executed')
+    monkeypatch.setenv('SystemRoot',str(system))
+    calls=[]
+    monkeypatch.setattr(subprocess,'run',lambda command,**kwargs:calls.append((command,kwargs)))
+    session=tmp_path/'session';session.mkdir()
+    assert compile_helper(game,folder,session)==session/HELPER
+    assert len(calls)==2 and calls[0][0][0]==str(compiler) and calls[1][0][0]==str(folder/'MergePrepare.exe')
+    assert calls[0][0][-1]==str(folder/'Bridge.cs') and all(c[1]['timeout']==30 for c in calls)
+    calls.clear()
+    def failure(command,**kwargs):calls.append(command);raise subprocess.CalledProcessError(1,command)
+    monkeypatch.setattr(subprocess,'run',failure)
+    with pytest.raises(RuntimeError,match='merge_prepare_failed'):compile_helper(game,folder,session)
+    assert len(calls)==1
+
+
+def test_missing_windows_compiler_is_reported_without_execution(assets,tmp_path,monkeypatch):
+    game,folder,_=assets;monkeypatch.setenv('SystemRoot',str(tmp_path/'missing'))
+    with pytest.raises(RuntimeError,match='merge_compiler_missing'):compile_helper(game,folder,tmp_path)
+
+
+@pytest.mark.skipif(os.name!='nt',reason='Windows C# runtime')
+def test_csharp_bridge_consumes_synthetic_items_only():
+    shell=shutil.which('pwsh')
+    if not shell:pytest.skip('PowerShell 7 fixture runner')
+    result=subprocess.run([shell,'-NoProfile','-File',str(ROOT/'tools/merge_bridge/test-bridge.ps1')],
+        capture_output=True,timeout=120,creationflags=subprocess.CREATE_NO_WINDOW)
+    assert result.returncode==0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace')
+    assert b'Interactive bridge fixture:' in result.stdout and b'synthetic exchanges=3' in result.stdout

@@ -61,7 +61,8 @@ def main():
     products = {}
     for target in (bundle / 'BongoCatChat.exe', app / 'BongoCatChatApp.exe',
                    app / '_internal/bongo_chat/compatibility/FeatureProbe.exe',
-                   app / '_internal/bongo_chat/compatibility/MemoryScan.exe'):
+                   app / '_internal/bongo_chat/compatibility/MemoryScan.exe',
+                   app / '_internal/bongo_chat/merge-assets/MergePrepare.exe'):
         with pefile.PE(str(target)) as executable:
             entries = {}
             for group in getattr(executable, 'FileInfo', []):
@@ -74,6 +75,13 @@ def main():
             raise ValueError(f'Incorrect signing metadata: {target.name}: {product}')
         products[str(target.relative_to(bundle))] = product
     # A developer's editable install must never supply stale UI/config assets.
+    merge_assets=app/'_internal/bongo_chat/merge-assets'
+    merge_contract=json.loads((merge_assets/'contract.json').read_text(encoding='utf-8-sig'))
+    if merge_contract['schema'] != 2 or (merge_assets/'Bridge.cs').read_bytes() != (ROOT/'tools/merge_bridge/Bridge.cs').read_bytes():
+        raise ValueError('Packaged merge source differs from this checkout')
+    for name,key in [('Bridge.cs','source_sha256'),('MergePrepare.exe','prepare_sha256'),('Mono.Cecil.dll','cecil_sha256')]:
+        if hashlib.sha256((merge_assets/name).read_bytes()).hexdigest()!=merge_contract[key]:
+            raise ValueError('Packaged merge payload digest mismatch')
     for relative in ('ui/index.html', 'ui/app.js', 'ui/messenger.css', 'ui/translations.json', 'ui/app-icon.png',
                      'ui/app-icon.ico', 'ui/favicon.ico', 'update-config.json', 'feature-contract.json'):
         if (app / '_internal/bongo_chat' / relative).read_bytes() != (ROOT / 'src/bongo_chat' / relative).read_bytes():

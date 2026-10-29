@@ -14,9 +14,15 @@
 
 계정별로 화면과 기록을 구분한다. 채팅·초안은 30일 보관 후 앱 실행 시 또는 실행 중 정리하며, 앱이 꺼져 있는 동안에는 정리 작업이 실행되지 않는다. 설정에서 선택한 로비나 현재 계정의 전체 기록을 확인 후 삭제할 수 있다. 삭제가 저장장치 수준의 복구 불가능성을 보장하지는 않는다. 앱 제거는 기록·설정을 보존한다. 기록도 삭제하려면 제거 전에 앱의 기록 삭제 기능을 사용한다.
 
-기존 게임 로비와 연동하기 위해 로컬에 설치된 게임의 Steam API DLL을 로드하고, 호환성·현재 로비·외형 등을 읽기 전용으로 조회한다. 설치된 게임 리소스에서 외형 이미지를 읽어 메모리에서 표시한다. 게임 파일 수정, DLL 주입, 메모리 쓰기 기능은 제품 범위에 포함하지 않는다. 프로그램을 실행하지 않은 동안의 대화를 복원하지 않는다.
+기존 게임 로비와 연동하기 위해 로컬에 설치된 게임의 Steam API DLL을 로드하고, 호환성·현재 로비·외형 등을 읽기 전용으로 조회한다. 설치된 게임 리소스에서 외형 이미지를 읽어 메모리에서 표시한다. 채팅 연결은 게임 파일을 수정하거나 메모리에 쓰지 않는다. 아래 자동 합성은 별도 선택 기능이다. 프로그램을 실행하지 않은 동안의 대화를 복원하지 않는다.
 
 사용자가 전송한 채팅은 Steam의 기존 로비 채팅으로 전달되어 해당 로비의 다른 참여자에게 보인다. Steam 서비스의 처리는 [Valve 개인정보 정책](https://store.steampowered.com/privacy_agreement/)을 따른다. 전송 접수는 상대방이 읽었다는 뜻이 아니다.
+
+## 아이템 자동 합성 (2026-10-30)
+
+사용자가 **게임에 연결**을 누르면 앱 자체 모듈을 해당 PC의 검증된 게임 파일을 참조해 준비하고 실행 중인 게임에 로드한다. 이 연결 과정은 프로세스 메모리 쓰기와 모듈 로딩을 포함하며 게임 설치 파일·기존 Auto Chest는 수정하지 않는다. 연결만으로 합성하지 않고 사용자의 명시적 시작 후 게임의 중복 선택·합성 함수를 호출한다. 인벤토리 교환은 게임의 기존 Steam 처리를 따른다.
+
+`%USERPROFILE%/.bongo-cat-chat/merge-bridge/`에 프로세스 생성 시각·연결 토큰·요청 ID·그룹·수량·보호 옵션·선택 fingerprint·결과·소비 ledger와 자체 모듈을 저장한다. 원본 아이템 ID나 채팅 원문을 IPC 파일에 기록하지 않는다. 현재 사용자와 SYSTEM으로 파일 접근을 제한하며 개발자 서버로 전송하지 않는다. 자동 재시도 방지 기록은 게임 종료·앱 제거 후에도 유지된다. 필요하면 게임과 앱을 종료한 뒤 이 폴더를 직접 삭제할 수 있다. 채팅 기록 삭제와 별개다.
 
 ## Steam ID 채팅 차단 (2026-10-28 후속 소스)
 
@@ -50,4 +56,4 @@
 
 Bongo Cat Chat stores received lobby messages, drafts, display names, Steam account/lobby identifiers and settings in a local, unencrypted SQLite database. Messages and drafts are retained for 30 days, with cleanup while the application is running. Users can delete the selected lobby's history or all history for the current account. Uninstallation preserves local data.
 
-User-authored chat is sent through Steam lobby chat. The application reads local game state and installed resources without patching game files or writing to game memory. When update checks are enabled, installed copies contact GitHub for update metadata and downloads; chat content and game identifiers are not included in these requests. GitHub may process ordinary connection metadata such as IP addresses. There is no developer-operated chat collection, telemetry or cloud-sync service. This policy is displayed during installation. Users can disable all automatic and manual GitHub update requests in the installer or app settings without disabling Steam chat. The Windows-user preference persists through reinstall/uninstall. The default for a first install or an older installation with no saved choice is enabled. Silent installers support /UPDATECHECKS=0. Cancellation cannot retract a request already sent; an already staged update may still be applied locally on the next launch.
+User-authored chat is sent through Steam lobby chat. Chat reads local game state and installed resources. The optional auto merge connection loads our module into the game process, including process memory writes, without patching installed game files. Session tokens, requests and consumption records remain locally in the user-profile merge-bridge folder until manually removed; they are not uploaded to a developer service. When update checks are enabled, installed copies contact GitHub for update metadata and downloads; chat content and game identifiers are not included in these requests. GitHub may process ordinary connection metadata such as IP addresses. There is no developer-operated chat collection, telemetry or cloud-sync service. This policy is displayed during installation. Users can disable all automatic and manual GitHub update requests in the installer or app settings without disabling Steam chat. The Windows-user preference persists through reinstall/uninstall. The default for a first install or an older installation with no saved choice is enabled. Silent installers support /UPDATECHECKS=0. Cancellation cannot retract a request already sent; an already staged update may still be applied locally on the next launch.
