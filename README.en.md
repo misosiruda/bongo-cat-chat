@@ -1,6 +1,8 @@
 # Bongo Cat Chat
 
-The October 28, 2026 source separates **in-game cat visibility from chat blocking**. Chat from hidden cats remains visible. Block or unblock by Steam ID in the participant list or **Settings → Chat blocking**. Blocks persist across lobbies and restarts for the current Steam account on this device. New messages from blocked users are not saved; existing history is hidden until unblocked. This source change has not been released or accepted in a live lobby. Earlier game-visibility descriptions below are historical.
+**Install:** [Latest Windows release](https://github.com/misosiruda/bongo-cat-chat/releases/latest) · [dev18 download, installation and first-run instructions (English / 한국어)](docs/releases/0.1.0.dev18.md#english--install-and-start-chatting). dev18 fixes lobby title updates after the host renames the current lobby (#40), while retaining dev17 chat blocking and join/leave notices. Check the latest release page for publication status.
+
+The dev17 release separates **in-game cat visibility from chat blocking**. Chat from hidden cats remains visible. Block or unblock by Steam ID in the participant list or **Settings → Chat blocking**. Blocks persist across lobbies and restarts for the current Steam account on this device. New messages from blocked users are not saved; existing history is hidden until unblocked. Live-lobby acceptance remains to be completed. Earlier game-visibility descriptions below are historical.
 
 [English](README.en.md) · [한국어](README.md)
 

@@ -1,6 +1,6 @@
 # Bongo Cat Chat
 
-**설치:** [최신 Windows 설치 파일](https://github.com/misosiruda/bongo-cat-chat/releases/latest) · [dev17 다운로드·설치·첫 실행 안내 (한국어 / English)](docs/releases/0.1.0.dev17.md). dev17은 로비 입·퇴장 안내(#37)와 Steam ID 채팅 차단(#38)을 함께 포함한다. 공개 배포 상태는 최신 릴리스에서 확인한다.
+**설치:** [최신 Windows 설치 파일](https://github.com/misosiruda/bongo-cat-chat/releases/latest) · [dev18 다운로드·설치·첫 실행 안내 (한국어 / English)](docs/releases/0.1.0.dev18.md). dev18은 같은 로비에서 방장이 바꾼 제목을 저장·화면에 반영하는 수정(#40)을 포함하며, dev17의 로비 입·퇴장 안내와 Steam ID 채팅 차단도 유지한다. 공개 배포 상태는 최신 릴리스에서 확인한다.
 
 2026-10-28 후속 소스는 **게임의 고양이 숨김과 채팅 차단을 분리**한다. 게임에서 숨긴 상대도 채팅에 표시하고, 참여자 목록 또는 **설정 → 채팅 차단**에서 Steam ID 기준으로 차단·해제한다. 같은 PC의 로그인 계정별로 저장해 로비 이동·재실행 후에도 유지한다. [사용 방법·저장 정책](docs/chat-blocking.md)을 참고한다. 아래 과거 버전의 숨김 동기화 설명은 당시 이력이며 현재 소스 정책은 D-031이 우선한다. 공개 설치본 배포와 실제 로비 인수는 별도다.
 
