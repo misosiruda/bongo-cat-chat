@@ -31,7 +31,8 @@ def write_resources(output, version):
 """
         (output / f"{name}.txt").write_text(text, encoding="utf-8")
     numeric = ".".join(map(str, numbers))
-    for name, title in (("FeatureProbe", "compatibility probe"), ("MemoryScan", "read-only memory scanner")):
+    for name, title in (("FeatureProbe", "compatibility probe"), ("MemoryScan", "read-only memory scanner"),
+                        ("MergePrepare", "item merge module preparation")):
         (output / f"{name}.Version.cs").write_text(
             'using System.Reflection;\n'
             '[assembly: AssemblyProduct("Bongo Cat Chat")]\n'

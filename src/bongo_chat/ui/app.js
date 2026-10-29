@@ -50,6 +50,8 @@
   let openingProfile = false, participantsSignature = '';
   let participantMenuTarget = null;
   let blockPending = false, blockedSignature = '';
+  let mergeRevision = -1, mergeBusy = false, mergeState = null;
+  let mergeInputGroup = '';
   let start = null, seenSeq = null, loadingHistory = false, restoring = false;
   let seenVolatile = new Set(), searchPosition = null, pendingPosition = {bottom:true};
   const positions = new Map();
@@ -385,6 +387,11 @@
   }
   function updateRestartNotice(update) {
     const banner = $('update-notice');
+    if (update.state === 'ready' && update.merge_deferred) {
+      restartPlan = null;
+      const text = t('자동 합성의 실행 또는 결과 확인이 끝나면 업데이트를 적용합니다.');
+      banner.textContent = text; banner.hidden = false; $('update-status').textContent = text; return;
+    }
     if (update.state !== 'ready' || !update.can_restart) {
       restartPlan = null; banner.hidden = true; return;
     }
@@ -400,7 +407,7 @@
     $('update-status').textContent = text;
   }
   async function maybeRestart() {
-    if (!restartPlan || restarting || refreshing || composing || sending || switching || model?.storage_error) return;
+    if (!restartPlan || restarting || refreshing || composing || sending || switching || model?.storage_error || mergeState?.active || mergeState?.unresolved) return;
     if (Date.now() < Math.max(restartPlan.deadline,lastEdit+5000,restartPlan.retryAt)) return;
     restarting = true; document.body.inert = true; updateSend(); clearTimeout(draftTimer);
     updateRestartNotice(model.update);
@@ -596,9 +603,128 @@
     $('empty-description').textContent = data.blocks_ready ? t('앱이 연결된 동안 받은 대화만 표시합니다.') : t('차단 목록을 확인할 수 없어 상대 대화를 보류합니다. 연결 상태 새로고침 후 다시 확인해 주세요.');
     restoreFocus(); restorePosition(position); pendingPosition=null;
   }
+  function renderMerge(value, force=false) {
+    if (!value || (!force && value.revision < mergeRevision)) return;
+    mergeRevision = value.revision; mergeState = value;
+    if (value.exchange_group) {
+      if (mergeInputGroup && mergeInputGroup !== value.exchange_group) $('merge-limit').value = '';
+      mergeInputGroup = value.exchange_group;
+      $('merge-target-group').value = value.exchange_group;
+    }
+    const states = {idle:t('시작할 수 있어요'),blocked:t('시작할 수 없어요'),arming:t('합성 준비 중'),preparing:t('합성 준비 중'),
+      selecting:t('중복 아이템 선택 중'),merging:t('합성 요청 준비 중'),waiting:t('합성 결과 확인 중'),
+      stopping:t('중지 요청 · 진행 중인 결과 확인 중'),completed:t('합성 종료'),stopped:t('중지됨'),
+      failed:t('확인 필요 · 실행 중단'),unknown:t('결과 미확인 · 실행 중단')};
+    const reasons = {adapter_unverified:t('게임 내부 연결 모듈이 연결되지 않았습니다. 현재는 시작할 수 없습니다.'),
+      offline:t('오프라인 모드에서는 자동 합성을 사용할 수 없습니다.'),read_only:t('읽기 전용 모드에서는 자동 합성을 사용할 수 없습니다.'),
+      closed:t('자동 합성 연결이 종료되었습니다.'),game_unavailable:t('실행 중인 게임을 확인할 수 없습니다.'),
+      screen_unavailable:t('게임 내부 상태를 확인할 수 없습니다. 연결 상태를 확인해 주세요.'),
+      target_changed:t('게임, 계정 또는 합성 그룹이 바뀌어 중단했습니다.'),settings_changed:t('게임의 보호 옵션이 바뀌어 중단했습니다.'),
+      existing_selection:t('선택된 재료 또는 진행 중인 합성이 있습니다. 게임에서 확인해 주세요.'),
+      observation_stale:t('게임 상태 확인이 지연되어 중단했습니다.'),selection_unverified:t('중복 자동 선택 결과를 확인하지 못했습니다.'),
+      selection_timeout:t('중복 자동 선택 결과를 기다리다 중단했습니다.'),
+      result_timeout:t('합성 응답 시간이 초과되었습니다. 재시도하지 않았으며 게임에서 결과를 확인해야 합니다.'),
+      result_unverified:t('합성 결과를 확정할 수 없습니다. 게임에서 결과를 확인해 주세요.'),
+      input_failed:t('게임 함수 호출을 확인하지 못해 중단했습니다.'),game_failed:t('게임에서 합성 실패를 확인했습니다. 성공이 확인된 횟수만 표시합니다.'),
+      manual_exchange_screen_open:t('수동 합성 화면을 닫으면 앱에서 합성을 시작할 수 있습니다.'),
+      group_changing:t('선택한 그룹의 가능 횟수를 확인하고 있습니다.'),
+      test_budget_exhausted:t('이번 연결의 시험 횟수를 모두 사용했습니다. 추가 합성은 요청하지 않습니다.'),
+      bridge_observation_failed:t('게임 내부 상태를 확인할 수 없습니다. 연결 상태를 확인해 주세요.'),
+      no_duplicates:t('현재 합성 그룹에 합성할 중복 아이템이 더 없습니다.'),
+      limit_reached:t('설정한 상한에 도달했거나 다음 합성이 상한을 넘습니다.'),
+      user_stopped:t('새 합성 요청을 중지했습니다. 이미 요청한 합성은 취소되지 않습니다.'),
+      app_closed:t('앱 종료로 중단했습니다. 이미 요청한 결과는 게임에서 확인해 주세요.'),
+      checked_in_game:t('게임에서 결과를 확인했습니다. 미확인 건을 완료 횟수에 추가하지 않았습니다.'),
+      ready:t('게임의 중복 자동 선택을 사용합니다. 게임 탭을 열어 둘 필요가 없습니다.')};
+    const title = states[value.state] || t('시작할 수 없어요');
+    const summary = t('{state} · 완료 {count}회', {state:title,count:value.completed || 0});
+    $('merge-state').textContent = title;
+    $('merge-reason').textContent = reasons[value.reason] || reasons.screen_unavailable;
+    if (value.connection) {
+      const connection = value.connection;
+      $('merge-connection').hidden = false;
+      $('merge-connection').dataset.state = connection.state;
+      $('merge-connect').disabled = mergeBusy || !connection.can_connect || value.active || value.unresolved;
+      $('merge-connect').textContent = connection.state === 'connected' ? t('다시 연결') : t('게임에 연결');
+      $('merge-connection-title').textContent = connection.state === 'connecting' ? t('게임에 연결 중')
+        : connection.state === 'connected' ? t('게임 연결됨') : connection.state === 'error' ? t('연결 확인 필요') : t('게임 연결');
+      const connectionErrors = {
+        merge_compiler_missing:t('게임 연결에 필요한 Windows .NET Framework 도구를 찾을 수 없습니다.'),
+        merge_prepare_failed:t('게임 연결 모듈을 준비하지 못했습니다. 게임 버전과 앱 파일을 확인해 주세요.'),
+        game_missing_or_ambiguous:t('Bongo Cat을 실행한 뒤 다시 연결해 주세요.'),
+        unsupported_game_build:t('현재 게임 버전은 자동 합성 연결을 지원하지 않습니다. 호환되는 앱 업데이트가 필요합니다.'),
+        bridge_assets_missing:t('이 앱에 자동 합성 연결 파일이 없습니다. 자동 합성을 포함한 앱을 설치해 주세요.'),
+        bridge_client_in_use:t('다른 앱이 자동 합성에 연결되어 있습니다. 해당 앱을 닫은 뒤 연결해 주세요.'),
+        prior_bridge_active:t('기존 연결 상태를 확인할 수 없습니다. 게임을 직접 다시 실행한 뒤 연결해 주세요.'),
+        bridge_session_unavailable:t('이전 연결 상태를 확인할 수 없습니다. 합성 결과를 확인하고 게임을 직접 다시 실행해 주세요.'),
+        attach_not_confirmed_no_retry:t('연결 완료를 확인하지 못했습니다. 자동으로 재시도하지 않습니다. 게임을 직접 다시 실행한 뒤 연결해 주세요.')};
+      $('merge-connection-message').textContent = connection.state === 'connecting'
+        ? t('게임과 연결 파일을 확인하고 있습니다. 아이템을 선택하거나 소비하지 않습니다.')
+        : connection.state === 'error' ? connectionErrors[connection.error] || t('게임 연결에 실패했습니다. 게임과 앱의 실행 상태를 확인해 주세요.')
+        : connection.state === 'connected' ? t('그룹과 횟수를 선택하고 시작을 눌러 주세요. 앱을 다시 열어도 자동으로 시작하지 않습니다.')
+        : t('게임에 연결한 뒤 그룹과 횟수를 선택해 주세요. 연결만으로 합성하지 않습니다.');
+    }
+    $('merge-sidebar-status').textContent = value.active || value.completed || value.unresolved ? summary : title;
+    $('merge-open').title = t('아이템 자동 합성') + ' · ' + summary;
+    $('merge-open').setAttribute('aria-label',t('아이템 자동 합성') + ' · ' + summary);
+    $('merge-sidebar-stop').hidden = !value.active;
+    $('merge-sidebar-stop').disabled = !value.can_stop;
+    $('merge-run-bar').hidden = !value.active && !value.unresolved;
+    $('merge-run-status').textContent = summary;
+    $('merge-run-stop').hidden = !value.active;
+    $('merge-run-stop').disabled = !value.can_stop;
+    $('merge-stop').disabled = !value.can_stop;
+    $('merge-limit').disabled = mergeBusy || value.active || value.unresolved;
+    $('merge-target-group').disabled = mergeBusy || !value.can_change_group || !value.exchange_group;
+    if (value.active) $('merge-limit').value = String(value.limit);
+    renderMergeLimit();
+    $('merge-acknowledge').hidden = !value.unresolved;
+    $('merge-acknowledge').disabled = mergeBusy;
+    $('merge-completed').textContent = String(value.completed || 0);
+    $('merge-pending').textContent = String(value.pending || 0);
+    const groups = {cosmetics:t('캐릭터·모자·봉고'),emotes:t('이모티콘·UI 테마')};
+    $('merge-group').textContent = groups[value.exchange_group] || t('게임에서 확인 필요');
+    $('merge-available-label').textContent = groups[value.exchange_group]
+      ? t('{group} 그룹에서 합성 가능', {group:groups[value.exchange_group]}) : t('현재 그룹에서 합성 가능');
+    $('merge-group-help').textContent = value.exchange_group === 'cosmetics'
+      ? t('캐릭터·모자·봉고가 같은 합성 그룹입니다. 이모티콘·UI 테마는 포함하지 않습니다.')
+      : value.exchange_group === 'emotes'
+        ? t('이모티콘·UI 테마가 같은 합성 그룹입니다. 캐릭터·모자·봉고는 포함하지 않습니다.')
+        : t('앱에서 합성할 그룹을 선택해 주세요. 두 그룹의 재료와 가능 횟수는 합산하지 않습니다.');
+    for (const [id,key] of [['merge-favorites','favorites_allowed'],['merge-events','events_excluded']])
+      $(id).textContent = value[key] === true ? t('켜짐') : value[key] === false ? t('꺼짐') : t('게임에서 확인 필요');
+  }
+  function renderMergeLimit() {
+    const available = mergeState?.available_exchanges;
+    const known = Number.isSafeInteger(available) && available >= 0;
+    const limit = $('merge-limit').valueAsNumber;
+    const valid = Number.isSafeInteger(limit) && limit > 0;
+    $('merge-available').textContent = known ? t('{count}회', {count:available}) : t('확인 필요');
+    $('merge-maximum').disabled = mergeBusy || !mergeState?.can_start || !known || available === 0;
+    $('merge-start').disabled = mergeBusy || !mergeState?.can_start || !valid || available === 0;
+    $('merge-planned').textContent = !valid ? t('합성 횟수는 1 이상의 정수로 입력해 주세요.')
+      : known ? t('이번 실행 예정: 최대 {count}회', {count:Math.min(limit,available)}) : t('이번 실행 예정: 확인 필요');
+  }
+  async function mergeAction(action, args={}) {
+    // Stop remains available during another bridge request.
+    if (mergeBusy && action !== 'merge_stop') return;
+    mergeBusy = true; if (mergeState) renderMerge(mergeState);
+    try {
+      const result = await rpc(action,action === 'merge_start' ? {limit:Number($('merge-limit').value)} : args);
+      if (action === 'merge_maximum') {
+        if (result.ok && Number.isSafeInteger(result.limit) && result.limit > 0 && result.auto_merge?.revision >= mergeRevision)
+          $('merge-limit').value = String(result.limit);
+        else toast(t('가능 횟수를 확인하지 못했습니다. 수량을 다시 확인해 주세요.'));
+      }
+      renderMerge(result.auto_merge);
+    } catch (error) { showError(error); }
+    finally { mergeBusy = false; if (mergeState) renderMerge(mergeState); refresh(); }
+  }
   function render(data, resetDraft) {
     const position=pendingPosition || capturePosition();
     applyLanguage(data);
+    // Refresh translations using the newest merge state, never a delayed view.
+    renderMerge(data.auto_merge && data.auto_merge.revision >= mergeRevision ? data.auto_merge : mergeState, true);
     document.documentElement.dataset.notice=data.notice || '';
     model = data;
     if (!reactionSettingPending) {
@@ -713,6 +839,17 @@
   }
   function connect(value) {
     bridge=value;
+    for (const id of ['merge-open','merge-run-details']) $(id).addEventListener('click',()=>{
+      $('merge-dialog').showModal(); document.querySelector('.merge-content').scrollTop=0;
+    });
+    $('merge-start').addEventListener('click',()=>mergeAction('merge_start'));
+    $('merge-connect').addEventListener('click',()=>mergeAction('merge_connect'));
+    $('merge-target-group').addEventListener('change',event=>mergeAction('merge_group',{group:event.target.value}));
+    $('merge-maximum').addEventListener('click',()=>mergeAction('merge_maximum'));
+    $('merge-limit').addEventListener('input',renderMergeLimit);
+    for (const id of ['merge-stop','merge-sidebar-stop','merge-run-stop'])
+      $(id).addEventListener('click',()=>mergeAction('merge_stop'));
+    $('merge-acknowledge').addEventListener('click',()=>mergeAction('merge_acknowledge'));
     $('block-form').addEventListener('submit', event => {
       event.preventDefault();
       setBlocked($('block-steam-id').value, true, model?.context.account);

@@ -25,6 +25,7 @@ from .privacy import update_checks_allowed, set_update_checks_allowed
 from .notifications import Notifications
 from .windows_notifications import Attention, WindowsToast, set_app_id
 from .localization import ENGLISH, LANGUAGES, resolve_language, translate
+from .auto_merge import AutoMerge, UnavailableGameUI
 
 UI = Path(__file__).with_name("ui").resolve()
 LEGAL = Path(__file__).with_name('legal')
@@ -104,7 +105,7 @@ class Controller(QObject):
     language_changed = Signal(str)
 
     def __init__(self, data, offline=False, read_only=False, parent=None, install_root=None, update_smoke=False,
-                 notification_backend=None):
+                 notification_backend=None, merge_adapter=None):
         super().__init__(parent)
         self.store = Store(data / "history.sqlite3")
         self.service = ChatService(self.store)
@@ -125,6 +126,13 @@ class Controller(QObject):
         self.worker = None
         self.closed = False
         self.restarting = False
+        self.merge_connection = None
+        if merge_adapter is None and not offline and not read_only:
+            from .merge_connection import MergeConnection
+            self.merge_connection = MergeConnection()
+            merge_adapter = self.merge_connection
+        self.merger = AutoMerge(merge_adapter if merge_adapter is not None and not read_only else
+            UnavailableGameUI('read_only' if read_only else 'offline' if offline else 'adapter_unverified'))
         self.opening_profile = False
         self.restart_supported = bool(install_root and (not offline or update_smoke)
                                       and os.environ.get(RESTART_CAPABILITY) == '1')
@@ -153,6 +161,8 @@ class Controller(QObject):
         self.language_changed.emit(self.language)
 
     def poll(self):
+        if not self.closed and not self.restarting:
+            self.merger.tick()
         try:
             if not self.closed and not self.restarting:
                 self.notifications.sync()
@@ -227,6 +237,10 @@ class Controller(QObject):
                     args['reactions'] is True and not query and not self.closed and not self.restarting)
             result['update'] = self.updates.snapshot()
             result['update']['can_restart'] = self.can_restart()
+            result['update']['merge_deferred'] = self.merger.blocks_restart
+            result['auto_merge'] = self.merger.snapshot()
+            if self.merge_connection:
+                result['auto_merge']['connection'] = self.merge_connection.connection_snapshot()
             if self.closed or self.restarting:
                 result['profile_targets'] = []
             result['notification_status'] = self.notifications.snapshot()
@@ -235,6 +249,31 @@ class Controller(QObject):
             if args.get('language') != self.language:
                 result['translations'] = ENGLISH if self.language == 'en' else {}
             return result
+        if action == 'merge_connect':
+            ok = bool(self.merge_connection and not self.closed and not self.restarting
+                      and not self.merger.blocks_restart and self.merge_connection.connect())
+            if ok:
+                revision = self.merger.revision + 1
+                self.merger = AutoMerge(self.merge_connection)
+                self.merger.revision = revision
+            return {'ok':ok}
+        if action in {'merge_start', 'merge_stop', 'merge_acknowledge', 'merge_maximum', 'merge_group'}:
+            if self.closed or self.restarting:
+                return {'ok': False, 'auto_merge': self.merger.snapshot()}
+            if action == 'merge_maximum':
+                limit = self.merger.maximum()
+                return {'ok': limit is not None, 'limit': limit, 'auto_merge': self.merger.snapshot()}
+            if action == 'merge_group':
+                ok = self.merger.set_group(args.get('group'))
+            elif action == 'merge_start':
+                ok = self.merger.start(args.get('limit'))
+            elif action == 'merge_stop':
+                self.merger.stop()
+                ok = True
+            else:
+                self.merger.acknowledge()
+                ok = True
+            return {'ok': ok, 'auto_merge': self.merger.snapshot()}
         if action == 'block_user':
             if self.closed or self.restarting:
                 raise ValueError('block_unavailable')
@@ -303,6 +342,8 @@ class Controller(QObject):
         elif action == 'check_updates':
             self.updates.request()
         elif action == 'restart_update':
+            if self.merger.blocks_restart:
+                return {'ok': False, 'reason': 'auto_merge'}
             if not self.can_restart():
                 return {'ok': False, 'reason': 'unavailable'}
             if self.service.storage_error or self.service.volatile:
@@ -343,12 +384,14 @@ class Controller(QObject):
 
     def can_restart(self):
         return (self.restart_supported and not self.closed and self.updates.enabled
+                and not self.merger.blocks_restart
                 and self.updates.snapshot()['state'] == 'ready')
 
     def close(self):
         if self.closed:
             return
         self.closed = True
+        self.merger.close()
         self.notifications.close()
         for dialog in list(self.legal_dialogs):
             dialog.close()
@@ -397,7 +440,7 @@ def window(controller):
     return view
 
 
-def run(data, offline=False, read_only=False, smoke_report=None, connection_report=None, install_root=None, update_smoke_dir=None):
+def run(data, offline=False, read_only=False, smoke_report=None, connection_report=None, install_root=None, update_smoke_dir=None, merge_bridge_session=None):
     if os.name == 'nt' and install_root and not offline:
         try:
             set_app_id()
@@ -416,9 +459,19 @@ def run(data, offline=False, read_only=False, smoke_report=None, connection_repo
         else:
             QMessageBox.information(None, "Bongo Cat Chat", translate('이미 실행 중인 앱이 있습니다.', resolve_language()))
         return PROFILE_IN_USE
+    merge_adapter = None
     try:
-        controller = Controller(data, offline, read_only, install_root=install_root, update_smoke=bool(update_smoke_dir))
+        if merge_bridge_session is not None:
+            if offline or read_only: raise RuntimeError('merge_bridge_requires_live_mode')
+            from .merge_bridge import BridgeAdapter
+            merge_adapter = BridgeAdapter(merge_bridge_session)
+    except (OSError, RuntimeError, ValueError, KeyError):
+        QMessageBox.critical(None, 'Bongo Cat Chat', translate('자동 합성 연결을 열 수 없습니다. 게임과 연결 모듈 상태를 확인해 주세요.', resolve_language()))
+        return 1
+    try:
+        controller = Controller(data, offline, read_only, install_root=install_root, update_smoke=bool(update_smoke_dir), merge_adapter=merge_adapter)
     except (sqlite3.Error, OSError, RuntimeError):
+        if merge_adapter is not None: merge_adapter.close()
         QMessageBox.critical(None, "Bongo Cat Chat", translate('기록 저장소를 열 수 없습니다. 기존 파일은 보존했습니다.', resolve_language()))
         return 1
     view = window(controller)

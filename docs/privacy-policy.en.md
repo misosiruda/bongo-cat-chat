@@ -2,7 +2,7 @@
 
 [English](privacy-policy.en.md) · [한국어](privacy-policy.md)
 
-Updated October 28, 2026 to describe the current source, including local language preferences. Bongo Cat Chat is an unofficial companion maintained by an independent developer. Questions can be raised in [project issues](https://github.com/misosiruda/bongo-cat-chat/issues). Do not post chat contents, account identifiers or lobby identifiers in public issues.
+Updated October 30, 2026 to describe the current source, including local language preferences. Bongo Cat Chat is an unofficial companion maintained by an independent developer. Questions can be raised in [project issues](https://github.com/misosiruda/bongo-cat-chat/issues). Do not post chat contents, account identifiers or lobby identifiers in public issues.
 
 ## Local history and game integration
 
@@ -12,9 +12,15 @@ The app stores received chat, messages you compose and send, drafts, display nam
 
 History is separated by account. Messages and drafts are retained for 30 days and cleaned up at startup and while the app is running. Cleanup does not run while the app is closed. Settings let you delete the selected lobby's history or all history for the current account after confirmation. Deletion does not guarantee that data cannot be recovered from the storage device. Uninstalling preserves history and preferences; use the app's deletion controls before uninstalling to delete history.
 
-To integrate with the existing lobby, the app loads the Steam API DLL from the locally installed game and reads compatibility information, the current lobby, cat appearance. It reads installed game resources to display cat images in memory. It does not modify game files, inject DLLs or write to game memory. It does not recover conversations from periods when it was not running.
+For lobby chat, the app loads the Steam API DLL from the locally installed game and reads compatibility information, the current lobby and cat appearance. It reads installed game resources to display cat images in memory. The chat connection does not modify game files, inject DLLs or write to game memory. The optional item auto merge connection is described separately below. The app does not recover conversations from periods when it was not running.
 
 Messages you send are delivered through Steam's existing lobby chat to other participants in that lobby. Steam's handling is covered by [Valve's privacy policy](https://store.steampowered.com/privacy_agreement/). Acceptance for sending does not mean another participant has read the message.
+
+## Optional item auto merge
+
+Pressing **Connect to game** prepares our own module against verified local game metadata and loads it into the running game. This includes process memory writes and module loading, without modifying installed game files or Auto Chest. Connection alone never exchanges items; an explicit Start invokes the original duplicate-selection and exchange functions through the game's existing Steam handling.
+
+The app stores the process lifetime, connection token, request IDs, group/counts/protection options, selection fingerprints, results, consumption ledger and own module in `%USERPROFILE%/.bongo-cat-chat/merge-bridge/`. Raw item IDs and chat contents are not written to these IPC files. Access is limited to the current Windows user and SYSTEM; no developer server receives the data. Records used to prevent automatic retries remain after the game exits or the app is uninstalled. You may manually remove this folder after closing both the app and game. This is separate from deleting chat history.
 
 ## Steam ID chat blocks
 

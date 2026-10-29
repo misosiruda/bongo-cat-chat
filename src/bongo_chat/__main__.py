@@ -13,8 +13,11 @@ def main():
     parser.add_argument("--install-root", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--smoke-report", type=Path, help="Offline-only renderer smoke report, then exit")
     parser.add_argument("--connection-report", type=Path, help="Read-only native/renderer report, then exit")
+    parser.add_argument('--merge-bridge-session',type=Path,help='Opt-in connection to a separately installed local test bridge')
     parser.add_argument('--update-smoke-dir', type=Path, help='Offline-worker installed updater diagnostic; requires --offline and explicit --data-dir')
     args = parser.parse_args()
+    if args.merge_bridge_session and (args.offline or args.read_only):
+        parser.error('--merge-bridge-session cannot be used in offline or read-only mode')
     if args.smoke_report and not args.offline:
         parser.error("--smoke-report requires --offline")
     if args.connection_report and (not args.read_only or args.offline or args.smoke_report):
@@ -36,7 +39,7 @@ def main():
         if marker['active'] != __version__ or no_links(sys.executable) != expected or args.data_dir.resolve().is_relative_to(install_root):
             parser.error('invalid installation or data directory')
     return run(args.data_dir.resolve(), args.offline, args.read_only, args.smoke_report, args.connection_report, install_root,
-               update_smoke_dir=args.update_smoke_dir)
+               update_smoke_dir=args.update_smoke_dir, merge_bridge_session=args.merge_bridge_session)
 
 
 if __name__ == "__main__":
