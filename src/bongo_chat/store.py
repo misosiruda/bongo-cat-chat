@@ -72,6 +72,13 @@ class Store:
             self.db.execute("INSERT OR IGNORE INTO sessions VALUES(?,?,?,?,?,NULL,NULL)",
                             (session, account, lobby, name, time.time()))
 
+    def rename_session(self, session, account, lobby, name):
+        """Update only this active segment, leaving historical names intact."""
+        with self.db:
+            self.db.execute("""UPDATE sessions SET name=?
+                WHERE id=? AND account=? AND lobby=? AND ended IS NULL AND name<>?""",
+                (name, session, account, lobby, name))
+
     def end(self, session, reason):
         with self.db:
             self.db.execute("UPDATE sessions SET ended=?,reason=? WHERE id=? AND ended IS NULL",
