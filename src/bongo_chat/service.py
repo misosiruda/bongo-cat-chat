@@ -105,6 +105,8 @@ class ChatService:
         self.store.prune()
         if self.session:
             self.store.session(self.session, self.state['account'], self.state['lobby'], self.state.get('name') or '')
+            if self.state.get('name'):
+                self.store.rename_session(self.session, self.state['account'], self.state['lobby'], self.state['name'])
         self.load_notifications()
         self.load_reaction_setting()
         self.load_blocks()
@@ -160,9 +162,15 @@ class ChatService:
         self.revision += 1
 
     def update(self, state):
+        state = dict(state)
         old = self.state
         boundary = (old.get("account"), old.get("lobby"), old.get("generation")) != (
             state.get("account"), state.get("lobby"), state.get("generation"))
+        name = state.get("name")
+        # Steam's empty metadata does not distinguish a missing value from a
+        # failed lookup. Retain the last known name only within this context.
+        if not (state.get("connected") and isinstance(name, str) and name.strip()):
+            state["name"] = "" if boundary else old.get("name", "")
         if boundary or not self.fresh():
             self.presence.reset()
         if boundary:
@@ -181,6 +189,11 @@ class ChatService:
         if state.get("account") and state.get("lobby") and state.get("generation") and not self.session:
             self.session = str(uuid4())
             self.write(self.store.session, self.session, state["account"], state["lobby"], state.get("name") or "")
+        elif (self.session and state.get("connected") and state.get("name")
+                and state["name"] != old.get("name") and not self.storage_error):
+            # Do not retry writes on every worker heartbeat after a disk error.
+            # Explicit storage recovery saves the latest observed title.
+            self.write(self.store.rename_session, self.session, state["account"], state["lobby"], state["name"])
         for kind, sender, name, observed in self.presence.update(state, self.updated, self.blocked):
             if not self.after_block_change(dict(sender=sender, observed=observed)):
                 continue
@@ -357,6 +370,11 @@ class ChatService:
             self.storage_error = True
             rows, rooms, draft = [], [], ""
             page = dict(has_more=False, has_newer=False, latest_seq=0, unseen=False, unseen_seq=0)
+        if self.connected() and self.state.get("name"):
+            # Live display is independent of persistence; storage_error still
+            # reports a failed write and keeps sending disabled.
+            rooms = [dict(room, name=self.state["name"]) if room["lobby"] == self.state.get("lobby") else room
+                     for room in rooms]
         def visible_sender(sender):
             return sender == account or history_blocks is not None and sender not in history_blocks
         visible_volatile = [r for r in self.volatile.values() if r["account"] == account
