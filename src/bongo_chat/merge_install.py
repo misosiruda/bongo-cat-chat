@@ -134,6 +134,27 @@ def compile_helper(game, assets, session):
     return dll
 
 
+def prepare_session(game, assets, session):
+    """Prepare in our newly created directory; retain any attachment evidence."""
+    try:
+        dll = compile_helper(game, assets, session)
+        validate_assets(game, assets)  # Recheck inputs before any game memory write.
+        return dll
+    except Exception:
+        try:
+            no_links(session)
+            # Only this newly created preparation path is eligible for cleanup.
+            # An attachment marker, config, ledger or any other file is preserved.
+            entries = list(session.iterdir())
+            if all(entry.name == HELPER and entry.is_file() for entry in entries):
+                no_links(session / HELPER)
+                (session / HELPER).unlink(missing_ok=True)
+                session.rmdir()  # Never recurse or remove unexpected contents.
+        except (OSError, RuntimeError):
+            pass
+        raise
+
+
 def connect():
     """Called only by the UI's Connect action, on a background thread."""
     from .merge_connection import InteractiveAdapter
@@ -179,9 +200,7 @@ def connect():
                 if set(exports) != set((*EXPORTS,ERROR_EXPORT)):raise RuntimeError('unsupported_game_build')
         finally:reader.close()
         private_directory(session)  # Exclusive creation is the installation lock.
-        dll = compile_helper(game,assets,session)
-        # Revalidate both inputs after compilation, before opening any game write path.
-        validate_assets(game,assets)
+        dll = prepare_session(game,assets,session)
         digest = hashlib.sha256(dll.read_bytes()).hexdigest()
         config = dict(protocol=1,pid=game.pid,process_start_ticks=ticks,epoch=uuid4().hex,
                       token=secrets.token_hex(32),test_budget=0,mode='interactive',helper_sha256=digest,

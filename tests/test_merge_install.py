@@ -8,7 +8,7 @@ import subprocess
 from types import SimpleNamespace
 
 import pytest
-from bongo_chat.merge_install import validate_assets,compile_helper,HELPER
+from bongo_chat.merge_install import validate_assets,compile_helper,prepare_session,HELPER
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -60,6 +60,48 @@ def test_compilation_uses_fixed_commands_and_stops_before_validation_on_failure(
 def test_missing_windows_compiler_is_reported_without_execution(assets,tmp_path,monkeypatch):
     game,folder,_=assets;monkeypatch.setenv('SystemRoot',str(tmp_path/'missing'))
     with pytest.raises(RuntimeError,match='merge_compiler_missing'):compile_helper(game,folder,tmp_path)
+
+
+def test_failed_preparation_can_be_retried_without_restarting_game(assets,tmp_path,monkeypatch):
+    game,folder,_=assets
+    session=tmp_path/'session';session.mkdir()
+    def failure(*args):
+        (session/HELPER).write_bytes(b'partial compilation')
+        raise RuntimeError('merge_prepare_failed')
+    monkeypatch.setattr('bongo_chat.merge_install.compile_helper',failure)
+    with pytest.raises(RuntimeError,match='merge_prepare_failed'):prepare_session(game,folder,session)
+    assert not session.exists()
+    session.mkdir()
+    def success(*args):
+        (session/HELPER).write_bytes(b'synthetic complete helper')
+        return session/HELPER
+    monkeypatch.setattr('bongo_chat.merge_install.compile_helper',success)
+    assert prepare_session(game,folder,session).read_bytes()==b'synthetic complete helper'
+
+
+@pytest.mark.parametrize('evidence',['attach-attempt.json','session.json','ledger.json','unrelated.txt'])
+def test_preparation_failure_preserves_attachment_evidence_and_unknown_files(assets,tmp_path,monkeypatch,evidence):
+    game,folder,_=assets
+    session=tmp_path/'session';session.mkdir()
+    (session/evidence).write_bytes(b'preserve exactly')
+    (session/HELPER).write_bytes(b'preserve helper')
+    def failure(*args):raise RuntimeError('merge_prepare_failed')
+    monkeypatch.setattr('bongo_chat.merge_install.compile_helper',failure)
+    with pytest.raises(RuntimeError,match='merge_prepare_failed'):prepare_session(game,folder,session)
+    assert (session/evidence).read_bytes()==b'preserve exactly'
+    assert (session/HELPER).read_bytes()==b'preserve helper'
+
+
+def test_changed_metadata_after_compilation_cleans_only_unattached_preparation(assets,tmp_path,monkeypatch):
+    game,folder,_=assets
+    session=tmp_path/'session';session.mkdir()
+    def compile_changed(*args):
+        (session/HELPER).write_bytes(b'synthetic helper')
+        (game.root/'metadata').write_bytes(b'changed')
+        return session/HELPER
+    monkeypatch.setattr('bongo_chat.merge_install.compile_helper',compile_changed)
+    with pytest.raises(RuntimeError,match='unsupported_game_build'):prepare_session(game,folder,session)
+    assert not session.exists()
 
 
 @pytest.mark.skipif(os.name!='nt',reason='Windows C# runtime')
