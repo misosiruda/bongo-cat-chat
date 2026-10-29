@@ -2,7 +2,7 @@
 
 일반 이용자는 설치 파일 하나로 설치한다. Python, Git, 명령어 입력이나 관리자 권한은 필요하지 않다. Windows 10/11 64비트(x64), Steam 및 Bongo Cat을 준비한다.
 
-[최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받는다. `Source code` ZIP과 `bongo-cat-chat-windows-x64.zip`은 일반 설치 파일이 아니다. 후자는 앱 업데이트용이다. [dev17 릴리스 노트](releases/0.1.0.dev17.md)에 설치 파일 직접 링크와 한국어·영어 시작 안내가 있다.
+[최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받는다. `Source code` ZIP과 `bongo-cat-chat-windows-x64.zip`은 일반 설치 파일이 아니다. 후자는 앱 업데이트용이다. [dev18 릴리스 노트](releases/0.1.0.dev18.md)에 설치 파일 직접 링크와 한국어·영어 시작 안내가 있다.
 
 ## 설치와 시작
 
