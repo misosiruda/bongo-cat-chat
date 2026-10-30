@@ -53,7 +53,8 @@ def install(budget):
     game = running_game()
     contract = json.loads(Path(__file__).with_name('local-contract.json').read_text())
     for name, digest in contract['files'].items():
-        if hashlib.sha256((game.root / name).read_bytes()).hexdigest() != digest:
+        allowed = [digest] if isinstance(digest, str) else digest
+        if hashlib.sha256((game.root / name).read_bytes()).hexdigest() not in allowed:
             raise RuntimeError('unsupported_game_file:' + name)
     k = kernel()
     handle = k.OpenProcess(0x043a, False, game.pid)

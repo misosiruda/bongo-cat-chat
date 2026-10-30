@@ -1,12 +1,15 @@
 {
-  "schema": 1,
+  "schema": 2,
   "build": "25936063-local-autochest",
   "files": {
     "BongoCat.exe": "a5547e984690f6da278b9f6566c7e07a45fb664f7b8ea326f14b249e9ca01ad6",
     "MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll": "e1b05864961ea0a17d7eed0b5e6176cff254bf56cba89ff4beaafe00f629d1e9",
     "BongoCat_Data/Managed/Assembly-CSharp.dll": "463a1758357f7ebcc291d0d96e33f6cc24b2e362a26f3762461d2760a81a23b4",
     "BongoCat_Data/Managed/Assembly-CSharp-firstpass.dll": "8236285ed953ca7ae204685e920460ad223a70f84fd23350473bcc2da716c6aa",
-    "BongoCat_Data/Managed/BongoAutoChest.dll": "ed3d3a7f8ae702605ec91a0029ce78c766c424d52f207b47fc4f2bbf4a0b754a",
+    "BongoCat_Data/Managed/BongoAutoChest.dll": [
+      "ed3d3a7f8ae702605ec91a0029ce78c766c424d52f207b47fc4f2bbf4a0b754a",
+      "8cc81f48322fd544b711291d67655a4f63cb0a88bf37b7e4c7f3f895e10f320e"
+    ],
     "BongoCat_Data/Managed/UnityEngine.CoreModule.dll": "d2996409bcfc824ef9146dfb14f2f5d893426d693d518073b6aad0dcf787b596",
     "BongoCat_Data/Managed/Heathen.Steamworks.dll": "28fae41f08de86f3bbb4dbbf14c0d81add90a3dcc33834f19363bfebe2bd75a2",
     "BongoCat_Data/Managed/com.rlabrecque.steamworks.net.dll": "af2d43f0b6b65671585d970d2a987bd5d8e6154e42dce3f9e9fe7cc932fbc58d",

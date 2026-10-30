@@ -12,7 +12,7 @@ Copy-Item -LiteralPath $cecil -Destination $output
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Bridge.cs') -Destination $output
 $contract = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-contract.json') -Raw | ConvertFrom-Json
 @{
-    schema=2
+    schema=3
     files=$contract.files
     source_sha256=(Get-FileHash -LiteralPath (Join-Path $output 'Bridge.cs')).Hash.ToLowerInvariant()
     prepare_sha256=(Get-FileHash -LiteralPath (Join-Path $output 'MergePrepare.exe')).Hash.ToLowerInvariant()

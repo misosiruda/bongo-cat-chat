@@ -65,6 +65,28 @@ def test_connection_errors_are_bounded_and_close_during_connect_does_not_publish
     assert dummy.closed and manager.adapter is None and not manager.connect()
 
 
+@pytest.mark.parametrize('error,fragment',[
+    ('unsupported_game_files','현재 게임 파일 조합'),
+    ('merge_game_files_missing','게임 파일이 없습니다'),
+    ('merge_game_files_unreadable','게임 파일을 읽지 못했습니다'),
+])
+def test_file_compatibility_errors_reach_renderer_without_enabling_start(qt_chat,error,fragment):
+    app,controller,page=qt_chat
+    def failure():raise RuntimeError(error)
+    manager=MergeConnection(failure)
+    controller.merge_connection=manager
+    controller.merger=AutoMerge(manager)
+    try:
+        js(app,page,"document.querySelector('#merge-open').click()")
+        wait_until(app,lambda:js(app,page,"!document.querySelector('#merge-connection').hidden"))
+        js(app,page,"document.querySelector('#merge-connect').click()")
+        wait_until(app,lambda:fragment in js(app,page,"document.querySelector('#merge-connection-message').textContent"))
+        assert manager.connection_snapshot()['error']==error
+        assert js(app,page,"document.querySelector('#merge-start').disabled && document.querySelector('#merge-maximum').disabled")
+        assert not controller.merger.active
+    finally:manager.close()
+
+
 def test_real_renderer_connect_maximum_start_and_completion(qt_chat,tmp_path):
     app,controller,page=qt_chat
     server=FileServer(tmp_path,interactive=True)

@@ -6,7 +6,7 @@ $dllName = 'BongoCatChat.MergeBridge.Shared.dll'
 if ($Interactive) { $output = Join-Path $output 'app'; $dllName = 'BongoCatChat.MergeBridge.Live.dll' }
 $contract = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-contract.json') -Raw | ConvertFrom-Json
 foreach ($entry in $contract.files.PSObject.Properties) {
-    if ((Get-FileHash -LiteralPath (Join-Path $GameRoot $entry.Name)).Hash.ToLowerInvariant() -ne $entry.Value) { throw 'Unsupported game build for merge bridge' }
+    if (@($entry.Value) -cnotcontains (Get-FileHash -LiteralPath (Join-Path $GameRoot $entry.Name)).Hash.ToLowerInvariant()) { throw 'Unsupported game build for merge bridge' }
 }
 New-Item -ItemType Directory -Force $output | Out-Null
 $names = @('Assembly-CSharp.dll','Assembly-CSharp-firstpass.dll','UnityEngine.CoreModule.dll','Heathen.Steamworks.dll','com.rlabrecque.steamworks.net.dll','Newtonsoft.Json.dll')
