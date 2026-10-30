@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import subprocess
 import sys
@@ -102,15 +103,34 @@ def check_prior_modules(reader):
 def validate_assets(game, assets):
     try:
         contract = read_json(assets/'contract.json')
-        if contract['schema'] != 2:raise ValueError('unsupported_asset_schema')
+        if contract['schema'] not in (2, 3):raise ValueError('unsupported_asset_schema')
         for name,key in [('Bridge.cs','source_sha256'),('MergePrepare.exe','prepare_sha256'),('Mono.Cecil.dll','cecil_sha256')]:
             if hashlib.sha256((assets/name).read_bytes()).hexdigest() != contract[key]:
                 raise RuntimeError('bridge_binary_changed')
-    except (OSError,KeyError,ValueError):
+        files = contract['files']
+        if not isinstance(files, dict) or not files:raise ValueError('invalid_game_files')
+        allowed = {}
+        for name, digests in files.items():
+            path = Path(name)
+            if path.is_absolute() or path.drive or '..' in path.parts:
+                raise ValueError('invalid_game_path')
+            if isinstance(digests, str):digests = [digests]
+            elif contract['schema'] != 3:raise ValueError('unsupported_hash_list')
+            if (not isinstance(digests, list) or not digests
+                    or any(not isinstance(d, str) or not re.fullmatch('[0-9a-f]{64}', d) for d in digests)):
+                raise ValueError('invalid_game_hash')
+            allowed[name] = digests
+    except (OSError,KeyError,ValueError,TypeError):
         raise RuntimeError('bridge_assets_missing') from None
-    for name,digest in contract['files'].items():
-        if hashlib.sha256((game.root/name).read_bytes()).hexdigest() != digest:
-            raise RuntimeError('unsupported_game_build')
+    for name,digests in allowed.items():
+        try:
+            digest = hashlib.sha256((game.root/name).read_bytes()).hexdigest()
+        except FileNotFoundError:
+            raise RuntimeError('merge_game_files_missing') from None
+        except OSError:
+            raise RuntimeError('merge_game_files_unreadable') from None
+        if digest not in digests:
+            raise RuntimeError('unsupported_game_files')
     return assets,contract
 
 

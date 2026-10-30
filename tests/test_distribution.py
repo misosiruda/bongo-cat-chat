@@ -1,6 +1,7 @@
 import importlib.util
 import hashlib
 import io
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -133,3 +134,28 @@ def test_source_download_rejects_both_bad_endpoints(tmp_path, monkeypatch):
     assert len(calls) == 2
     assert not (tmp_path / row['file']).exists()
     assert not list(tmp_path.glob('*.partial'))
+
+
+@pytest.mark.parametrize('change', [None, 'old_schema', 'missing_files', 'missing_variant', 'source', 'payload'])
+def test_packaged_merge_contract_matches_source_and_rejects_drift(tmp_path, monkeypatch, change):
+    monkeypatch.syspath_prepend(str(ROOT / 'tools'))
+    module = tool('verify_review_bundle')
+    expected = json.loads((ROOT / 'tools/merge_bridge/local-contract.json').read_text())
+    contract = {'schema': 3, 'files': expected['files']}
+    for name, key in [('Bridge.cs', 'source_sha256'), ('MergePrepare.exe', 'prepare_sha256'), ('Mono.Cecil.dll', 'cecil_sha256')]:
+        data = (ROOT / 'tools/merge_bridge/Bridge.cs').read_bytes() if name == 'Bridge.cs' else b'inert fixture'
+        (tmp_path / name).write_bytes(data)
+        contract[key] = hashlib.sha256(data).hexdigest()
+    if change == 'old_schema':contract['schema'] = 2
+    if change == 'missing_files':contract['files'] = {}
+    if change == 'missing_variant':contract['files']['BongoCat_Data/Managed/BongoAutoChest.dll'].pop()
+    if change == 'source':
+        (tmp_path / 'Bridge.cs').write_bytes(b'changed source')
+        contract['source_sha256'] = hashlib.sha256(b'changed source').hexdigest()
+    if change == 'payload':(tmp_path / 'MergePrepare.exe').write_bytes(b'changed payload')
+    (tmp_path / 'contract.json').write_text(json.dumps(contract))
+    if change is None:
+        module.verify_merge_assets(tmp_path)
+    else:
+        with pytest.raises(ValueError, match='Packaged merge'):
+            module.verify_merge_assets(tmp_path)
