@@ -1,5 +1,6 @@
 """Distribution preparation tests; no live process discovery or injection."""
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -85,6 +86,22 @@ def test_malformed_complete_profiles_fail_closed(assets,profiles):
     with pytest.raises(RuntimeError,match='bridge_assets_missing'):validate_assets(game,folder)
 
 
+def test_developer_install_checks_profiles_before_opening_game(assets,monkeypatch):
+    game,folder,contract=assets
+    monkeypatch.syspath_prepend(str(ROOT/'tools/merge_bridge'))
+    spec=importlib.util.spec_from_file_location('developer_merge_install',ROOT/'tools/merge_bridge/install.py')
+    developer=importlib.util.module_from_spec(spec);spec.loader.exec_module(developer)
+    monkeypatch.setattr(developer,'__file__',str(folder/'install.py'))
+    monkeypatch.setattr(developer,'running_game',lambda:game)
+    def kernel_reached():raise RuntimeError('kernel_reached')
+    monkeypatch.setattr(developer,'kernel',kernel_reached)
+    contract.update(schema=4,profiles=[contract.pop('files')])
+    (folder/'local-contract.json').write_text(json.dumps(contract))
+    with pytest.raises(RuntimeError,match='^kernel_reached$'):developer.install(0)
+    (game.root/'metadata').write_bytes(b'unverified update')
+    with pytest.raises(RuntimeError,match='^unsupported_game_files$'):developer.install(0)
+
+
 @pytest.mark.parametrize('digests',[[],None,{},[None],[''],['a'*63],['A'*64]])
 def test_invalid_allowlist_fails_closed(assets,digests):
     game,folder,contract=assets
@@ -109,7 +126,7 @@ def test_missing_or_unreadable_game_file_has_safe_actionable_error(assets,monkey
 
 def test_support_change_is_limited_to_two_pinned_autochest_files():
     contract=json.loads((ROOT/'tools/merge_bridge/local-contract.json').read_text())
-    assert contract['schema']==4 and len(contract['profiles'])==2
+    assert contract['schema']==4 and len(contract['profiles'])==3
     files=contract['profiles'][0]
     variants={name:hashes for name,hashes in files.items() if isinstance(hashes,list)}
     assert len(files)==13
