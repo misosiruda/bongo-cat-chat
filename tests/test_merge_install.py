@@ -58,6 +58,33 @@ def test_exact_hash_variants_preserve_other_file_checks(assets):
     with pytest.raises(RuntimeError,match='unsupported_game_files'):validate_assets(game,folder)
 
 
+def test_complete_profiles_reject_cross_build_mixtures(assets):
+    game,folder,contract=assets
+    old=dict(contract['files'],other=hashlib.sha256(b'old other').hexdigest())
+    new={name:hashlib.sha256(('new '+name).encode()).hexdigest() for name in old}
+    contract.pop('files')
+    contract.update(schema=4,profiles=[old,new])
+    (folder/'contract.json').write_text(json.dumps(contract))
+    (game.root/'other').write_bytes(b'old other')
+    validate_assets(game,folder)
+    (game.root/'metadata').write_bytes(b'new metadata')
+    with pytest.raises(RuntimeError,match='unsupported_game_files'):validate_assets(game,folder)
+    (game.root/'other').write_bytes(b'new other')
+    validate_assets(game,folder)
+    (game.root/'metadata').write_bytes(b'synthetic metadata')
+    with pytest.raises(RuntimeError,match='unsupported_game_files'):validate_assets(game,folder)
+
+
+@pytest.mark.parametrize('profiles',[[],None,{},[{}],[{'metadata':'0'*64},{'different':'1'*64}],
+    [{'../outside':'0'*64}],[{'metadata':[]}],[{'metadata':'A'*64}]])
+def test_malformed_complete_profiles_fail_closed(assets,profiles):
+    game,folder,contract=assets
+    contract.pop('files')
+    contract.update(schema=4,profiles=profiles)
+    (folder/'contract.json').write_text(json.dumps(contract))
+    with pytest.raises(RuntimeError,match='bridge_assets_missing'):validate_assets(game,folder)
+
+
 @pytest.mark.parametrize('digests',[[],None,{},[None],[''],['a'*63],['A'*64]])
 def test_invalid_allowlist_fails_closed(assets,digests):
     game,folder,contract=assets
@@ -82,9 +109,10 @@ def test_missing_or_unreadable_game_file_has_safe_actionable_error(assets,monkey
 
 def test_support_change_is_limited_to_two_pinned_autochest_files():
     contract=json.loads((ROOT/'tools/merge_bridge/local-contract.json').read_text())
-    files=contract['files']
+    assert contract['schema']==4 and len(contract['profiles'])==2
+    files=contract['profiles'][0]
     variants={name:hashes for name,hashes in files.items() if isinstance(hashes,list)}
-    assert len(files)==12
+    assert len(files)==13
     assert variants=={'BongoCat_Data/Managed/BongoAutoChest.dll':[
         'ed3d3a7f8ae702605ec91a0029ce78c766c424d52f207b47fc4f2bbf4a0b754a',
         '8cc81f48322fd544b711291d67655a4f63cb0a88bf37b7e4c7f3f895e10f320e']}

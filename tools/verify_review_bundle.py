@@ -50,7 +50,7 @@ assert toast.tag == 'verification'
 def verify_merge_assets(merge_assets):
     contract = json.loads((merge_assets / 'contract.json').read_text(encoding='utf-8-sig'))
     expected = json.loads((ROOT / 'tools/merge_bridge/local-contract.json').read_text(encoding='utf-8'))
-    if contract.get('schema') != 3 or contract.get('files') != expected['files']:
+    if contract.get('schema') != 4 or contract.get('profiles') != expected['profiles']:
         raise ValueError('Packaged merge contract differs from this checkout')
     if (merge_assets / 'Bridge.cs').read_bytes() != (ROOT / 'tools/merge_bridge/Bridge.cs').read_bytes():
         raise ValueError('Packaged merge source differs from this checkout')
