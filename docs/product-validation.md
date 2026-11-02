@@ -586,3 +586,7 @@ git diff --check
 ### dev11 출하 후보 검사
 
 `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`와 검증된 NSIS 3.13 경로를 `BONGO_TEST_NSIS_PATH`로 지정해 전체 검사를 다시 실행했다. **417 passed in 118.85s**, 건너뛴 검사 0개였다. 앞서 생략된 실제 NSIS 컴파일러 통합 검사 5개를 포함한다. CI와 같은 소프트웨어 렌더링 조건이며, 기본 GPU 환경의 Qt 시간 초과 원인을 해결했다는 의미는 아니다. 제품의 GPU 설정은 변경하지 않았다. 로컬 원본 결과는 Git에서 제외한 `artifacts/release-dev11/pytest.xml`과 `pytest.log`에 보관한다.
+
+## 2026-11-02 · 게임 업데이트 후 연결 복구
+
+새 게임 build 26364842의 채팅·자동 합성 연결을 수정했다. 소스 읽기 전용 연결 30초·참여자/프로필 8개와 실제 Qt 자동 합성 두 그룹 조회·최대값·재연결을 확인했다. 실제 송신·소비 0회, 상세 근거·패키징·회귀 결과와 남은 인수는 [dev21 검증](game-update-2026-11-02.md)에 있다.

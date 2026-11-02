@@ -21,6 +21,7 @@ from bootstrap import EXPORTS, ERROR_EXPORT, execute, kernel, start_ticks
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'src'))
 from bongo_chat.environment import running_game
+from bongo_chat.merge_install import validate_game_files
 from bongo_chat.memory import Reader, MonoCatalog, fields
 
 
@@ -52,10 +53,7 @@ def install(budget):
     if budget not in (0, 1, 2): raise ValueError('invalid_test_budget')
     game = running_game()
     contract = json.loads(Path(__file__).with_name('local-contract.json').read_text())
-    for name, digest in contract['files'].items():
-        allowed = [digest] if isinstance(digest, str) else digest
-        if hashlib.sha256((game.root / name).read_bytes()).hexdigest() not in allowed:
-            raise RuntimeError('unsupported_game_file:' + name)
+    validate_game_files(game.root, contract)
     k = kernel()
     handle = k.OpenProcess(0x043a, False, game.pid)
     if not handle: raise RuntimeError('process_access_failed')

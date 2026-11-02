@@ -100,37 +100,63 @@ def check_prior_modules(reader):
         node = reader.pointer(node + 8)
 
 
-def validate_assets(game, assets):
-    try:
-        contract = read_json(assets/'contract.json')
-        if contract['schema'] not in (2, 3):raise ValueError('unsupported_asset_schema')
-        for name,key in [('Bridge.cs','source_sha256'),('MergePrepare.exe','prepare_sha256'),('Mono.Cecil.dll','cecil_sha256')]:
-            if hashlib.sha256((assets/name).read_bytes()).hexdigest() != contract[key]:
-                raise RuntimeError('bridge_binary_changed')
-        files = contract['files']
+def game_profiles(contract):
+    schema = contract['schema']
+    if schema not in (2, 3, 4):raise ValueError('unsupported_asset_schema')
+    profiles = contract['profiles'] if schema == 4 else [contract['files']]
+    if not isinstance(profiles, list) or not 1 <= len(profiles) <= 16:
+        raise ValueError('invalid_game_profiles')
+    allowed_profiles = []
+    for files in profiles:
         if not isinstance(files, dict) or not files:raise ValueError('invalid_game_files')
+        if allowed_profiles and files.keys() != allowed_profiles[0].keys():
+            raise ValueError('incomplete_game_profile')
         allowed = {}
         for name, digests in files.items():
             path = Path(name)
-            if path.is_absolute() or path.drive or '..' in path.parts:
+            if not name or path.is_absolute() or path.drive or '..' in path.parts:
                 raise ValueError('invalid_game_path')
             if isinstance(digests, str):digests = [digests]
-            elif contract['schema'] != 3:raise ValueError('unsupported_hash_list')
-            if (not isinstance(digests, list) or not digests
+            elif schema == 2:raise ValueError('unsupported_hash_list')
+            if (not isinstance(digests, list) or not 1 <= len(digests) <= 16
                     or any(not isinstance(d, str) or not re.fullmatch('[0-9a-f]{64}', d) for d in digests)):
                 raise ValueError('invalid_game_hash')
             allowed[name] = digests
-    except (OSError,KeyError,ValueError,TypeError):
+        allowed_profiles.append(allowed)
+    return allowed_profiles
+
+
+def validate_game_files(root, contract):
+    try:
+        allowed_profiles = game_profiles(contract)
+    except (KeyError, ValueError, TypeError):
         raise RuntimeError('bridge_assets_missing') from None
-    for name,digests in allowed.items():
+    observed = {}
+    for name in allowed_profiles[0]:
         try:
-            digest = hashlib.sha256((game.root/name).read_bytes()).hexdigest()
+            observed[name] = hashlib.sha256((root/name).read_bytes()).hexdigest()
         except FileNotFoundError:
             raise RuntimeError('merge_game_files_missing') from None
         except OSError:
             raise RuntimeError('merge_game_files_unreadable') from None
-        if digest not in digests:
-            raise RuntimeError('unsupported_game_files')
+    # Accept an entire inspected installation, never a cross-build mixture.
+    if not any(all(observed[name] in digests for name,digests in allowed.items())
+               for allowed in allowed_profiles):
+        raise RuntimeError('unsupported_game_files')
+    return observed
+
+
+def validate_assets(game, assets):
+    try:
+        contract = read_json(assets/'contract.json')
+        schema = contract['schema']
+        if schema not in (2, 3, 4):raise ValueError('unsupported_asset_schema')
+        for name,key in [('Bridge.cs','source_sha256'),('MergePrepare.exe','prepare_sha256'),('Mono.Cecil.dll','cecil_sha256')]:
+            if hashlib.sha256((assets/name).read_bytes()).hexdigest() != contract[key]:
+                raise RuntimeError('bridge_binary_changed')
+    except (OSError,KeyError,ValueError,TypeError):
+        raise RuntimeError('bridge_assets_missing') from None
+    validate_game_files(game.root, contract)
     return assets,contract
 
 
@@ -140,7 +166,7 @@ def compile_helper(game, assets, session):
     if not compiler.is_file():raise RuntimeError('merge_compiler_missing')
     managed = game.root/'BongoCat_Data/Managed'
     names = ('Assembly-CSharp.dll','Assembly-CSharp-firstpass.dll','UnityEngine.CoreModule.dll',
-             'Heathen.Steamworks.dll','com.rlabrecque.steamworks.net.dll','Newtonsoft.Json.dll')
+             'Heathen.Steamworks.dll','com.rlabrecque.steamworks.net.dll','Newtonsoft.Json.dll','DOTween.dll')
     dll = session/HELPER
     commands = [[str(compiler),'/nologo','/target:library','/out:'+str(dll),
                  *('/reference:'+str(managed/name) for name in names),str(assets/'Bridge.cs')],

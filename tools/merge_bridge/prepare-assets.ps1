@@ -12,10 +12,10 @@ Copy-Item -LiteralPath $cecil -Destination $output
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Bridge.cs') -Destination $output
 $contract = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-contract.json') -Raw | ConvertFrom-Json
 @{
-    schema=3
-    files=$contract.files
+    schema=4
+    profiles=$contract.profiles
     source_sha256=(Get-FileHash -LiteralPath (Join-Path $output 'Bridge.cs')).Hash.ToLowerInvariant()
     prepare_sha256=(Get-FileHash -LiteralPath (Join-Path $output 'MergePrepare.exe')).Hash.ToLowerInvariant()
     cecil_sha256=(Get-FileHash -LiteralPath $cecil).Hash.ToLowerInvariant()
-} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $output 'contract.json') -Encoding utf8
+} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $output 'contract.json') -Encoding utf8
 Write-Output 'Merge source assets prepared without game binaries.'
