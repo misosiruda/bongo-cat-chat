@@ -46,6 +46,9 @@ class Store:
             CREATE TABLE IF NOT EXISTS blocked_users(
                 account TEXT NOT NULL, steam_id TEXT NOT NULL, name TEXT NOT NULL,
                 PRIMARY KEY(account,steam_id));
+            CREATE TABLE IF NOT EXISTS nicknames(
+                account TEXT NOT NULL, steam_id TEXT NOT NULL, nickname TEXT NOT NULL,
+                PRIMARY KEY(account,steam_id));
 
             CREATE TABLE IF NOT EXISTS presence_events(
                 seq INTEGER PRIMARY KEY, id TEXT UNIQUE NOT NULL,
@@ -205,6 +208,17 @@ class Store:
     def blocked_users(self, account):
         return {row['steam_id']: row['name'] for row in self.db.execute(
             "SELECT steam_id,name FROM blocked_users WHERE account=? ORDER BY steam_id", (account,))}
+
+    def nicknames(self, account):
+        return dict(self.db.execute("SELECT steam_id,nickname FROM nicknames WHERE account=?", (account,)))
+
+    def set_nickname(self, account, steam_id, nickname):
+        with self.db:
+            if nickname:
+                self.db.execute("INSERT OR REPLACE INTO nicknames(account,steam_id,nickname) VALUES(?,?,?)",
+                                (account, steam_id, nickname))
+            else:
+                self.db.execute("DELETE FROM nicknames WHERE account=? AND steam_id=?", (account, steam_id))
 
     def set_blocked(self, account, steam_id, blocked, name=""):
         with self.db:

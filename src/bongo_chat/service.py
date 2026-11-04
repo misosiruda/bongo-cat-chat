@@ -3,6 +3,7 @@ from collections import OrderedDict, deque
 from dataclasses import dataclass
 import sqlite3
 import time
+import unicodedata
 from uuid import uuid4
 
 from .protocol import encode, is_meow_message
@@ -34,7 +35,8 @@ class ChatService:
         self.state = {"state": "checking", "account": "", "lobby": "", "generation": "",
                       "members": [], "profiles": {}}
         self.blocked = None  # None means the account's list could not be loaded.
-        self.block_account = ""
+        self.nicknames = None
+        self.peer_account = ""
         self.block_changed_at = {}
         self.updated = 0.0
         self.session = ""
@@ -109,19 +111,39 @@ class ChatService:
                 self.store.rename_session(self.session, self.state['account'], self.state['lobby'], self.state['name'])
         self.load_notifications()
         self.load_reaction_setting()
-        self.load_blocks()
+        self.load_peer_settings()
         self.storage_error = False
 
-    def load_blocks(self):
+    def load_peer_settings(self):
         account = self.state.get('account', '')
         self.blocked = None
-        self.block_account = account
+        self.nicknames = None
+        self.peer_account = account
         self.blocked = self.store.blocked_users(account) if account else {}
+        self.nicknames = self.store.nicknames(account) if account else {}
+
+    def set_nickname(self, steam_id, nickname, context):
+        steam_profile_uri(steam_id)
+        if (context != self.context() or not self.verified() or not all(context.values()) or self.nicknames is None
+                or steam_id == context['account'] or steam_id not in (self.state.get('members') or [])
+                or steam_id not in self.state.get('profiles', {})):
+            raise ValueError('nickname_unavailable')
+        if not isinstance(nickname, str) or any(unicodedata.category(c) in {'Cc', 'Cs', 'Zl', 'Zp'} for c in nickname):
+            raise ValueError('invalid_nickname')
+        nickname = nickname.strip()
+        if len(nickname) > 32:
+            raise ValueError('invalid_nickname')
+        self.store.set_nickname(context['account'], steam_id, nickname)
+        if nickname:
+            self.nicknames[steam_id] = nickname
+        else:
+            self.nicknames.pop(steam_id, None)
+        self.revision += 1
 
     def set_blocked(self, steam_id, blocked, account):
         steam_profile_uri(steam_id)  # Canonical uint64 string; never a JS number.
         if (type(blocked) is not bool or not account or account != self.state.get('account')
-                or account != self.block_account or self.blocked is None or steam_id == account):
+                or account != self.peer_account or self.blocked is None or steam_id == account):
             raise ValueError('block_unavailable')
         name = self.state.get('profiles', {}).get(steam_id, {}).get('name', '')
         self.store.set_blocked(account, steam_id, blocked, name)
@@ -180,9 +202,9 @@ class ChatService:
             self.volatile.clear()
             self.session = ""
         self.state = dict(state)
-        if self.block_account != state.get('account', '') or self.blocked is None:
+        if self.peer_account != state.get('account', '') or self.blocked is None or self.nicknames is None:
             try:
-                self.load_blocks()
+                self.load_peer_settings()
             except (sqlite3.Error, OSError):
                 self.storage_error = True
         self.updated = self.clock()
@@ -387,19 +409,24 @@ class ChatService:
                     and (not page['has_newer'] or rows and r.get('_before_seq', float('inf')) <= rows[-1]['seq'])]
         messages = sorted(rows + volatile, key=lambda r: (
             r.get('seq', r.get('_before_seq', float('inf'))), not r.get('unsaved', False)))
+        nicknames = self.nicknames or {}
         for message in messages:
             message.pop('_before_seq', None)
-        profiles = {uid: p for uid, p in self.state.get("profiles", {}).items() if uid in allowed | {account}}
+            if message['sender'] in nicknames:
+                message['name'] = nicknames[message['sender']]
+        profiles = {uid: dict(p, name=nicknames[uid]) if uid in nicknames else p
+                    for uid, p in self.state.get("profiles", {}).items() if uid in allowed | {account}}
         return {"context": self.context(), "state": self.state.get("state"), "notice": self.state.get("notice", ""),
                 "game_build": self.state.get("game_build", ""),
                 "connected": self.connected(), "lobby_verified": self.verified(),
                 "blocks_ready": self.blocked is not None,
-                "blocked_users": [dict(steam_id=uid, name=name) for uid, name in sorted((self.blocked or {}).items())],
-                "participants": {uid: dict(p, blocked=uid in (self.blocked or {}))
+                "blocked_users": [dict(steam_id=uid, name=nicknames.get(uid, name)) for uid, name in sorted((self.blocked or {}).items())],
+                "participants": {uid: dict(p, nickname=nicknames.get(uid, ''), blocked=uid in (self.blocked or {}))
                                  for uid, p in self.state.get('profiles', {}).items()
                                  if self.verified() and self.blocked is not None and uid in (self.state.get('members') or [])},
                 "can_send": self.can_send() and lobby == self.state.get("lobby"),
                 "profile_targets": sorted(self.profile_targets(lobby)),
+                "nicknames_ready": self.nicknames is not None,
                 "rooms": rooms, "messages": messages, "profiles": profiles, "draft": draft,
                 "storage_error": self.storage_error, "revision": self.revision,
                 "theme": theme, "collapsed": collapsed,

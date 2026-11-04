@@ -217,6 +217,17 @@
     <p class="participant-description" id="participants-description"></p><ul class="participant-list" id="participant-list"></ul>
     <div id="participant-menu" class="participant-menu" popover="auto" role="menu" aria-labelledby="participant-menu-name"></div>
   </dialog>
+  <dialog id="nickname-dialog" aria-labelledby="nickname-title" aria-describedby="nickname-help">
+    <h2 id="nickname-title">별명 설정</h2>
+    <p id="nickname-person"></p>
+    <form id="nickname-form">
+      <label for="nickname-input">나에게 보이는 별명</label>
+      <input id="nickname-input" type="text" autocomplete="off" aria-describedby="nickname-help" autofocus>
+      <p id="nickname-help" class="settings-note">32자까지 입력할 수 있어요. 비워 두고 저장하면 원래 이름으로 표시돼요.</p>
+      <p id="nickname-error" role="alert"></p>
+      <div class="nickname-actions"><button type="button" class="page-button" id="nickname-cancel">취소</button><button type="submit" class="page-button" id="nickname-save">저장</button></div>
+    </form>
+  </dialog>
   <div class="toast" id="toast" role="status" hidden></div>
 </body>
 </html>

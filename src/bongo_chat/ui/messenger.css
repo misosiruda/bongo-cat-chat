@@ -248,8 +248,16 @@ dialog::backdrop { background: #090d1880; }
 .participant-menu { position: fixed; inset: auto; margin: 0; padding: 10px; width: min(240px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--paper); box-shadow: 0 8px 32px var(--shadow); }
 .participant-menu-name { display: block; padding: 2px 6px 4px; font-size: 13px; overflow-wrap: anywhere; }
 .participant-menu > .steam-id { display: block; padding: 0 6px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line); user-select: text; }
-.participant-menu .participant-profile, .participant-menu .block-action { display: block; width: 100%; min-height: 38px; padding: 8px; font-size: 13px; }
+.participant-menu button { display: block; width: 100%; min-height: 38px; padding: 8px; font-size: 13px; }
 .participant-menu button:hover { background: var(--hover); text-decoration: none; }
+#nickname-dialog h2 { margin: 0; font-size: 22px; }
+#nickname-person { color: var(--muted); overflow-wrap: anywhere; font-size: 14px; }
+#nickname-form label { display: block; margin: 20px 0 6px; }
+#nickname-input { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+#nickname-help { margin: 6px 0 12px; }
+#nickname-error:empty { display: none; }
+.nickname-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.nickname-actions .page-button { margin: 0; }
 .participant-info { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; gap: 4px; }
 .participant-name { max-width: 100%; }
 .steam-id {font-size:11px;color:var(--muted);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
@@ -263,7 +271,7 @@ dialog::backdrop { background: #090d1880; }
 .blocked-list li {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
 .block-action {min-height:36px;flex-shrink:0}
 .block-action:disabled {opacity:.5;cursor:wait}
-.participant-profile, .block-action { padding: 4px 0; background: transparent; color: var(--accent-ink); border-radius: 4px; font-size: 12px; text-align: left; }
+.participant-profile, .block-action, .nickname-action { padding: 4px 0; background: transparent; color: var(--accent-ink); border-radius: 4px; font-size: 12px; text-align: left; }
 .toast { position: fixed; z-index: 30; left: 50%; bottom: 30px; transform: translateX(-50%); padding: 12px 20px; border: 1px solid var(--line); background: var(--ink); color: var(--paper); box-shadow: 0 4px 30px var(--shadow); border-radius: 12px; font-size: 14px; max-width: calc(100vw - 32px); text-align: center; }
 .is-refreshing svg { animation: refresh-turn 650ms ease-out; }
 @keyframes refresh-turn { to { transform: rotate(360deg); } }

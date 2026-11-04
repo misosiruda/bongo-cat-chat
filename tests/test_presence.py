@@ -26,7 +26,7 @@ def persisted_block(service, uid, value):
     # These unit fixtures use non-Steam names; load an account-scoped DB policy.
     # Canonical ID validation and the public action are covered in test_blocking.
     service.store.set_blocked(SELF, uid, value)
-    service.load_blocks()
+    service.load_peer_settings()
 
 
 @pytest.fixture

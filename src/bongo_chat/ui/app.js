@@ -49,6 +49,7 @@
   let restartPlan = null, restarting = false, lastEdit = 0;
   let openingProfile = false, participantsSignature = '';
   let participantMenuTarget = null;
+  let nicknameTarget = null, nicknamePending = false;
   let blockPending = false, blockedSignature = '';
   let mergeRevision = -1, mergeBusy = false, mergeState = null;
   let mergeInputGroup = '';
@@ -77,7 +78,9 @@
       clearReactions(); return;
     }
     for (const el of activeReactions.keys()) {
-      if (!data.profiles[el.dataset.sender]) removeReaction(el);
+      const person = data.profiles[el.dataset.sender];
+      if (!person) removeReaction(el);
+      else el.querySelector('.reaction-name').textContent = person.name || t('이름 확인 중');
     }
     const width = layer.clientWidth;
     const cap = Math.min(24, Math.max(8, Math.floor(width / 70) * 2));
@@ -239,10 +242,10 @@
   }
   function preserveProfileFocus(container) {
     const active = document.activeElement;
-    if (!container.contains(active) || !active?.matches('.steam-profile-action, .block-action, .participant-more')) return () => {};
+    if (!container.contains(active) || !active?.dataset.profileKey) return () => {};
     const key = active.dataset.profileKey, context = active.dataset.profileContext;
     return () => {
-      const target = [...container.querySelectorAll('.steam-profile-action, .block-action, .participant-more')].find(button =>
+      const target = [...container.querySelectorAll('[data-profile-key]')].find(button =>
         button.dataset.profileKey === key && button.dataset.profileContext === context);
       const fallback = container === $('participant-list')
         ? document.querySelector('#participants-dialog .dialog-heading button')
@@ -306,12 +309,12 @@
     updateBlockBusy();
   }
   function renderParticipants(data, people) {
-    const nextSignature = JSON.stringify([people, data.profile_targets, data.context, data.lobby, data.connected, data.lobby_verified, language]);
+    const nextSignature = JSON.stringify([people, data.profile_targets, data.context, data.lobby, data.connected, data.lobby_verified, data.nicknames_ready, language]);
     if (participantsSignature === nextSignature) return;
     participantsSignature = nextSignature;
     const restoreFocus = preserveProfileFocus($('participant-list'));
     $('participant-list').replaceChildren(...people.map(([uid,p]) => {
-      const li = node('li'), name = node('span', 'participant-name', p.name || t('이름 확인 중'));
+      const li = node('li'), name = node('span', 'participant-name', p.nickname || p.name || t('이름 확인 중'));
       name.title = name.textContent;
       li.append(avatar(p), name);
       if (uid !== data.context.account) {
@@ -337,6 +340,10 @@
       return li;
     }));
     renderParticipantMenu(data);
+    if ($('nickname-dialog').open) {
+      if (!nicknameAvailable(nicknameTarget, data)) $('nickname-dialog').close();
+      else showNicknameOwner(nicknameTarget, data);
+    }
     restoreFocus();
     updateBlockBusy();
   }
@@ -366,15 +373,58 @@
       closeParticipantMenu(true); return;
     }
     const menu = $('participant-menu'), restoreFocus = preserveProfileFocus(menu);
-    const name = node('strong', 'participant-menu-name', person.name || t('이름 확인 중'));
+    const name = node('strong', 'participant-menu-name', person.nickname || person.name || t('이름 확인 중'));
     name.id = 'participant-menu-name'; name.setAttribute('role', 'presentation');
     const id = node('span', 'steam-id', t('Steam ID {id}', {id:uid})); id.setAttribute('role', 'presentation');
     menu.replaceChildren(name, id);
-    if (profileAvailable(data, uid)) menu.append(profileButton(uid, person, data.context, `participant-${uid}`,
+    if (profileAvailable(data, uid)) menu.append(profileButton(uid, data.profiles[uid], data.context, `participant-${uid}`,
       'participant-profile', document.createTextNode(t('Steam 프로필 열기'))));
+    if (data.nicknames_ready) {
+      const edit = node('button', 'nickname-action', t('별명 설정'));
+      const target = {uid, context:data.context};
+      edit.type = 'button'; edit.dataset.profileKey = `nickname-${uid}`; edit.dataset.profileContext = context;
+      edit.setAttribute('aria-haspopup', 'dialog');
+      edit.addEventListener('click', () => {
+        if (!nicknameAvailable(target, model) || restarting || nicknamePending) return;
+        closeParticipantMenu(true);
+        nicknameTarget = target;
+        showNicknameOwner(target, model);
+        $('nickname-error').textContent = '';
+        $('nickname-input').value = model.participants[uid].nickname || '';
+        $('nickname-dialog').showModal(); $('nickname-input').select();
+      });
+      menu.append(edit);
+    }
     menu.append(blockButton(uid, person.blocked, data.context.account, `block-${uid}`));
     menu.querySelectorAll('button').forEach(button => button.setAttribute('role', 'menuitem'));
     updateBlockBusy(); updateProfileBusy(); positionParticipantMenu(); restoreFocus();
+  }
+  function nicknameAvailable(target, data) {
+    return target && data.nicknames_ready && data.participants?.[target.uid]
+      && profileContext(target.context) === profileContext(data.context) && $('participants-dialog').open;
+  }
+  function showNicknameOwner(target, data) {
+    $('nickname-person').textContent = t('게임 이름 · {name} (Steam ID {id})',
+      {name:data.participants[target.uid].name || t('이름 확인 중'), id:target.uid});
+  }
+  async function saveNickname(event) {
+    event.preventDefault();
+    const target = nicknameTarget;
+    if (nicknamePending || restarting || !nicknameAvailable(target, model)) return;
+    nicknamePending = true; $('nickname-input').readOnly = true;
+    $('nickname-save').disabled = $('nickname-cancel').disabled = true;
+    try {
+      await rpc('set_nickname', {steam_id:target.uid, context:target.context, nickname:$('nickname-input').value});
+      requestVersion++; await refresh(true);
+      if (nicknameTarget === target) $('nickname-dialog').close();
+    } catch (error) {
+      if (nicknameTarget === target) $('nickname-error').textContent = error.message === 'invalid_nickname'
+        ? t('별명은 줄바꿈 없이 32자 이내로 입력해 주세요.')
+        : t('별명을 저장하지 못했어요. 연결과 저장 상태를 확인해 주세요.');
+    } finally {
+      nicknamePending = false; $('nickname-input').readOnly = false;
+      $('nickname-save').disabled = $('nickname-cancel').disabled = false;
+    }
   }
   function updateSend() {
     const text = $('message-input').value;
@@ -402,6 +452,11 @@
     if (update.state !== 'ready' || !update.can_restart) {
       restartPlan = null; banner.hidden = true; return;
     }
+    if ($('nickname-dialog').open || nicknamePending) {
+      restartPlan = null;
+      const text = t('별명 편집을 마치면 업데이트 재시작을 안내합니다.');
+      banner.textContent = text; banner.hidden = false; $('update-status').textContent = text; return;
+    }
     if (restartPlan?.version !== update.version) {
       restartPlan = {version:update.version, deadline:Date.now()+30000, retryAt:0, reason:''};
     }
@@ -414,7 +469,7 @@
     $('update-status').textContent = text;
   }
   async function maybeRestart() {
-    if (!restartPlan || restarting || refreshing || composing || sending || switching || model?.storage_error || mergeState?.active || mergeState?.unresolved || chestState?.armed || chestState?.pending || chestState?.unknown) return;
+    if (!restartPlan || restarting || refreshing || composing || sending || switching || $('nickname-dialog').open || nicknamePending || model?.storage_error || mergeState?.active || mergeState?.unresolved || chestState?.armed || chestState?.pending || chestState?.unknown) return;
     if (Date.now() < Math.max(restartPlan.deadline,lastEdit+5000,restartPlan.retryAt)) return;
     restarting = true; document.body.inert = true; updateSend(); clearTimeout(draftTimer);
     updateRestartNotice(model.update);
@@ -893,7 +948,7 @@
     document.querySelector('.avatar-stack').replaceChildren(...people.slice(0,3).map(([,p])=>avatar(p)));
     renderParticipants(data, people);
     renderBlocks(data);
-    $('participants-description').textContent = t('⋯에서 Steam 프로필과 채팅 차단을 관리하세요.');
+    $('participants-description').textContent = t('⋯에서 나에게만 보이는 별명을 설정하거나 Steam 프로필과 채팅 차단을 관리하세요.');
     if (resetDraft) $('message-input').value = data.draft;
     $('message-input').placeholder = selected === data.context.lobby ? t('메시지 입력') : t('이 로비에 남겨 둘 초안');
     $('search-status').hidden=!query; $('search-summary').textContent=t('현재 페이지 {count}개 결과', {count:data.messages.length});
@@ -999,6 +1054,18 @@
     });
     $('participants-button').addEventListener('click',()=>$('participants-dialog').showModal());
     $('participants-dialog').addEventListener('close', () => closeParticipantMenu());
+    $('nickname-form').addEventListener('submit', saveNickname);
+    $('nickname-cancel').addEventListener('click', () => $('nickname-dialog').close());
+    $('nickname-dialog').addEventListener('cancel', event => { if (nicknamePending) event.preventDefault(); });
+    $('nickname-dialog').addEventListener('close', () => {
+      if ($('nickname-dialog').open) return;
+      const target = nicknameTarget;
+      nicknameTarget = null; $('nickname-input').value = '';
+      if ($('participants-dialog').open) {
+        const more = nicknameAvailable(target, model) && $(`participant-more-${target.uid}`);
+        (more || document.querySelector('#participants-dialog .dialog-heading button')).focus({preventScroll:true});
+      }
+    });
     $('participants-dialog').addEventListener('scroll', positionParticipantMenu);
     window.addEventListener('resize', positionParticipantMenu);
     $('participant-menu').addEventListener('toggle', event => {
