@@ -350,6 +350,10 @@ namespace BongoCatChat.MergeBridge
                 Handle();
                 // Dispatch only while the app maintains a live lease. No reconnect or hotkey can arm a run.
                 RequireGame();
+                // Inventory refresh/read failures are observations, not a permanent
+                // connection fault. Clear only this transient error after the game
+                // validates again; retain command errors and unknown results.
+                if (error == "bridge_observation_failed") error = "";
                 ChestRuntime.Tick();
                 if (pending == "" && owned != "" && now - lastCommand > 15000) ClearOwned(RequireGame());
             }

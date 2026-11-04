@@ -210,3 +210,182 @@ def test_takeover_consent_expires_on_shared_connection_reconnect(qt_chat,tmp_pat
         assert [r['op'] for r in server.requests].count('chest_start')==1
         assert not any(r['op'] in {'select','merge'} for r in server.requests)
     finally:manager.close();server.close()
+
+
+class LaunchConnection:
+    def __init__(self, now):
+        self.now = now
+        self.state, self.revision = 'disconnected', 0
+        self.connects, self.starts = 0, []
+        self.value = dict(supported=True, armed=False, enabled=False, pending=False,
+                          unknown=False, legacy_detected=False, legacy_taken_over=False, reason='ready')
+
+    def connection_snapshot(self):
+        return dict(state=self.state, revision=self.revision)
+
+    def connect(self):
+        self.connects += 1
+        self.revision += 1
+        self.state = 'connecting'
+        return True
+
+    def chest_snapshot(self):
+        return dict(self.value, captured_at=self.now[0]) if self.state == 'connected' else None
+
+    def chest_start(self, preferences, replace_legacy=False):
+        self.starts.append((preferences, replace_legacy))
+
+    def chest_stop(self):
+        self.value.update(armed=False, enabled=False)
+
+
+@pytest.fixture
+def launch_runner(tmp_path):
+    store = Store(tmp_path/'launch.sqlite3')
+    now = [10.0]
+    connection = LaunchConnection(now)
+    store.setting('auto_chest', dict(DEFAULTS, start_on_launch=True))
+    runner = AutoChest(store, connection, clock=lambda: now[0])
+    yield runner, connection, now
+    store.close()
+
+
+def test_saved_launch_waits_for_game_then_connects_and_starts_exactly_once(launch_runner):
+    runner, connection, now = launch_runner
+    runner.tick_startup(False)
+    assert not connection.connects and not connection.starts
+    runner.tick_startup(True)
+    runner.tick_startup(True)
+    assert connection.connects == 1 and not connection.starts
+    connection.state = 'connected'
+    runner.tick_startup(False)
+    assert not connection.starts
+    runner.tick_startup(True)
+    assert connection.starts == [(DEFAULTS, False)]  # Startup flag never crosses native IPC.
+    connection.value.update(armed=True, enabled=True)
+    runner.stop()
+    connection.state = 'disconnected'
+    for _ in range(10):runner.tick_startup(True)
+    assert connection.connects == 1 and len(connection.starts) == 1
+    assert runner.start_on_launch and not runner.startup_pending
+
+
+@pytest.mark.parametrize('interruption', ['stop', 'close', 'blocked', 'error', 'revision', 'pending', 'unknown', 'armed', 'unsupported'])
+def test_launch_is_not_retried_after_stop_error_or_conflict(launch_runner, interruption):
+    runner, connection, now = launch_runner
+    runner.tick_startup(True)
+    connection.state = 'connected'
+    if interruption == 'stop':runner.stop()
+    elif interruption == 'close':runner.close()
+    elif interruption == 'error':connection.state = 'error'
+    elif interruption == 'revision':connection.revision += 1
+    elif interruption == 'unsupported':connection.value['supported'] = False
+    elif interruption != 'blocked':connection.value[interruption] = True
+    runner.tick_startup(True, blocked=interruption == 'blocked')
+    connection.state = 'connected'
+    connection.value.update(supported=True, pending=False, unknown=False, armed=False)
+    for _ in range(5):runner.tick_startup(True)
+    assert not connection.starts and connection.connects == 1 and not runner.startup_pending
+
+
+def test_legacy_helper_still_requires_current_game_confirmation(launch_runner):
+    runner, connection, now = launch_runner
+    connection.state = 'connected'
+    connection.value['legacy_detected'] = True
+    for _ in range(5):runner.tick_startup(True)
+    assert runner.startup_status == 'confirmation_required' and not connection.starts
+    assert runner.start(True)
+    assert connection.starts == [(DEFAULTS, True)] and not runner.startup_pending
+
+
+def test_failed_launch_submission_and_stale_observation_are_not_retried(launch_runner):
+    runner, connection, now = launch_runner
+    connection.state = 'connected'
+    calls = []
+    def failed(*args):
+        calls.append(args)
+        raise RuntimeError('synthetic lost start')
+    connection.chest_start = failed
+    for _ in range(5):runner.tick_startup(True)
+    assert len(calls) == 1 and runner.startup_status == 'failed'
+    reopened = AutoChest(runner.store,connection,clock=lambda:now[0])
+    connection.chest_snapshot = lambda: None
+    reopened.tick_startup(True)
+    now[0] += 10
+    reopened.tick_startup(True)
+    assert not reopened.startup_pending and reopened.startup_status == 'failed'
+    assert len(calls) == 1
+
+
+def test_launch_connection_exception_is_contained_without_retry(launch_runner):
+    runner, connection, now = launch_runner
+    calls = []
+    def failed():
+        calls.append(True)
+        raise RuntimeError('synthetic thread startup failure')
+    connection.connect = failed
+    for _ in range(5):runner.tick_startup(True)
+    assert calls == [True] and runner.startup_status == 'failed' and not runner.startup_pending
+
+
+def test_enabling_launch_only_applies_after_reopening_and_invalid_consent_fails_closed(tmp_path):
+    store = Store(tmp_path/'launch.sqlite3')
+    try:
+        connection = LaunchConnection([10.0])
+        runner = AutoChest(store, connection)
+        assert runner.save(dict(DEFAULTS, start_on_launch=True))
+        runner.tick_startup(True)
+        assert not connection.connects and not runner.startup_pending
+        reopened = AutoChest(store, connection)
+        assert reopened.startup_pending
+        assert not AutoChest(store).startup_pending  # Offline/read-only: no connection.
+        with pytest.raises(ValueError):reopened.save(dict(DEFAULTS, start_on_launch=1))
+        store.setting('auto_chest', dict(DEFAULTS, start_on_launch='true'))
+        invalid = AutoChest(store, connection)
+        assert not invalid.preferences_valid and not invalid.startup_pending
+    finally:store.close()
+
+
+def test_real_renderer_saves_launch_opt_in_and_offers_stop_while_waiting(qt_chat,tmp_path):
+    app,controller,page = qt_chat
+    server,manager = attach(controller,tmp_path)
+    try:
+        js(app,page,"document.querySelector('#chest-open').click()")
+        wait_until(app,lambda:js(app,page,"!document.querySelector('#chest-autostart').checked"))
+        js(app,page,"document.querySelector('#chest-autostart').click();document.querySelector('#chest-save').click()")
+        wait_until(app,lambda:controller.chests.start_on_launch)
+        assert not server.requests and manager.state == 'disconnected'
+        # Reconstruct only the app controller's chest component; all IPC remains synthetic.
+        controller.chests = AutoChest(controller.store,manager)
+        wait_until(app,lambda:controller.chests.startup_status=='confirmation_required')
+        assert not any(r['op']=='chest_start' for r in server.requests)
+        wait_until(app,lambda:js(app,page,"document.querySelector('#chest-state').textContent")=='전환 확인 필요')
+        assert js(app,page,"document.querySelector('#chest-autostart').checked && !document.querySelector('#chest-stop').disabled")
+        js(app,page,"document.querySelector('#chest-stop').click()")
+        wait_until(app,lambda:not controller.chests.startup_pending)
+        assert controller.store.setting('auto_chest')['start_on_launch'] is True
+        assert not any(r['op']=='chest_start' for r in server.requests)
+        controller.dispatch(dict(action='setting',key='language',value='en'))
+        wait_until(app,lambda:js(app,page,"document.querySelector('label:has(#chest-autostart)').textContent.trim()")=='Start opening chests when the app launches')
+        assert not page.console_errors
+    finally:manager.close();server.close()
+
+
+def test_saved_launch_reaches_native_ipc_once_without_a_legacy_helper(qt_chat,tmp_path):
+    app,controller,page = qt_chat
+    server,manager = attach(controller,tmp_path)
+    try:
+        server.state['chest']['legacy_detected'] = False
+        controller.store.setting('auto_chest',dict(DEFAULTS,start_on_launch=True))
+        controller.chests = AutoChest(controller.store,manager)
+        wait_until(app,lambda:server.state['chest']['armed'])
+        wait_until(app,lambda:any(r['op']=='chest_heartbeat' for r in server.requests))
+        starts = [r for r in server.requests if r['op']=='chest_start']
+        assert len(starts)==1 and starts[0]['chest_settings']==DEFAULTS and not starts[0]['replace_legacy']
+        controller.dispatch(dict(action='chest_stop'))
+        wait_until(app,lambda:not server.state['chest']['armed'] and not manager.adapter.busy)
+        controller.dispatch(dict(action='chest_connect'))
+        wait_until(app,lambda:manager.state=='connected' and controller.chests.snapshot()['fresh'])
+        assert len([r for r in server.requests if r['op']=='chest_start'])==1
+        assert not server.state['chest']['attempted']  # Fake IPC only, no real chest.
+    finally:manager.close();server.close()

@@ -1,7 +1,7 @@
 """App preferences and presentation for the explicitly armed chest runtime.
 
 The bridge owns dispatch, result correlation, hotkeys and the heartbeat lease.
-Saved preferences never contain an enabled/running flag.
+Saved startup consent is separate from the native enabled/armed state.
 """
 import math
 import sqlite3
@@ -46,12 +46,26 @@ class AutoChest:
         self.store, self.connection, self.clock = store, connection, clock
         self.reason = reason
         self.preferences_valid = True
+        self.start_on_launch = False
         try:
-            self.preferences = settings(store.setting('auto_chest', default=DEFAULTS))
+            saved = store.setting('auto_chest', default=DEFAULTS)
+            if not isinstance(saved, dict):
+                raise ValueError('invalid_chest_settings')
+            saved = dict(saved)
+            self.start_on_launch = saved.pop('start_on_launch', False)
+            if type(self.start_on_launch) is not bool:
+                raise ValueError('invalid_chest_settings')
+            self.preferences = settings(saved)
         except (ValueError, TypeError, sqlite3.Error, OSError):
             self.preferences = dict(DEFAULTS)
             self.preferences_valid = False
+            self.start_on_launch = False
         self.closed = False
+        self.startup_pending = bool(self.start_on_launch and connection)
+        self.startup_status = 'waiting_game' if self.startup_pending else 'disabled'
+        self.startup_attempted = False
+        self.startup_revision = None
+        self.startup_wait = None
 
     def snapshot(self):
         value = self.connection.chest_snapshot() if self.connection else None
@@ -59,7 +73,9 @@ class AutoChest:
         # A stale active/pending state still blocks restart until a fresh stop is observed.
         result = dict(value or {})
         result.pop('captured_at', None)
-        result.update(preferences=dict(self.preferences), fresh=bool(fresh))
+        result.update(preferences=dict(self.preferences, start_on_launch=self.start_on_launch),
+                      fresh=bool(fresh), startup_pending=self.startup_pending,
+                      startup_status=self.startup_status)
         result.setdefault('armed', False)
         result.setdefault('enabled', False)
         result.setdefault('pending', False)
@@ -77,16 +93,88 @@ class AutoChest:
         return any(value[key] for key in ('armed', 'pending', 'unknown'))
 
     def save(self, value):
+        if not isinstance(value, dict):
+            raise ValueError('invalid_chest_settings')
+        value = dict(value)
+        launch = value.pop('start_on_launch', self.start_on_launch)
+        if type(launch) is not bool:
+            raise ValueError('invalid_chest_settings')
         value = settings(value)
         # Running settings belong to a single explicit start, never a delayed UI edit.
         if self.closed or self.blocks_restart:
             return False
-        self.store.setting('auto_chest', value)
+        # One SQLite setting write commits startup consent and its exact options together.
+        self.store.setting('auto_chest', dict(value, start_on_launch=launch))
         self.preferences = value
+        self.start_on_launch = launch
         self.preferences_valid = True
+        self.cancel_startup()
         return True
 
+    def cancel_startup(self, status='cancelled'):
+        if self.startup_pending:
+            self.startup_pending = False
+            self.startup_status = status
+
+    def tick_startup(self, game_ready=False, blocked=False):
+        """One saved launch request; never retries an attach or resumes a stopped run."""
+        if not self.startup_pending or self.closed:
+            return
+        if blocked:
+            self.cancel_startup('blocked')
+            return
+        state = self.connection.connection_snapshot()
+        if self.startup_revision is not None and state['revision'] != self.startup_revision:
+            self.cancel_startup('failed')
+            return
+        if state['state'] == 'disconnected' and not self.startup_attempted:
+            if not game_ready:
+                self.startup_status = 'waiting_game'
+                return
+            self.startup_attempted = True
+            try:
+                connected = self.connection.connect()
+            except Exception:
+                connected = False
+            if not connected:
+                self.cancel_startup('failed')
+                return
+            self.startup_revision = self.connection.connection_snapshot()['revision']
+            self.startup_status = 'connecting'
+            return
+        if state['state'] == 'connecting':
+            self.startup_status = 'connecting'
+            return
+        if state['state'] != 'connected':
+            self.cancel_startup('failed')
+            return
+        if self.startup_revision is None:
+            self.startup_revision = state['revision']
+        value = self.snapshot()
+        if not value['fresh']:
+            if self.startup_wait is None:
+                self.startup_wait = self.clock()
+            if self.clock() - self.startup_wait >= 10:
+                self.cancel_startup('failed')
+            else:
+                self.startup_status = 'waiting_state'
+            return
+        if not value['can_start']:
+            self.cancel_startup('blocked')
+            return
+        if not game_ready:
+            self.startup_status = 'waiting_game'
+            return
+        if value.get('legacy_detected') and not value.get('legacy_taken_over'):
+            self.startup_status = 'confirmation_required'
+            return
+        # Consume before submitting: lost/refused starts cannot be automatically retried.
+        self.cancel_startup('started')
+        if not self.start():
+            self.startup_status = 'failed'
+
     def start(self, replace_legacy=False):
+        self.cancel_startup()
         if type(replace_legacy) is not bool:
             raise ValueError('invalid_chest_settings')
         if not self.snapshot()['can_start']:
@@ -98,6 +186,7 @@ class AutoChest:
         return True
 
     def stop(self):
+        self.cancel_startup()
         if self.connection:
             self.connection.chest_stop()
 

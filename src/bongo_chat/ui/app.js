@@ -732,6 +732,7 @@
   }
   function chestPreferences() {
     return {own:$('chest-own').checked, others:$('chest-others').checked,
+      start_on_launch:$('chest-autostart').checked,
       min_delay:$('chest-min').valueAsNumber, max_delay:$('chest-max').valueAsNumber};
   }
   function renderChest(value) {
@@ -748,6 +749,7 @@
       const prefs = value.preferences;
       if (prefs) {
         $('chest-own').checked = prefs.own; $('chest-others').checked = prefs.others;
+        $('chest-autostart').checked = prefs.start_on_launch === true;
         $('chest-min').value = String(prefs.min_delay); $('chest-max').value = String(prefs.max_delay);
         chestLoaded = true;
       }
@@ -756,14 +758,18 @@
     const labels = {
       running:t('자동 개봉 실행 중'), paused:t('자동 개봉 일시 정지'), waiting_result:t('개봉 결과 대기 중'),
       starting:t('자동 개봉 시작 중'), result_unverified:t('개봉 결과 확인 필요'), chest_fault:t('자동 개봉 중단'),
-      ready:t('시작 전'), user_stopped:t('자동 개봉 중지됨'), app_disconnected:t('앱 연결 끊김으로 중지됨')
+      ready:t('시작 전'), user_stopped:t('자동 개봉 중지됨'), game_unavailable:t('자동 개봉 중지됨'), app_disconnected:t('앱 연결 끊김으로 중지됨')
     };
-    const title = !value.fresh ? t('게임 연결 확인 필요') : labels[value.reason] || t('게임 연결 확인 필요');
+    const startupLabels = {waiting_game:t('자동 시작 대기 중'), connecting:t('게임에 연결 중'),
+      waiting_state:t('게임 상태 확인 중'), confirmation_required:t('전환 확인 필요')};
+    const title = value.startup_pending ? startupLabels[value.startup_status] || t('자동 시작 대기 중')
+      : !value.fresh ? t('게임 연결 확인 필요') : labels[value.reason] || t('게임 연결 확인 필요');
     const reasons = {
       unsupported_chest:t('현재 게임 파일은 상자 자동 개봉을 지원하지 않습니다. 앱 업데이트가 필요합니다.'),
       result_unverified:t('이미 요청한 개봉 결과를 확인하지 못했습니다. 게임에서 확인한 뒤 게임과 앱을 직접 다시 실행해 주세요.'),
       chest_fault:t('개봉 처리를 확인할 수 없어 중단했습니다. 게임에서 결과를 확인해 주세요.'),
       app_disconnected:t('앱과 연결이 끊겨 새 개봉 요청을 중단했습니다.'),
+      game_unavailable:t('게임 상태가 일시적으로 변경되어 자동 개봉을 중지했습니다. 게임 연결이 회복되면 직접 다시 시작해 주세요.'),
       offline:t('오프라인 모드에서는 자동 개봉을 시작할 수 없습니다.'),
       read_only:t('읽기 전용 모드에서는 자동 개봉을 시작할 수 없습니다.'),
       paused:t('Ctrl+Alt+F9를 다시 누르면 이번 실행을 재개합니다.'),
@@ -773,13 +779,19 @@
       legacy_unverified:t('기존 도우미 상태를 확인할 수 없습니다. 게임을 직접 다시 실행한 뒤 확인해 주세요.')
     };
     $('chest-state').textContent = title;
-    $('chest-reason').textContent = reasons[value.reason] || (value.armed ? t('중지는 새 요청을 막으며 이미 요청한 개봉은 취소하지 못합니다.') : t('설정 저장과 게임 연결은 개봉을 시작하지 않습니다.'));
+    const startupReasons = {waiting_game:t('게임 연결이 준비되면 저장한 설정으로 자동 개봉을 시작합니다.'),
+      connecting:t('자동 시작을 위해 게임에 연결하고 있습니다.'),
+      waiting_state:t('자동 시작 전에 게임 상태를 확인하고 있습니다.'),
+      confirmation_required:t('기존 도우미 전환을 확인한 뒤 시작해 주세요.')};
+    $('chest-reason').textContent = value.startup_pending ? startupReasons[value.startup_status] || ''
+      : reasons[value.reason] || (value.armed ? t('중지는 새 요청을 막으며 이미 요청한 개봉은 취소하지 못합니다.')
+        : value.preferences?.start_on_launch ? t('자동 시작 설정은 다음 앱 실행부터 적용됩니다.') : t('설정 저장과 게임 연결은 개봉을 시작하지 않습니다.'));
     $('chest-sidebar-status').textContent = title;
     $('chest-open').title = t('상자 자동 개봉') + ' · ' + title;
     $('chest-options').disabled = chestBusy || active;
     $('chest-save').disabled = chestBusy || active || !chestDirty;
-    $('chest-stop').disabled = chestBusy || !value.armed;
-    $('chest-sidebar-stop').hidden = !value.armed;
+    $('chest-stop').disabled = chestBusy || !(value.armed || value.startup_pending);
+    $('chest-sidebar-stop').hidden = !(value.armed || value.startup_pending);
     $('chest-sidebar-stop').disabled = false;
     const takeover = value.legacy_detected && !value.legacy_taken_over;
     $('chest-takeover-row').hidden = !takeover;
@@ -796,7 +808,7 @@
       ? (['prior_bridge_active','bridge_session_unavailable'].includes(connection.error)
         ? t('기존 연결 상태를 확인할 수 없습니다. 게임을 직접 다시 실행한 뒤 연결해 주세요.')
         : t('게임 연결에 실패했습니다. 지원하는 게임 파일과 기존 연결 상태를 확인해 주세요.'))
-      : t('연결만으로 개봉하지 않습니다. 설정을 저장한 뒤 시작해 주세요.');
+      : t('게임에 연결한 뒤 시작할 수 있습니다. 자동 시작은 저장한 설정을 따릅니다.');
     $('merge-connect').disabled ||= active;
     $('merge-start').disabled ||= active;
   }
@@ -939,7 +951,7 @@
     $('chest-open').addEventListener('click',()=>{ $('chest-dialog').showModal(); document.querySelector('.chest-content').scrollTop=0; });
     for (const [id,action] of [['chest-connect','chest_connect'],['chest-save','chest_save'],['chest-start','chest_start'],['chest-stop','chest_stop'],['chest-sidebar-stop','chest_stop']])
       $(id).addEventListener('click',()=>chestAction(action));
-    for (const id of ['chest-own','chest-others','chest-min','chest-max']) $(id).addEventListener('input',()=>{
+    for (const id of ['chest-own','chest-others','chest-autostart','chest-min','chest-max']) $(id).addEventListener('input',()=>{
       chestDirty = true; $('chest-save-status').textContent = t('변경한 설정을 저장한 뒤 시작해 주세요.');
       if (chestState) renderChest(chestState);
     });
