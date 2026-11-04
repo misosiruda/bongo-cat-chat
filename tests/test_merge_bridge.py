@@ -82,7 +82,7 @@ class FileServer:
                         if self.state.get('mode')=='interactive':
                             self.state.update(run_attempt='',test_budget=self.state['spent'])
                     elif r['op']=='chest_start':
-                        assert r['replace_legacy'] or self.state['chest']['legacy_taken_over']
+                        assert not self.state['chest']['legacy_detected'] or r['replace_legacy'] or self.state['chest']['legacy_taken_over']
                         self.state['chest'].update(r['chest_settings'],armed=True,enabled=True,reason='running',legacy_taken_over=True)
                     elif r['op']=='chest_stop':
                         self.state['chest'].update(armed=False,enabled=False,reason='user_stopped')

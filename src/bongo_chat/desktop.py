@@ -199,6 +199,9 @@ class Controller(QObject):
             if time.monotonic()-self.last_prune > 60:
                 self.service.write(self.store.prune)
                 self.last_prune = time.monotonic()
+            if not self.closed and not self.restarting:
+                self.chests.tick_startup(self.service.connected(),
+                                         self.merger.blocks_restart or self.service.storage_error)
         except (sqlite3.Error, OSError):
             self.service.storage_error = True
 
@@ -261,6 +264,7 @@ class Controller(QObject):
                 result['translations'] = ENGLISH if self.language == 'en' else {}
             return result
         if action in {'merge_connect', 'chest_connect'}:
+            self.chests.cancel_startup()
             ok = bool(self.merge_connection and not self.closed and not self.restarting
                       and not self.merger.blocks_restart and not self.chests.blocks_restart and self.merge_connection.connect())
             if ok:
@@ -288,6 +292,7 @@ class Controller(QObject):
             if action == 'merge_group':
                 ok = not self.chests.blocks_restart and self.merger.set_group(args.get('group'))
             elif action == 'merge_start':
+                self.chests.cancel_startup()
                 ok = not self.chests.blocks_restart and self.merger.start(args.get('limit'))
             elif action == 'merge_stop':
                 self.merger.stop()

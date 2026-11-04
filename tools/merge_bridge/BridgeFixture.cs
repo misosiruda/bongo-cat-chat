@@ -134,6 +134,7 @@ class Fixture {
         BongoCat.CatInventory.Instance.Items.Add(c);BongoCat.CatInventory.Instance.Items.Add(e);
         Bridge.Install(); Bridge.Install();
         var x=BongoCat.ItemExchange.Instance;
+        CheckTransientObservationRecovery(x);
         if (interactive) { RunInteractive(x); ChestFixture.Run(folder); return; }
         Check((long)Snap()["available_exchanges"]==4);
         Check(!(bool)Request("select",age:5000)["ok"] && x.Selections==0);
@@ -164,6 +165,22 @@ class Fixture {
         Check((int)Json(Path.Combine(folder,"ledger.json"))["spent"]==2);
         Check((bool)Request("shutdown")["ok"]);
         Console.WriteLine("Bridge fixture: "+checks+" checks passed; synthetic exchanges="+x.Merges);
+    }
+    static void CheckTransientObservationRecovery(BongoCat.ItemExchange x) {
+        typeof(Bridge).GetField("mainThread",flags).SetValue(null,System.Threading.Thread.CurrentThread.ManagedThreadId);
+        typeof(ChestRuntime).GetField("armed",flags).SetValue(null,true);
+        BongoCat.CatInventory.Instance.FetchingItems=true;
+        typeof(Bridge).GetField("nextPoll",flags).SetValue(null,0L); Call("Tick");
+        Check((string)typeof(Bridge).GetField("error",flags).GetValue(null)=="bridge_observation_failed");
+        BongoCat.CatInventory.Instance.FetchingItems=false;
+        typeof(Bridge).GetField("nextPoll",flags).SetValue(null,0L); Call("Tick");
+        Check((bool)Snap()["ready"] && (string)Snap()["reason"]=="ready");
+        Check(!(bool)Snap()["chest"]["armed"] && !(bool)Snap()["chest"]["enabled"]);
+        Check(x.Selections==0 && x.Merges==0 && (int)Snap()["spent"]==0);
+        Check(!(bool)Request("select",expectedGroup:"emotes")["ok"]);
+        typeof(Bridge).GetField("nextPoll",flags).SetValue(null,0L); Call("Tick");
+        Check(!(bool)Snap()["ready"] && (string)Snap()["reason"]=="group_changed");
+        Check((bool)Request("snapshot")["ok"]);
     }
     static void RunInteractive(BongoCat.ItemExchange x) {
         Check((int)Snap()["test_budget"]==0 && (string)Snap()["run_attempt"]=="");

@@ -206,7 +206,7 @@ def prepare_session(game, assets, session):
 
 
 def connect():
-    """Called only by the UI's Connect action, on a background thread."""
+    """Background connection after manual Connect or saved chest startup consent."""
     from .merge_connection import InteractiveAdapter
     game = running_game()
     assets, contract = validate_assets(game,asset_directory())
