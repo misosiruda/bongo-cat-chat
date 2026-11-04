@@ -13,7 +13,7 @@ if (-not (Test-Path (Join-Path $cache 'lib\net45\Newtonsoft.Json.dll'))) {
 }
 $json = Join-Path $cache 'lib\net45\Newtonsoft.Json.dll'
 Copy-Item -LiteralPath $json -Destination $output
-& "$env:SystemRoot\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:exe "/out:$output\Fixture.exe" "/reference:$json" (Join-Path $PSScriptRoot 'Bridge.cs') (Join-Path $PSScriptRoot 'BridgeFixture.cs')
+& "$env:SystemRoot\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:exe "/out:$output\Fixture.exe" "/reference:$json" (Join-Path $PSScriptRoot 'Bridge.cs') (Join-Path $PSScriptRoot 'BridgeFixture.cs') (Join-Path $PSScriptRoot 'ChestFixtureBindings.cs') (Join-Path $PSScriptRoot 'ChestFixture.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Fixture compilation failed' }
 Add-Type -Path (Join-Path $PSScriptRoot '..\..\artifacts\compatibility\Mono.Cecil.dll')
 $rp = [Mono.Cecil.ReaderParameters]::new(); $rp.ReadWrite = $true

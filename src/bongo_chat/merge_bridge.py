@@ -15,6 +15,10 @@ from .auto_merge import InputRefused, Observation, Receipt, GROUP_BY_CATEGORY
 from .environment import running_game
 
 
+class CommandRefused(RuntimeError):
+    """The game acknowledged rejection before chest dispatch; no automatic retry."""
+
+
 def read_json(path):
     with Path(path).open('rb') as stream:
         raw = stream.read(16385)
@@ -79,8 +83,10 @@ class BridgeChannel:
             raise ValueError('observation_stale')
         return raw
 
-    def request(self, op, *, attempt=None, expected=None, group=None, limit=None):
-        if op not in {'begin','group','select','merge','stop','snapshot','shutdown'}:
+    def request(self, op, *, attempt=None, expected=None, group=None, limit=None,
+                chest_settings=None, replace_legacy=False):
+        if op not in {'begin','group','select','merge','stop','snapshot','shutdown',
+                      'chest_start','chest_stop','chest_heartbeat'}:
             raise InputRefused
         self.verify_target(self.config)
         raw = self.snapshot()
@@ -106,6 +112,13 @@ class BridgeChannel:
             if not self.interactive or type(limit) is not int or not 1 <= limit <= 2147483647 - raw['spent']:
                 raise InputRefused
             request['limit'] = limit
+        if op.startswith('chest_') and not self.interactive:
+            raise InputRefused
+        if op == 'chest_start':
+            from .auto_chest import settings
+            if type(replace_legacy) is not bool:
+                raise InputRefused
+            request.update(chest_settings=settings(chest_settings), replace_legacy=replace_legacy)
         if op == 'group':
             if group not in ('cosmetics','emotes'):raise InputRefused
             request['group'] = group
@@ -124,8 +137,13 @@ class BridgeChannel:
                 reply = read_json(self.session/'response.json')
                 if reply['id'] == request['id'] and reply['epoch'] == self.config['epoch']:
                     if reply.get('ok') is not True:
+                        if op.startswith('chest_'):
+                            safe = {'chest_busy', 'chest_unavailable', 'legacy_busy', 'legacy_unverified',
+                                    'legacy_confirmation_required', 'run_not_authorized', 'chest_active'}
+                            reason = reply.get('reason')
+                            raise CommandRefused(reason if reason in safe else 'input_failed')
                         raise RuntimeError('input_failed')
-                    return reply
+                    return dict(reply, _sequence=request.get('sequence', 0))
             except (OSError, ValueError, KeyError):
                 pass
             time.sleep(.05)
@@ -162,6 +180,12 @@ class BridgeAdapter:
         self.busy = False
         self.fault = False
         self.requested_group = None
+        self.chest = None
+        self.chest_requested = False
+        self.next_heartbeat = 0.0
+        self.chest_sequence = 0
+        self.chest_owns_lease = False
+        self.chest_command_error = ''
         self.thread = threading.Thread(target=self._run,name='merge-bridge',daemon=True)
         self.thread.start()
 
@@ -174,41 +198,69 @@ class BridgeAdapter:
                     command = None
                 if command:
                     try:
-                        self.channel.request(**command)
+                        reply = self.channel.request(**command)
+                        if command['op'].startswith('chest_'):
+                            self.chest_sequence = reply.get('_sequence', 0)
+                            self.chest_command_error = ''
+                            if command['op'] == 'chest_start':self.chest_owns_lease = True
+                            if command['op'] == 'chest_stop':self.chest_owns_lease = False
+                    except CommandRefused as exc:
+                        self.chest_command_error = str(exc)
                     except Exception:
                         with self.lock:
                             self.fault = True
                             self.latest = replace(self.latest,ready=False,reason='input_failed')
+                            if self.chest:
+                                self.chest = dict(self.chest, reason='input_failed')
                     finally:
                         with self.lock:self.busy = not self.commands.empty()
-                if not self.fault:
+                if not self.fault or self.chest is not None:
                     try:
                         self.channel.verify_target(self.channel.config)
-                        value = observation(self.channel.snapshot())
+                        raw = self.channel.snapshot()
+                        value = observation(raw)
                         with self.lock:
-                            if self.requested_group is None or value.category == self.requested_group:
+                            chest = raw.get('chest')
+                            if isinstance(chest, dict) and raw.get('command_sequence', 0) >= self.chest_sequence:
+                                from .auto_chest import observation as chest_observation
+                                self.chest = chest_observation(chest, value.captured_at)
+                                if self.chest_command_error:
+                                    self.chest['reason'] = self.chest_command_error
+                                self.chest_requested = self.chest['armed']
+                            if not self.fault and (self.requested_group is None or value.category == self.requested_group):
                                 self.latest = value
                                 self.requested_group = None
+                        if not self.fault and self.chest_requested and self.chest_owns_lease and time.monotonic() >= self.next_heartbeat:
+                            self.channel.request('chest_heartbeat')
+                            self.next_heartbeat = time.monotonic() + .75
                     except (OSError,ValueError,KeyError):
                         pass  # Retain source time. The orchestrator expires it.
                     except Exception:
                         with self.lock:self.latest = Observation(time.monotonic(),reason='game_unavailable')
                 self.stop_event.wait(.1)
         finally:
+            # No new consuming operation; an uncertain stop is bounded by the game-side lease.
+            if self.chest_requested:
+                try:self.channel.request('chest_stop')
+                except Exception:pass
             self.channel.close()
 
     def observe(self):
         with self.lock:return self.latest
 
-    def _submit(self, op, expected=None, attempt=None, group=None, limit=None):
+    def _submit(self, op, expected=None, attempt=None, group=None, limit=None, **extra):
         with self.lock:
             if self.stop_event.is_set() or self.fault or self.busy:
                 raise InputRefused
             if expected is not None and (not self.latest.ready or self.latest.target != expected.target
                     or not 0 <= time.monotonic()-self.latest.captured_at <= 1.5):
                 raise InputRefused
-            self.commands.put_nowait(dict(op=op,expected=expected,attempt=attempt,group=group,limit=limit))
+            self.commands.put_nowait(dict(op=op,expected=expected,attempt=attempt,group=group,limit=limit,**extra))
             self.busy = True
+            if op == 'chest_start':
+                self.chest_requested = True
+                if self.chest:
+                    self.chest = dict(self.chest, armed=True, reason='starting')
             if op == 'group':
                 self.requested_group = group
                 self.latest = replace(self.latest,ready=False,reason='group_changing',category=group,
@@ -230,6 +282,20 @@ class BridgeAdapter:
                 try:self.commands.put_nowait(dict(op='stop'))
                 except queue.Full:pass
                 self.busy = True
+
+    def chest_snapshot(self):
+        with self.lock:
+            return dict(self.chest, supported=self.chest['supported'] and not self.fault) if self.chest is not None else None
+
+    def chest_start(self, preferences, replace_legacy=False):
+        self._submit('chest_start', chest_settings=preferences, replace_legacy=replace_legacy)
+
+    def chest_stop(self):
+        with self.lock:
+            if self.stop_event.is_set():return
+            try:self.commands.put_nowait(dict(op='chest_stop'))
+            except queue.Full:pass  # The lease expires even if IPC cannot be delivered.
+            self.busy = True
 
     def close(self):
         self.stop_event.set()

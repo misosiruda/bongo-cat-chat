@@ -22,6 +22,12 @@ Pressing **Connect to game** prepares our own module against verified local game
 
 The app stores the process lifetime, connection token, request IDs, group/counts/protection options, selection fingerprints, results, consumption ledger and own module in `%USERPROFILE%/.bongo-cat-chat/merge-bridge/`. Raw item IDs and chat contents are not written to these IPC files. Access is limited to the current Windows user and SYSTEM; no developer server receives the data. Records used to prevent automatic retries remain after the game exits or the app is uninstalled. You may manually remove this folder after closing both the app and game. This is separate from deleting chat history.
 
+## Optional automatic chest opening (local development source)
+
+Chest types and delay preferences are stored in the same local database for this device. Running state is not persisted; opening requires an explicit Start. Own and other players' chests use the game's existing point and Steam handling. Confirming a switch from the existing helper stops its dispatcher in memory for this game lifetime without modifying installed game, configuration or backup files.
+
+The session folder also stores chest run/request identifiers, aggregate counts and result states in `chest-ledger.json`. Chest UI/IPC adds no remote Steam IDs, lobby IDs or raw item IDs. Identifiers needed to check current lobby membership, hidden cats and readiness remain in game memory. Losing the app connection stops new requests; it cannot cancel a request already accepted by the game or retries performed by the original game.
+
 ## Steam ID chat blocks
 
 Hiding a cat in the game does not prevent chat receipt or storage. The app stores the current account ID, blocked Steam ID and any display name known when blocking in its local database. Blocks do not expire, persist across lobbies and restarts, and are not synchronized to other PCs or Steam. A manually entered ID can have no stored name. Unblocking in Settings or the participant list deletes the block entry. History deletion, retention cleanup and uninstalling do not remove blocks.

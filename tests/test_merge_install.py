@@ -126,7 +126,7 @@ def test_missing_or_unreadable_game_file_has_safe_actionable_error(assets,monkey
 
 def test_support_change_is_limited_to_two_pinned_autochest_files():
     contract=json.loads((ROOT/'tools/merge_bridge/local-contract.json').read_text())
-    assert contract['schema']==4 and len(contract['profiles'])==3
+    assert contract['schema']==5 and len(contract['profiles'])==5
     files=contract['profiles'][0]
     variants={name:hashes for name,hashes in files.items() if isinstance(hashes,list)}
     assert len(files)==13
@@ -209,3 +209,21 @@ def test_csharp_bridge_consumes_synthetic_items_only():
         capture_output=True,timeout=120,creationflags=subprocess.CREATE_NO_WINDOW)
     assert result.returncode==0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace')
     assert b'Interactive bridge fixture:' in result.stdout and b'synthetic exchanges=3' in result.stdout
+    assert b'Chest fixture:' in result.stdout and b'synthetic requests only.' in result.stdout
+
+
+def test_clean_profile_allows_only_inspected_absent_legacy_helper(assets):
+    game,folder,contract=assets
+    legacy='BongoCat_Data/Managed/BongoAutoChest.dll'
+    profile=dict(contract.pop('files'));profile[legacy]=[None,hashlib.sha256(b'inspected legacy').hexdigest()]
+    contract.update(schema=5,profiles=[profile])
+    (folder/'contract.json').write_text(json.dumps(contract))
+    validate_assets(game,folder)
+    (game.root/legacy).parent.mkdir(parents=True)
+    (game.root/legacy).write_bytes(b'inspected legacy')
+    validate_assets(game,folder)
+    (game.root/legacy).write_bytes(b'unverified helper')
+    with pytest.raises(RuntimeError,match='unsupported_game_files'):validate_assets(game,folder)
+    profile['metadata']=[None]
+    (folder/'contract.json').write_text(json.dumps(contract))
+    with pytest.raises(RuntimeError,match='bridge_assets_missing'):validate_assets(game,folder)

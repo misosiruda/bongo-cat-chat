@@ -134,7 +134,7 @@ class Fixture {
         BongoCat.CatInventory.Instance.Items.Add(c);BongoCat.CatInventory.Instance.Items.Add(e);
         Bridge.Install(); Bridge.Install();
         var x=BongoCat.ItemExchange.Instance;
-        if (interactive) { RunInteractive(x); return; }
+        if (interactive) { RunInteractive(x); ChestFixture.Run(folder); return; }
         Check((long)Snap()["available_exchanges"]==4);
         Check(!(bool)Request("select",age:5000)["ok"] && x.Selections==0);
         Check(!(bool)Request("select",expectedGroup:"emotes")["ok"] && x.Selections==0);

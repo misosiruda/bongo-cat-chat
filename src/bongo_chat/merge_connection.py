@@ -88,6 +88,19 @@ class MergeConnection:
     def stop_selection(self):
         return self._call('stop_selection')
 
+    def chest_snapshot(self):
+        with self.lock:
+            adapter = self.adapter
+        return adapter.chest_snapshot() if adapter else None
+
+    def chest_start(self, preferences, replace_legacy=False):
+        return self._call('chest_start', preferences, replace_legacy)
+
+    def chest_stop(self):
+        with self.lock:
+            adapter = self.adapter
+        if adapter:adapter.chest_stop()
+
     def close(self):
         with self.lock:
             self.closed = True

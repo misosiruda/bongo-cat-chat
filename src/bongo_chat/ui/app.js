@@ -52,6 +52,7 @@
   let blockPending = false, blockedSignature = '';
   let mergeRevision = -1, mergeBusy = false, mergeState = null;
   let mergeInputGroup = '';
+  let chestState = null, chestBusy = false, chestDirty = false, chestLoaded = false;
   let start = null, seenSeq = null, loadingHistory = false, restoring = false;
   let seenVolatile = new Set(), searchPosition = null, pendingPosition = {bottom:true};
   const positions = new Map();
@@ -387,6 +388,11 @@
   }
   function updateRestartNotice(update) {
     const banner = $('update-notice');
+    if (update.state === 'ready' && update.chest_deferred) {
+      restartPlan = null;
+      const text = t('자동 개봉을 중지하고 결과 확인이 끝나면 업데이트를 적용합니다.');
+      banner.textContent = text; banner.hidden = false; $('update-status').textContent = text; return;
+    }
     if (update.state === 'ready' && update.merge_deferred) {
       restartPlan = null;
       const text = t('자동 합성의 실행 또는 결과 확인이 끝나면 업데이트를 적용합니다.');
@@ -407,7 +413,7 @@
     $('update-status').textContent = text;
   }
   async function maybeRestart() {
-    if (!restartPlan || restarting || refreshing || composing || sending || switching || model?.storage_error || mergeState?.active || mergeState?.unresolved) return;
+    if (!restartPlan || restarting || refreshing || composing || sending || switching || model?.storage_error || mergeState?.active || mergeState?.unresolved || chestState?.armed || chestState?.pending || chestState?.unknown) return;
     if (Date.now() < Math.max(restartPlan.deadline,lastEdit+5000,restartPlan.retryAt)) return;
     restarting = true; document.body.inert = true; updateSend(); clearTimeout(draftTimer);
     updateRestartNotice(model.update);
@@ -704,7 +710,7 @@
     const valid = Number.isSafeInteger(limit) && limit > 0;
     $('merge-available').textContent = known ? t('{count}회', {count:available}) : t('확인 필요');
     $('merge-maximum').disabled = mergeBusy || !mergeState?.can_start || !known || available === 0;
-    $('merge-start').disabled = mergeBusy || !mergeState?.can_start || !valid || available === 0;
+    $('merge-start').disabled = mergeBusy || chestState?.armed || chestState?.pending || chestState?.unknown || !mergeState?.can_start || !valid || available === 0;
     $('merge-planned').textContent = !valid ? t('합성 횟수는 1 이상의 정수로 입력해 주세요.')
       : known ? t('이번 실행 예정: 최대 {count}회', {count:Math.min(limit,available)}) : t('이번 실행 예정: 확인 필요');
   }
@@ -723,11 +729,91 @@
     } catch (error) { showError(error); }
     finally { mergeBusy = false; if (mergeState) renderMerge(mergeState); refresh(); }
   }
+  function chestPreferences() {
+    return {own:$('chest-own').checked, others:$('chest-others').checked,
+      min_delay:$('chest-min').valueAsNumber, max_delay:$('chest-max').valueAsNumber};
+  }
+  function renderChest(value) {
+    if (!value) return;
+    chestState = value;
+    if (!chestLoaded || !chestDirty && !chestBusy) {
+      const prefs = value.preferences;
+      if (prefs) {
+        $('chest-own').checked = prefs.own; $('chest-others').checked = prefs.others;
+        $('chest-min').value = String(prefs.min_delay); $('chest-max').value = String(prefs.max_delay);
+        chestLoaded = true;
+      }
+    }
+    const active = value.armed || value.pending || value.unknown;
+    const labels = {
+      running:t('자동 개봉 실행 중'), paused:t('자동 개봉 일시 정지'), waiting_result:t('개봉 결과 대기 중'),
+      starting:t('자동 개봉 시작 중'), result_unverified:t('개봉 결과 확인 필요'), chest_fault:t('자동 개봉 중단'),
+      ready:t('시작 전'), user_stopped:t('자동 개봉 중지됨'), app_disconnected:t('앱 연결 끊김으로 중지됨')
+    };
+    const title = !value.fresh ? t('게임 연결 확인 필요') : labels[value.reason] || t('게임 연결 확인 필요');
+    const reasons = {
+      unsupported_chest:t('현재 게임 파일은 상자 자동 개봉을 지원하지 않습니다. 앱 업데이트가 필요합니다.'),
+      result_unverified:t('이미 요청한 개봉 결과를 확인하지 못했습니다. 게임에서 확인한 뒤 게임과 앱을 직접 다시 실행해 주세요.'),
+      chest_fault:t('개봉 처리를 확인할 수 없어 중단했습니다. 게임에서 결과를 확인해 주세요.'),
+      app_disconnected:t('앱과 연결이 끊겨 새 개봉 요청을 중단했습니다.'),
+      offline:t('오프라인 모드에서는 자동 개봉을 시작할 수 없습니다.'),
+      read_only:t('읽기 전용 모드에서는 자동 개봉을 시작할 수 없습니다.'),
+      paused:t('Ctrl+Alt+F9를 다시 누르면 이번 실행을 재개합니다.'),
+      chest_busy:t('게임에서 상자 개봉이 진행 중입니다. 결과가 끝난 뒤 시작해 주세요.'),
+      legacy_busy:t('기존 도우미의 개봉 결과를 기다리고 있습니다. 완료 후 다시 시작해 주세요.'),
+      legacy_confirmation_required:t('기존 도우미 전환을 확인한 뒤 시작해 주세요.'),
+      legacy_unverified:t('기존 도우미 상태를 확인할 수 없습니다. 게임을 직접 다시 실행한 뒤 확인해 주세요.')
+    };
+    $('chest-state').textContent = title;
+    $('chest-reason').textContent = reasons[value.reason] || (value.armed ? t('중지는 새 요청을 막으며 이미 요청한 개봉은 취소하지 못합니다.') : t('설정 저장과 게임 연결은 개봉을 시작하지 않습니다.'));
+    $('chest-sidebar-status').textContent = title;
+    $('chest-open').title = t('상자 자동 개봉') + ' · ' + title;
+    $('chest-options').disabled = chestBusy || active;
+    $('chest-save').disabled = chestBusy || active || !chestDirty;
+    $('chest-stop').disabled = chestBusy || !value.armed;
+    $('chest-sidebar-stop').hidden = !value.armed;
+    $('chest-sidebar-stop').disabled = false;
+    const takeover = value.legacy_detected && !value.legacy_taken_over;
+    $('chest-takeover-row').hidden = !takeover;
+    $('chest-takeover-help').hidden = !takeover;
+    $('chest-takeover').disabled = chestBusy || active;
+    $('chest-start').disabled = chestBusy || chestDirty || !value.can_start || takeover && !$('chest-takeover').checked;
+    $('chest-confirmed').textContent = String(value.own_confirmed || 0);
+    $('chest-remote').textContent = String(value.remote_requested || 0);
+    $('chest-pending').textContent = value.pending ? '1' : '0';
+    const connection = value.connection;
+    $('chest-connect').disabled = chestBusy || active || mergeState?.active || mergeState?.unresolved || !connection?.can_connect;
+    $('chest-connection-title').textContent = connection?.state === 'connected' ? t('게임 연결됨') : connection?.state === 'connecting' ? t('게임에 연결 중') : t('게임 연결');
+    $('chest-connection-message').textContent = connection?.state === 'error'
+      ? (['prior_bridge_active','bridge_session_unavailable'].includes(connection.error)
+        ? t('기존 연결 상태를 확인할 수 없습니다. 게임을 직접 다시 실행한 뒤 연결해 주세요.')
+        : t('게임 연결에 실패했습니다. 지원하는 게임 파일과 기존 연결 상태를 확인해 주세요.'))
+      : t('연결만으로 개봉하지 않습니다. 설정을 저장한 뒤 시작해 주세요.');
+    $('merge-connect').disabled ||= active;
+    $('merge-start').disabled ||= active;
+  }
+  async function chestAction(action) {
+    if (chestBusy && action !== 'chest_stop') return;
+    chestBusy = true; if (chestState) renderChest(chestState);
+    try {
+      const args = action === 'chest_save' ? {preferences:chestPreferences()}
+        : action === 'chest_start' ? {replace_legacy:$('chest-takeover').checked} : {};
+      const result = await rpc(action,args);
+      if (action === 'chest_save' && result.ok) {
+        chestDirty = false;
+        // Keep the saved controls until the next view carries the persisted preferences.
+        chestState.preferences = chestPreferences();
+        $('chest-save-status').textContent = t('개봉 설정을 저장했습니다.');
+      } else if (!result.ok) $('chest-save-status').textContent = t('지금은 요청을 처리할 수 없습니다. 게임 연결과 실행 상태를 확인해 주세요.');
+    } catch(e) { $('chest-save-status').textContent = t('설정을 확인해 주세요. 상자 종류를 선택하고 대기 시간을 1~300초 범위로 입력해 주세요.'); }
+    finally { chestBusy = false; if (chestState) renderChest(chestState); refresh(); }
+  }
   function render(data, resetDraft) {
     const position=pendingPosition || capturePosition();
     applyLanguage(data);
     // Refresh translations using the newest merge state, never a delayed view.
     renderMerge(data.auto_merge && data.auto_merge.revision >= mergeRevision ? data.auto_merge : mergeState, true);
+    renderChest(data.auto_chest);
     document.documentElement.dataset.notice=data.notice || '';
     model = data;
     if (!reactionSettingPending) {
@@ -842,6 +928,14 @@
   }
   function connect(value) {
     bridge=value;
+    $('chest-open').addEventListener('click',()=>{ $('chest-dialog').showModal(); document.querySelector('.chest-content').scrollTop=0; });
+    for (const [id,action] of [['chest-connect','chest_connect'],['chest-save','chest_save'],['chest-start','chest_start'],['chest-stop','chest_stop'],['chest-sidebar-stop','chest_stop']])
+      $(id).addEventListener('click',()=>chestAction(action));
+    for (const id of ['chest-own','chest-others','chest-min','chest-max']) $(id).addEventListener('input',()=>{
+      chestDirty = true; $('chest-save-status').textContent = t('변경한 설정을 저장한 뒤 시작해 주세요.');
+      if (chestState) renderChest(chestState);
+    });
+    $('chest-takeover').addEventListener('change',()=>{if (chestState) renderChest(chestState);});
     for (const id of ['merge-open','merge-run-details']) $(id).addEventListener('click',()=>{
       $('merge-dialog').showModal(); document.querySelector('.merge-content').scrollTop=0;
     });
