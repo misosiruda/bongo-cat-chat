@@ -6,6 +6,8 @@ Updated October 30, 2026 to describe the current source, including local languag
 
 ## Local history and game integration
 
+Private nicknames are stored in the same local SQLite file under your Steam ID and the other player's Steam ID. Only your account on this PC uses them. They are never sent to Steam or other players. Nicknames persist through history deletion and the 30-day cleanup. To delete one, open **Set nickname** for that participant, clear the field, and save.
+
 The October 28, 2026 source also stores observed lobby join/leave events, including the display name at observation, player Steam ID, lobby ID and observation time, in the same local database for 30 days. The account-local app block list and history deletion apply. Notices are not sent as lobby chat or Windows notifications. Activity before connection or during connection gaps is not reconstructed. Published-build availability is separate.
 
 The app stores received chat, messages you compose and send, drafts, display names, Steam account IDs, lobby IDs and app preferences on this PC. The default database is `%LOCALAPPDATA%/BongoCatChat/history.sqlite3`. It is an unencrypted SQLite file. There is no separate encryption or cloud backup, and anyone who can access the file may be able to read it.
