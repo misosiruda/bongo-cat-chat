@@ -57,7 +57,7 @@ namespace BongoCatChat.MergeBridge
             using (var reader = new JsonTextReader(new StringReader(File.ReadAllText(path))))
                 return JObject.Load(reader, null);
         }
-        static JObject Object(params object[] pairs)
+        internal static JObject Object(params object[] pairs)
         {
             var result = new JObject();
             for (int i = 0; i < pairs.Length; i += 2)
@@ -141,6 +141,7 @@ namespace BongoCatChat.MergeBridge
         }
         static void RequireIdle(ItemExchange x)
         {
+            if (ChestRuntime.BlocksMerge) throw new InvalidOperationException("chest_active");
             if (unknown || pending != "" || Busy(x)) throw new InvalidOperationException("unresolved_exchange");
             if (x.IsVisible) throw new InvalidOperationException("manual_exchange_screen_open");
         }
@@ -189,6 +190,7 @@ namespace BongoCatChat.MergeBridge
                 "mode", interactive ? "interactive" : "test", "run_attempt", runAttempt, "command_sequence", commandSequence,
                 "per_request_limit", PerRequest, "confirmed_completed", completed,
                 "receipt", lastReceipt == null ? (JToken)JValue.CreateNull() : lastReceipt);
+            result["chest"] = ChestRuntime.Snapshot();
             return result;
         }
         static void Select(ItemExchange x, string id)
@@ -282,6 +284,15 @@ namespace BongoCatChat.MergeBridge
                         throw new InvalidOperationException("run_not_authorized");
                 }
                 if (op == "snapshot") { }
+                else if (op == "chest_start")
+                {
+                    RequireIdle(x);
+                    if (!interactive || Units(x) != 0) throw new InvalidOperationException("run_not_authorized");
+                    runAttempt = ""; maxRequests = spent;
+                    ChestRuntime.Start(directory, request, id);
+                }
+                else if (op == "chest_stop") ChestRuntime.Stop("user_stopped");
+                else if (op == "chest_heartbeat") ChestRuntime.Heartbeat();
                 else if (op == "begin")
                 {
                     RequireIdle(x);
@@ -309,7 +320,7 @@ namespace BongoCatChat.MergeBridge
                 }
                 else if (op == "shutdown")
                 {
-                    if (pending != "" || Busy(x)) throw new InvalidOperationException("exchange_pending");
+                    if (pending != "" || Busy(x) || ChestRuntime.BlocksMerge) throw new InvalidOperationException("exchange_pending");
                     ClearOwned(x); stopped = true;
                 }
                 else throw new InvalidOperationException("unsupported_operation");
@@ -337,9 +348,12 @@ namespace BongoCatChat.MergeBridge
             try
             {
                 Handle();
+                // Dispatch only while the app maintains a live lease. No reconnect or hotkey can arm a run.
+                RequireGame();
+                ChestRuntime.Tick();
                 if (pending == "" && owned != "" && now - lastCommand > 15000) ClearOwned(RequireGame());
             }
-            catch { error = "bridge_observation_failed"; }
+            catch { error = "bridge_observation_failed"; ChestRuntime.Stop("game_unavailable"); }
             if (now >= nextSnapshot || stopped)
             {
                 nextSnapshot = now + 250;
@@ -352,6 +366,286 @@ namespace BongoCatChat.MergeBridge
                 // Removing the last callback while Invoke owns this list is safe under its monitor.
                 lock (renderCallbacks) renderCallbacks.Remove(renderBlock);
             }
+        }
+    }
+}
+
+// Adapted from misosiruda/bongo-cat-auto-chest (MIT, copyright 2026 misosiruda).
+// Own-code orchestration only: original OpenChest/Callback and OnClicked perform game actions.
+namespace BongoCatChat.MergeBridge
+{
+    internal static class ChestRuntime
+    {
+        const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+        const BindingFlags Static = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+        static readonly Stopwatch Clock = Stopwatch.StartNew();
+        internal static Func<double> Now = delegate { return Clock.Elapsed.TotalSeconds; };
+        internal static Func<bool> Hotkey = delegate { return Down(0x11) && Down(0x12) && Down(0x78); };
+        static readonly Random Random = new Random();
+        static readonly Dictionary<string, Gate> Gates = new Dictionary<string, Gate>();
+        static FieldInfo itemField, openingField, waitingField, exchangerField, exchangingField;
+        static FieldInfo targetField, typeField, activeField, clickedField, memberField, keyField, objectField;
+        static Type legacy;
+        static bool initialized, supported, armed, enabled, own = true, others, unknown, pending, hotkeyDown, takenOver;
+        static double minDelay = 3, maxDelay = 8, nextAction, nextObserve, lease, requestedAt;
+        static int attempted, confirmed, failed, remoteRequested;
+        static string reason = "disconnected", directory, attempt = "";
+        static BongoCat.Multiplayer.OpenChestForMember[] buttons = new BongoCat.Multiplayer.OpenChestForMember[0];
+        static double nextScan;
+        [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
+        static bool Down(int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; }
+        sealed class Gate
+        {
+            internal bool Ready, Attempted;
+            internal double ReadyAt;
+            internal void Observe(bool ready, double now)
+            {
+                if (ready && !Ready) ReadyAt = now + Delay();
+                Ready = ready;
+                if (!ready) Attempted = false;
+            }
+            internal bool CanAttempt(double now) { return Ready && !Attempted && now >= ReadyAt; }
+        }
+        sealed class Candidate
+        {
+            internal Gate Gate;
+            internal Shop Shop;
+            internal ShopItem Item;
+            internal BongoCat.Multiplayer.OpenChestForMember Button;
+        }
+        static FieldInfo Field(Type type, string name)
+        {
+            var f = type.GetField(name, Private);
+            if (f == null) throw new InvalidOperationException("unsupported_chest");
+            return f;
+        }
+        static void Initialize()
+        {
+            if (initialized) return;
+            initialized = true;
+            try
+            {
+                // Only statically inspected chest code is supported, in addition to the full install contract.
+                string digest;
+                using (var sha = SHA256.Create())
+                    digest = BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(typeof(Shop).Assembly.Location))).Replace("-", "").ToLowerInvariant();
+                if (!SupportedAssembly(digest)) { reason = "unsupported_chest"; return; }
+                itemField = Field(typeof(Shop), "_shopItem"); openingField = Field(typeof(Shop), "_openingChest");
+                waitingField = Field(typeof(ShopItem), "_waitingForServer"); exchangerField = Field(typeof(ShopItem), "_chestExchanger");
+                exchangingField = typeof(Steam.ChestExchanger).GetField("IsExchanging", Static);
+                targetField = Field(typeof(BongoCat.Multiplayer.OpenChestForMember), "_targetUser");
+                typeField = Field(typeof(BongoCat.Multiplayer.OpenChestForMember), "_chestType");
+                activeField = Field(typeof(BongoCat.Multiplayer.OpenChestForMember), "_setChestActive");
+                clickedField = Field(typeof(BongoCat.Multiplayer.OpenChestForMember), "_hasClicked");
+                memberField = Field(typeof(BongoCat.Multiplayer.SetActiveBasedOnLobbyMemberValue), "_lobbyMemberData");
+                keyField = Field(typeof(BongoCat.Multiplayer.SetActiveBasedOnLobbyMemberValue), "_key");
+                objectField = Field(typeof(BongoCat.Multiplayer.SetActiveBasedOnLobbyMemberValue), "_gameObject");
+                if (exchangingField == null) throw new InvalidOperationException("unsupported_chest");
+                legacy = FindLegacy();
+                supported = true; reason = "ready";
+            }
+            catch { reason = "unsupported_chest"; }
+        }
+        static bool SupportedAssembly(string digest)
+        {
+            return digest == "6756b1e864340170e8f312da1d935f9b644d442974c1434bbd0d7eb4a1ab8a2c" || digest == "3ae33d93def6346f715256d2b65192097632059252eed969c2641f63b946d4dd";
+        }
+        static Type FindLegacy()
+        {
+            return AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("BongoAutoChest.AutoChest")).FirstOrDefault(t => t != null);
+        }
+        static bool Busy(Shop shop)
+        {
+            if (shop == null) return false;
+            var item = (ShopItem)itemField.GetValue(shop);
+            return (bool)openingField.GetValue(shop) || item != null && (bool)waitingField.GetValue(item);
+        }
+        static bool AnyBusy()
+        {
+            return Busy(Shop.NormalShop) || Busy(Shop.EmoteShop) || (bool)exchangingField.GetValue(null);
+        }
+        static void RequireLegacyStopped(bool replace)
+        {
+            if (legacy == null) legacy = FindLegacy();
+            if (legacy == null) return;
+            var fault = legacy.GetField("Faulted", Static);
+            var enable = legacy.GetField("Enabled", Static);
+            var requests = legacy.GetField("OwnRequests", Static);
+            if (fault == null || enable == null || requests == null || fault.FieldType != typeof(bool) || enable.FieldType != typeof(bool))
+                throw new InvalidOperationException("legacy_unverified");
+            var outstanding = requests.GetValue(null) as IDictionary;
+            if (outstanding == null || outstanding.Count != 0) throw new InvalidOperationException("legacy_busy");
+            if (takenOver)
+            {
+                if (!(bool)fault.GetValue(null) || (bool)enable.GetValue(null)) throw new InvalidOperationException("legacy_unverified");
+                return;
+            }
+            if (!replace) throw new InvalidOperationException("legacy_confirmation_required");
+            // On Unity's thread and idle: stop the legacy Tick before it can dispatch another action.
+            // Its INI, binary and original backups remain unchanged. It stays stopped for this game lifetime.
+            fault.SetValue(null, true); enable.SetValue(null, false); takenOver = true;
+        }
+        internal static bool BlocksMerge { get { return armed || pending || unknown; } }
+        internal static JObject Snapshot()
+        {
+            Initialize();
+            return Bridge.Object("supported", supported, "armed", armed, "enabled", enabled,
+                "pending", pending, "unknown", unknown, "reason", reason,
+                "legacy_detected", legacy != null, "legacy_taken_over", takenOver,
+                "attempted", attempted, "own_confirmed", confirmed,
+                "failed", failed, "remote_requested", remoteRequested,
+                "own", own, "others", others, "min_delay", minDelay, "max_delay", maxDelay);
+        }
+        static double Delay() { return minDelay + (Random.Next(1000000) / 1000000.0) * (maxDelay - minDelay); }
+        internal static void Start(string folder, JObject request, string id)
+        {
+            Initialize();
+            if (!supported || unknown || pending || armed) throw new InvalidOperationException("chest_unavailable");
+            var config = request["chest_settings"] as JObject;
+            if (config == null || config.Count != 4 || config["own"] == null || config["others"] == null ||
+                config["own"].Type != JTokenType.Boolean || config["others"].Type != JTokenType.Boolean ||
+                config["min_delay"] == null || config["max_delay"] == null ||
+                !(config["min_delay"].Type == JTokenType.Integer || config["min_delay"].Type == JTokenType.Float) ||
+                !(config["max_delay"].Type == JTokenType.Integer || config["max_delay"].Type == JTokenType.Float))
+                throw new InvalidOperationException("invalid_chest_settings");
+            double lo = (double)config["min_delay"], hi = (double)config["max_delay"];
+            bool nextOwn = (bool)config["own"], nextOthers = (bool)config["others"];
+            if (double.IsNaN(lo) || double.IsNaN(hi) || lo < 1 || hi > 300 || hi < lo || !(nextOwn || nextOthers))
+                throw new InvalidOperationException("invalid_chest_settings");
+            if (AnyBusy()) throw new InvalidOperationException("chest_busy");
+            RequireLegacyStopped((bool?)request["replace_legacy"] == true);
+            directory = folder;
+            own = nextOwn; others = nextOthers; minDelay = lo; maxDelay = hi;
+            // Durable evidence is written before arming, and before every consuming request.
+            WriteLedger("armed", id);
+            lease = Now() + 3; nextAction = Now() + Delay();
+            hotkeyDown = Hotkey();
+            armed = enabled = true; reason = "running";
+        }
+        internal static void Heartbeat()
+        {
+            if (!armed) return;
+            double now = Now();
+            // Handle runs before Tick. A delayed heartbeat must never revive an expired lease.
+            if (now >= lease) { Stop("app_disconnected"); return; }
+            lease = now + 3;
+        }
+        internal static void Stop(string why) { armed = enabled = false; if (!unknown) reason = why; }
+        static void WriteLedger(string state, string id)
+        {
+            var value = Bridge.Object("state", state, "attempt", id, "attempted", attempted,
+                "own_confirmed", confirmed, "failed", failed, "remote_requested", remoteRequested);
+            string target = Path.Combine(directory, "chest-ledger.json");
+            File.WriteAllText(target + ".tmp", value.ToString(Formatting.None));
+            if (!MoveFileEx(target + ".tmp", target, 9)) throw new IOException("chest_ledger_failed");
+        }
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern bool MoveFileEx(string from, string to, uint flags);
+        static Gate Observe(string key, bool ready, double now)
+        {
+            Gate gate;
+            if (!Gates.TryGetValue(key, out gate))
+            {
+                if (Gates.Count >= 512) throw new InvalidOperationException("chest_capacity");
+                gate = new Gate(); Gates.Add(key, gate);
+            }
+            gate.Observe(ready, now); return gate;
+        }
+        static void Own(Shop shop, string key, List<Candidate> candidates, double now)
+        {
+            if (shop == null) return;
+            var gate = Observe(key, shop.ChestIsReady, now);
+            var item = (ShopItem)itemField.GetValue(shop);
+            if (own && gate.CanAttempt(now) && item != null && item.gameObject.activeSelf && !Busy(shop) && item.CanBuy())
+                candidates.Add(new Candidate { Gate = gate, Shop = shop, Item = item });
+        }
+        static void Remote(BongoCat.Multiplayer.OpenChestForMember button, List<Candidate> candidates, double now)
+        {
+            if (button == null || !button.gameObject.scene.IsValid()) return;
+            var target = (SteamUserData)targetField.GetValue(button);
+            if (target == null || target.Data.Equals(UserData.Me)) return;
+            BongoCat.Multiplayer.LobbyMemberInstance instance;
+            if (!BongoCat.Multiplayer.MultiplayerLobbyReferences.GameplayInstances.TryGetValue(target.Data, out instance) || instance == null) return;
+            var active = (BongoCat.Multiplayer.SetActiveBasedOnLobbyMemberValue)activeField.GetValue(button);
+            if (active == null) return;
+            var member = (SteamLobbyMemberData)memberField.GetValue(active);
+            if (member == null || !member.Data.lobby.Equals(LobbyData.Current)) return;
+            string metadataKey = (string)keyField.GetValue(active);
+            bool ready;
+            if (!bool.TryParse(member.Data[metadataKey], out ready)) return;
+            var gate = Observe("remote:" + member.Data.lobby.ToString() + ":" + target.Data.IdStr + ":" + metadataKey, ready, now);
+            // This rearms the game's UI lock only after a real not-ready observation.
+            if (!ready) { button.Reset(); return; }
+            if ((bool)clickedField.GetValue(button)) gate.Attempted = true;
+            var visual = (UnityEngine.GameObject)objectField.GetValue(active);
+            if (!others || !gate.CanAttempt(now) || instance.IsHidden || !button.isActiveAndEnabled || visual == null || !visual.activeInHierarchy) return;
+            Shop shop = (ChestType)typeField.GetValue(button) == ChestType.Emote ? Shop.EmoteShop : Shop.NormalShop;
+            if (shop == null) return;
+            var item = (ShopItem)itemField.GetValue(shop);
+            if (item != null && item.CanBuy()) candidates.Add(new Candidate { Gate = gate, Shop = shop, Item = item, Button = button });
+        }
+        internal static void Tick()
+        {
+            if (!armed && !pending) return;
+            double now = Now();
+            try
+            {
+                if (pending && now - requestedAt > 30) { unknown = true; Stop("result_unverified"); reason = "result_unverified"; }
+                if (!armed) return;
+                if (now >= lease) { Stop("app_disconnected"); return; }
+                RequireLegacyStopped(false);
+                bool pressed = Hotkey();
+                if (pressed && !hotkeyDown) { enabled = !enabled; nextAction = now + Delay(); }
+                hotkeyDown = pressed;
+                if (!enabled) { reason = "paused"; return; }
+                reason = pending ? "waiting_result" : "running";
+                if (now < nextObserve || pending || unknown) return;
+                nextObserve = now + .5;
+                var candidates = new List<Candidate>();
+                Own(Shop.NormalShop, "own:normal", candidates, now); Own(Shop.EmoteShop, "own:emote", candidates, now);
+                if (others && LobbyData.Current.IsValid)
+                {
+                    if (now >= nextScan) { buttons = UnityEngine.Resources.FindObjectsOfTypeAll<BongoCat.Multiplayer.OpenChestForMember>(); nextScan = now + 3; }
+                    foreach (var button in buttons) Remote(button, candidates, now);
+                }
+                if (now < nextAction || AnyBusy() || candidates.Count == 0) return;
+                var priority = candidates.Where(c => c.Button == null).ToList();
+                var pool = priority.Count > 0 ? priority : candidates;
+                var selected = pool[Random.Next(pool.Count)];
+                selected.Gate.Attempted = true; nextAction = now + Delay();
+                attempt = Guid.NewGuid().ToString("N"); attempted++;
+                WriteLedger("requested", attempt);
+                if (selected.Button != null)
+                {
+                    selected.Button.OnClicked();
+                    if ((bool)clickedField.GetValue(selected.Button)) remoteRequested++;
+                    else failed++;
+                    WriteLedger("remote_requested", attempt);
+                    return; // Submission never claims recipient delivery.
+                }
+                // Keep the original exchanger's token/retry behavior and exact original game result processing.
+                // Only initiation is adapted to receive a correlated callback without patching ShopItem.Callback.
+                var item = selected.Item;
+                var exchanger = (Steam.ChestExchanger)exchangerField.GetValue(item);
+                if (exchanger == null) throw new InvalidOperationException("chest_unavailable");
+                pending = true; requestedAt = now;
+                waitingField.SetValue(item, true); selected.Shop.SetLoadingVisuals();
+                bool seen = false;
+                exchanger.OpenChest(delegate(int itemId)
+                {
+                    if (seen) return;
+                    seen = true;
+                    try
+                    {
+                        item.Callback(itemId, true);
+                        if (itemId == -1) failed++; else confirmed++;
+                        pending = false; nextAction = Now() + Delay();
+                        WriteLedger(itemId == -1 ? "failed" : "confirmed", attempt);
+                    }
+                    catch { unknown = true; Stop("result_unverified"); reason = "result_unverified"; }
+                });
+            }
+            catch { unknown = true; Stop("chest_fault"); reason = "chest_fault"; }
         }
     }
 }

@@ -26,6 +26,7 @@ from .notifications import Notifications
 from .windows_notifications import Attention, WindowsToast, set_app_id
 from .localization import ENGLISH, LANGUAGES, resolve_language, translate
 from .auto_merge import AutoMerge, UnavailableGameUI
+from .auto_chest import AutoChest
 
 UI = Path(__file__).with_name("ui").resolve()
 LEGAL = Path(__file__).with_name('legal')
@@ -133,6 +134,8 @@ class Controller(QObject):
             merge_adapter = self.merge_connection
         self.merger = AutoMerge(merge_adapter if merge_adapter is not None and not read_only else
             UnavailableGameUI('read_only' if read_only else 'offline' if offline else 'adapter_unverified'))
+        self.chests = AutoChest(self.store, self.merge_connection,
+                               'read_only' if read_only else 'offline' if offline else 'adapter_unverified')
         self.opening_profile = False
         self.restart_supported = bool(install_root and (not offline or update_smoke)
                                       and os.environ.get(RESTART_CAPABILITY) == '1')
@@ -238,7 +241,15 @@ class Controller(QObject):
             result['update'] = self.updates.snapshot()
             result['update']['can_restart'] = self.can_restart()
             result['update']['merge_deferred'] = self.merger.blocks_restart
+            result['update']['chest_deferred'] = self.chests.blocks_restart
             result['auto_merge'] = self.merger.snapshot()
+            if self.chests.blocks_restart:
+                result['auto_merge']['can_start'] = False
+                result['auto_merge']['can_change_group'] = False
+            result['auto_chest'] = self.chests.snapshot()
+            result['auto_chest']['connection'] = self.merge_connection.connection_snapshot() if self.merge_connection else None
+            if self.merger.blocks_restart:
+                result['auto_chest']['can_start'] = False
             if self.merge_connection:
                 result['auto_merge']['connection'] = self.merge_connection.connection_snapshot()
             if self.closed or self.restarting:
@@ -249,14 +260,25 @@ class Controller(QObject):
             if args.get('language') != self.language:
                 result['translations'] = ENGLISH if self.language == 'en' else {}
             return result
-        if action == 'merge_connect':
+        if action in {'merge_connect', 'chest_connect'}:
             ok = bool(self.merge_connection and not self.closed and not self.restarting
-                      and not self.merger.blocks_restart and self.merge_connection.connect())
+                      and not self.merger.blocks_restart and not self.chests.blocks_restart and self.merge_connection.connect())
             if ok:
                 revision = self.merger.revision + 1
                 self.merger = AutoMerge(self.merge_connection)
                 self.merger.revision = revision
             return {'ok':ok}
+        if action in {'chest_save', 'chest_start', 'chest_stop'}:
+            if self.closed or self.restarting:
+                return {'ok': False}
+            if action == 'chest_save':
+                ok = self.chests.save(args.get('preferences'))
+            elif action == 'chest_start':
+                ok = not self.merger.blocks_restart and self.chests.start(args.get('replace_legacy', False))
+            else:
+                self.chests.stop()
+                ok = True
+            return {'ok': ok}
         if action in {'merge_start', 'merge_stop', 'merge_acknowledge', 'merge_maximum', 'merge_group'}:
             if self.closed or self.restarting:
                 return {'ok': False, 'auto_merge': self.merger.snapshot()}
@@ -264,9 +286,9 @@ class Controller(QObject):
                 limit = self.merger.maximum()
                 return {'ok': limit is not None, 'limit': limit, 'auto_merge': self.merger.snapshot()}
             if action == 'merge_group':
-                ok = self.merger.set_group(args.get('group'))
+                ok = not self.chests.blocks_restart and self.merger.set_group(args.get('group'))
             elif action == 'merge_start':
-                ok = self.merger.start(args.get('limit'))
+                ok = not self.chests.blocks_restart and self.merger.start(args.get('limit'))
             elif action == 'merge_stop':
                 self.merger.stop()
                 ok = True
@@ -342,6 +364,8 @@ class Controller(QObject):
         elif action == 'check_updates':
             self.updates.request()
         elif action == 'restart_update':
+            if self.chests.blocks_restart:
+                return {'ok': False, 'reason': 'auto_chest'}
             if self.merger.blocks_restart:
                 return {'ok': False, 'reason': 'auto_merge'}
             if not self.can_restart():
@@ -385,12 +409,14 @@ class Controller(QObject):
     def can_restart(self):
         return (self.restart_supported and not self.closed and self.updates.enabled
                 and not self.merger.blocks_restart
+                and not self.chests.blocks_restart
                 and self.updates.snapshot()['state'] == 'ready')
 
     def close(self):
         if self.closed:
             return
         self.closed = True
+        self.chests.close()
         self.merger.close()
         self.notifications.close()
         for dialog in list(self.legal_dialogs):

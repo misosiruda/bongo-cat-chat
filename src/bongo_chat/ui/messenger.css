@@ -365,3 +365,11 @@ dialog::backdrop { background: #090d1880; }
 .merge-connection button { flex-shrink:0; padding:10px 14px; border-radius:10px; border:1px solid var(--line); background:var(--paper); color:inherit; cursor:pointer; }
 .merge-connection button:disabled { opacity:.5; cursor:default; }
 @media (max-width:480px) { .merge-connection { align-items:stretch; flex-direction:column; gap:10px; } }
+.chest-delay-row { display:flex; gap:16px; margin-top:12px; }
+.chest-delay-row label { flex:1; min-width:0; flex-direction:column; align-items:flex-start; gap:6px; }
+.chest-delay-row input[type=number] { width:100%; height:40px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:inherit; }
+.chest-takeover { display:flex; gap:10px; align-items:flex-start; font-size:14px; line-height:1.7; margin:12px 0; }
+.chest-takeover[hidden] { display:none; }
+.chest-takeover input { flex-shrink:0; width:18px; height:18px; accent-color:var(--accent); margin-top:4px; }
+.chest-content > p { line-height:1.7; }
+.merge-sidebar + .merge-sidebar { margin-top:0; padding-top:0; }

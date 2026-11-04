@@ -19,6 +19,7 @@ class MergeConnection:
         self.connector = connector
         self.adapter = None
         self.state, self.error = 'disconnected', ''
+        self.revision = 0
         self.lock = threading.Lock()
         self.closed = False
         self.thread = None
@@ -26,6 +27,7 @@ class MergeConnection:
     def connection_snapshot(self):
         with self.lock:
             return dict(state=self.state, error=self.error,
+                        revision=self.revision,
                         can_connect=not self.closed and self.state != 'connecting')
 
     def connect(self):
@@ -33,6 +35,7 @@ class MergeConnection:
             if self.closed or self.state == 'connecting':
                 return False
             self.state, self.error = 'connecting', ''
+            self.revision += 1
             self.thread = threading.Thread(target=self._connect, name='merge-connect', daemon=True)
             self.thread.start()
         return True
@@ -87,6 +90,19 @@ class MergeConnection:
 
     def stop_selection(self):
         return self._call('stop_selection')
+
+    def chest_snapshot(self):
+        with self.lock:
+            adapter = self.adapter
+        return adapter.chest_snapshot() if adapter else None
+
+    def chest_start(self, preferences, replace_legacy=False):
+        return self._call('chest_start', preferences, replace_legacy)
+
+    def chest_stop(self):
+        with self.lock:
+            adapter = self.adapter
+        if adapter:adapter.chest_stop()
 
     def close(self):
         with self.lock:

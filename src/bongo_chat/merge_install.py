@@ -102,8 +102,8 @@ def check_prior_modules(reader):
 
 def game_profiles(contract):
     schema = contract['schema']
-    if schema not in (2, 3, 4):raise ValueError('unsupported_asset_schema')
-    profiles = contract['profiles'] if schema == 4 else [contract['files']]
+    if schema not in (2, 3, 4, 5):raise ValueError('unsupported_asset_schema')
+    profiles = contract['profiles'] if schema >= 4 else [contract['files']]
     if not isinstance(profiles, list) or not 1 <= len(profiles) <= 16:
         raise ValueError('invalid_game_profiles')
     allowed_profiles = []
@@ -119,7 +119,8 @@ def game_profiles(contract):
             if isinstance(digests, str):digests = [digests]
             elif schema == 2:raise ValueError('unsupported_hash_list')
             if (not isinstance(digests, list) or not 1 <= len(digests) <= 16
-                    or any(not isinstance(d, str) or not re.fullmatch('[0-9a-f]{64}', d) for d in digests)):
+                    or any(not (schema == 5 and name == 'BongoCat_Data/Managed/BongoAutoChest.dll' and d is None)
+                           and (not isinstance(d, str) or not re.fullmatch('[0-9a-f]{64}', d)) for d in digests)):
                 raise ValueError('invalid_game_hash')
             allowed[name] = digests
         allowed_profiles.append(allowed)
@@ -136,7 +137,10 @@ def validate_game_files(root, contract):
         try:
             observed[name] = hashlib.sha256((root/name).read_bytes()).hexdigest()
         except FileNotFoundError:
-            raise RuntimeError('merge_game_files_missing') from None
+            if any(None in profile[name] for profile in allowed_profiles):
+                observed[name] = None
+            else:
+                raise RuntimeError('merge_game_files_missing') from None
         except OSError:
             raise RuntimeError('merge_game_files_unreadable') from None
     # Accept an entire inspected installation, never a cross-build mixture.
@@ -150,7 +154,7 @@ def validate_assets(game, assets):
     try:
         contract = read_json(assets/'contract.json')
         schema = contract['schema']
-        if schema not in (2, 3, 4):raise ValueError('unsupported_asset_schema')
+        if schema not in (2, 3, 4, 5):raise ValueError('unsupported_asset_schema')
         for name,key in [('Bridge.cs','source_sha256'),('MergePrepare.exe','prepare_sha256'),('Mono.Cecil.dll','cecil_sha256')]:
             if hashlib.sha256((assets/name).read_bytes()).hexdigest() != contract[key]:
                 raise RuntimeError('bridge_binary_changed')
@@ -225,6 +229,8 @@ def connect():
             try:
                 raw = channel.snapshot()
                 if raw['reason'] == 'closed':raise RuntimeError('bridge_session_unavailable')
+                if raw.get('chest', {}).get('armed'):
+                    channel.request('chest_stop')  # Reconnect never adopts an earlier run's lease.
                 channel.request('snapshot')  # Read-only refresh; never begin/select/merge.
                 return InteractiveAdapter(channel=channel)
             except Exception:

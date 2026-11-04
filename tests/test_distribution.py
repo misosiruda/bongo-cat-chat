@@ -141,7 +141,7 @@ def test_packaged_merge_contract_matches_source_and_rejects_drift(tmp_path, monk
     monkeypatch.syspath_prepend(str(ROOT / 'tools'))
     module = tool('verify_review_bundle')
     expected = json.loads((ROOT / 'tools/merge_bridge/local-contract.json').read_text())
-    contract = {'schema': 4, 'profiles': expected['profiles']}
+    contract = {'schema': expected['schema'], 'profiles': expected['profiles']}
     for name, key in [('Bridge.cs', 'source_sha256'), ('MergePrepare.exe', 'prepare_sha256'), ('Mono.Cecil.dll', 'cecil_sha256')]:
         data = (ROOT / 'tools/merge_bridge/Bridge.cs').read_bytes() if name == 'Bridge.cs' else b'inert fixture'
         (tmp_path / name).write_bytes(data)

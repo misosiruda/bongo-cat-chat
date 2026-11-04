@@ -1,10 +1,12 @@
 # Bongo Cat Chat
 
+2026-11-04 `0.1.0.dev22` 소스는 **상자 자동 개봉**을 통합한다. 내 일반·감정표현 상자, 선택한 다른 사람 상자(기본 OFF), 1~300초 대기 범위, Ctrl+Alt+F9 일시 정지·재개와 앱 내 시작·중지를 제공한다. 기존 Auto Chest가 있으면 사용자의 전환 확인 후 이번 게임 수명 동안만 기존 처리기를 중지한다. 게임 설치 파일은 변경하지 않는다. 실제 개봉·포인트 소비 인수는 미수행이며 공개 상태는 최신 릴리스에서 확인한다. [사용법과 검증 범위](docs/auto-chest.md)를 참고한다.
+
 2026-11-02 `0.1.0.dev21` 소스는 게임 build **26364842** 업데이트 후 채팅·자동 합성 연결 차단을 수정한다. 새 기능 계약과 전체 파일 조합, DOTween 컴파일 참조를 검증한다. [설치 안내](docs/releases/0.1.0.dev21.md) · [원인·검증 범위](docs/game-update-2026-11-02.md). 공개 상태는 최신 릴리스에서 확인한다.
 
 2026-10-30 로컬 개발판은 사이드바 **아이템 자동 합성 → 게임에 연결**에서 바로 사용할 수 있다. 게임 탭을 열지 않고 앱에서 두 합성 그룹·가능 횟수·**최대값으로 설정**을 사용한다. 연결만으로 합성하지 않으며 사용자의 시작 후 매회 1회씩 원본 함수와 결과 확인을 반복한다. 실제 Qt 패널에서 연결·조회·재연결을 확인했고 이번 후속 작업의 추가 아이템 소비는 0회다. 10월 29일의 승인된 실제 시험 2회와 구분한다. [사용법·검증·빌드 제한](docs/item-auto-merge.md)을 참고한다. dev20은 노트북에서 확인한 Auto Chest 파일 조합의 연결 수정과 구체적인 오류 안내를 포함하며 게시 상태는 최신 릴리스에서 확인한다.
 
-**설치:** [dev21 Windows 설치 파일 다운로드](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev21/BongoCatChat-0.1.0.dev21-windows-x64-Setup.exe) · [다운로드·설치·첫 실행 안내 (한국어 / English)](docs/releases/0.1.0.dev21.md). 처음 설치한다면 Setup.exe 하나만 받으면 된다. Steam 로그인·게임 실행·게임 내 로비 참여 후 시작 메뉴에서 Bongo Cat Chat을 실행한다. 공개 최신 버전은 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 확인한다.
+**설치:** [dev22 Windows 설치 파일 다운로드](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev22/BongoCatChat-0.1.0.dev22-windows-x64-Setup.exe) · [다운로드·설치·첫 실행 안내 (한국어 / English)](docs/releases/0.1.0.dev22.md). 처음 설치한다면 Setup.exe 하나만 받으면 된다. Steam 로그인·게임 실행·게임 내 로비 참여 후 시작 메뉴에서 Bongo Cat Chat을 실행한다. 공개 최신 버전은 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 확인한다.
 
 2026-10-28 후속 소스는 **게임의 고양이 숨김과 채팅 차단을 분리**한다. 게임에서 숨긴 상대도 채팅에 표시하고, 참여자 목록 또는 **설정 → 채팅 차단**에서 Steam ID 기준으로 차단·해제한다. 같은 PC의 로그인 계정별로 저장해 로비 이동·재실행 후에도 유지한다. [사용 방법·저장 정책](docs/chat-blocking.md)을 참고한다. 아래 과거 버전의 숨김 동기화 설명은 당시 이력이며 현재 소스 정책은 D-031이 우선한다. 공개 설치본 배포와 실제 로비 인수는 별도다.
 

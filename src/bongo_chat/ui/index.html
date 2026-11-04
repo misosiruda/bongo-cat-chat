@@ -47,6 +47,13 @@
         <section class="room-section archived-section"><h2 class="section-label">보관한 대화</h2><div id="archived-rooms"></div></section>
       </nav>
       <div class="merge-sidebar">
+        <button type="button" class="merge-entry" id="chest-open" aria-label="상자 자동 개봉" aria-haspopup="dialog" aria-controls="chest-dialog">
+          <svg aria-hidden="true"><use href="#i-storage"/></svg>
+          <span class="merge-entry-copy"><strong>상자 자동 개봉</strong><span id="chest-sidebar-status">시작 전</span></span>
+        </button>
+        <button type="button" class="merge-quick-stop" id="chest-sidebar-stop" aria-label="상자 자동 개봉 중지" hidden><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
+      <div class="merge-sidebar">
         <button type="button" class="merge-entry" id="merge-open" aria-label="아이템 자동 합성" aria-haspopup="dialog" aria-controls="merge-dialog">
           <svg aria-hidden="true"><use href="#i-refresh"/></svg>
           <span class="merge-entry-copy"><strong>아이템 자동 합성</strong><span id="merge-sidebar-status">게임 연동 준비 중</span></span>
@@ -131,6 +138,29 @@
       <button type="button" class="merge-stop-button" id="merge-stop" disabled>중지</button>
       <button type="button" class="merge-start-button" id="merge-start" disabled>자동 합성 시작</button>
     </div>
+  </dialog>
+
+  <dialog class="merge-dialog" id="chest-dialog" aria-labelledby="chest-title">
+    <div class="dialog-heading"><h2 id="chest-title">상자 자동 개봉</h2><form method="dialog"><button class="icon-button" aria-label="상자 자동 개봉 패널 닫기" autofocus><svg aria-hidden="true"><use href="#i-close"/></svg></button></form></div>
+    <div class="merge-content chest-content">
+      <p>내 일반·감정표현 상자와 선택한 로비 상자를 게임의 기존 기능으로 개봉합니다.</p>
+      <div class="merge-connection"><div><strong id="chest-connection-title">게임 연결</strong><p id="chest-connection-message">연결만으로 개봉하지 않습니다. 설정을 저장한 뒤 시작해 주세요.</p></div><button type="button" id="chest-connect">게임에 연결</button></div>
+      <div class="merge-state-card" role="status" aria-live="polite"><strong id="chest-state">시작 전</strong><p id="chest-reason"></p></div>
+      <fieldset id="chest-options" class="reaction-panel"><legend>개봉할 상자</legend>
+        <label><input type="checkbox" id="chest-own" checked> 내 상자 자동 개봉</label>
+        <label><input type="checkbox" id="chest-others"> 다른 사람의 상자도 개봉</label>
+        <p class="settings-note">다른 사람의 상자는 내 포인트를 소비합니다. 현재 로비에서 보이는 상자만 대상으로 하며 숨긴 고양이는 제외합니다.</p>
+        <div class="chest-delay-row"><label for="chest-min">최소 대기 (초)<input id="chest-min" type="number" min="1" max="300" step="0.1" value="3" required></label><label for="chest-max">최대 대기 (초)<input id="chest-max" type="number" min="1" max="300" step="0.1" value="8" required></label></div>
+        <p class="settings-note">발견 후 대기와 개봉 사이 대기에 같은 범위를 사용합니다. 두 대기는 겹쳐 진행하며 더하지 않습니다. 내 상자를 우선합니다.</p>
+      </fieldset>
+      <button type="button" class="page-button" id="chest-save">설정 저장</button><p class="settings-note" id="chest-save-status" role="status"></p>
+      <label class="chest-takeover" id="chest-takeover-row" hidden><input type="checkbox" id="chest-takeover"> 기존 도우미의 자동 개봉을 이번 게임 실행 동안 중지하고 전환합니다.</label>
+      <p class="settings-note" id="chest-takeover-help" hidden>기존 설정·패치·백업 파일은 보존합니다. 게임을 다시 실행하면 기존 도우미가 다시 동작할 수 있습니다.</p>
+      <dl class="merge-facts"><div><dt>내 상자 확인된 완료</dt><dd id="chest-confirmed">0</dd></div><div><dt>다른 사람 상자 요청</dt><dd id="chest-remote">0</dd></div><div><dt>결과 대기</dt><dd id="chest-pending">0</dd></div></dl>
+      <p class="settings-note">다른 사람 상자의 요청 수는 상대방의 보상 수령 확인이 아닙니다. 결과를 확인하지 못한 내 상자는 자동 재시도하지 않습니다.</p>
+      <p class="settings-note">Ctrl+Alt+F9로 실행 중 일시 정지·재개합니다. 패널을 닫아도 계속 실행하며, 중지는 새 요청을 막습니다. 앱 종료·연결 끊김에는 자동 중지하고 다음 실행에 자동으로 시작하지 않습니다. 자동 합성과는 한 번에 하나만 실행합니다.</p>
+    </div>
+    <div class="merge-footer"><button type="button" class="merge-stop-button" id="chest-stop" disabled>중지</button><button type="button" class="merge-start-button" id="chest-start" disabled>자동 개봉 시작</button></div>
   </dialog>
 
   <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">

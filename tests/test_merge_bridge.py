@@ -21,7 +21,7 @@ def raw_snapshot():
 
 
 class FileServer:
-    def __init__(self,path,interactive=False):
+    def __init__(self,path,interactive=False,chest=False):
         self.path=path;self.state=raw_snapshot();self.requests=[];self.seen=set();self.pending=None
         self.stopping=threading.Event()
         helper=b'synthetic helper, never loaded'
@@ -31,6 +31,11 @@ class FileServer:
         if interactive:
             config.update(mode='interactive',test_budget=0)
             self.state.update(mode='interactive',test_budget=0,run_attempt='',command_sequence=0)
+        if chest:
+            self.state['chest'] = dict(supported=True, armed=False, enabled=False, pending=False,
+                unknown=False, reason='ready', legacy_detected=True, legacy_taken_over=False,
+                attempted=0, own_confirmed=0, failed=0, remote_requested=0,
+                own=True, others=False, min_delay=3.0, max_delay=8.0)
         (path/'session.json').write_text(json.dumps(config))
         self.publish()
         self.thread=threading.Thread(target=self.run,daemon=True);self.thread.start()
@@ -76,6 +81,11 @@ class FileServer:
                         self.state.update(selected_units=0,exchanges=0,selection='')
                         if self.state.get('mode')=='interactive':
                             self.state.update(run_attempt='',test_budget=self.state['spent'])
+                    elif r['op']=='chest_start':
+                        assert r['replace_legacy'] or self.state['chest']['legacy_taken_over']
+                        self.state['chest'].update(r['chest_settings'],armed=True,enabled=True,reason='running',legacy_taken_over=True)
+                    elif r['op']=='chest_stop':
+                        self.state['chest'].update(armed=False,enabled=False,reason='user_stopped')
                     self.publish()
                     self.write('response.json',dict(id=r['id'],epoch=r['epoch'],ok=True))
                 else:self.publish()
