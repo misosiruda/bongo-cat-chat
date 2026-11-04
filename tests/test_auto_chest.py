@@ -179,3 +179,33 @@ def test_known_start_refusal_is_visible_without_automatic_retry_or_permanent_loc
         until(lambda:server.state['chest']['armed'] and not adapter.busy)
         assert [r['op'] for r in server.requests].count('chest_start')==1
     finally:adapter.close();server.close()
+
+
+def test_takeover_consent_expires_on_shared_connection_reconnect(qt_chat,tmp_path):
+    app,controller,page=qt_chat
+    server,manager=attach(controller,tmp_path)
+    try:
+        js(app,page,"document.querySelector('#chest-open').click()")
+        assert controller.dispatch({'action':'chest_connect'})['ok']
+        wait_until(app,lambda:controller.chests.snapshot()['fresh'])
+        wait_until(app,lambda:js(app,page,"!document.querySelector('#chest-takeover-row').hidden"))
+        js(app,page,"document.querySelector('#chest-takeover').click()")
+        wait_until(app,lambda:js(app,page,"!document.querySelector('#chest-start').disabled"))
+        js(app,page,"document.querySelector('#chest-start').click()")
+        wait_until(app,lambda:server.state['chest']['armed'] and not manager.adapter.busy)
+        controller.dispatch({'action':'chest_stop'})
+        wait_until(app,lambda:not controller.chests.blocks_restart and not manager.adapter.busy)
+        assert js(app,page,"document.querySelector('#chest-takeover').checked")
+        # Synthetic replacement game lifetime, without restarting the messenger.
+        server.state['chest'].update(legacy_taken_over=False,reason='ready')
+        server.publish()
+        previous=manager.connection_snapshot()['revision']
+        # The other automation panel can also replace this shared connection.
+        assert controller.dispatch({'action':'merge_connect'})['ok']
+        wait_until(app,lambda:manager.connection_snapshot()['state']=='connected' and controller.chests.snapshot()['fresh'])
+        assert manager.connection_snapshot()['revision']==previous+1
+        wait_until(app,lambda:js(app,page,"!document.querySelector('#chest-takeover').checked && !document.querySelector('#chest-takeover-row').hidden"))
+        assert js(app,page,"document.querySelector('#chest-start').disabled")
+        assert [r['op'] for r in server.requests].count('chest_start')==1
+        assert not any(r['op'] in {'select','merge'} for r in server.requests)
+    finally:manager.close();server.close()

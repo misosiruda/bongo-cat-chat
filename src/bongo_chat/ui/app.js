@@ -53,6 +53,7 @@
   let mergeRevision = -1, mergeBusy = false, mergeState = null;
   let mergeInputGroup = '';
   let chestState = null, chestBusy = false, chestDirty = false, chestLoaded = false;
+  let chestConnectionRevision = null;
   let start = null, seenSeq = null, loadingHistory = false, restoring = false;
   let seenVolatile = new Set(), searchPosition = null, pendingPosition = {bottom:true};
   const positions = new Map();
@@ -736,6 +737,13 @@
   function renderChest(value) {
     if (!value) return;
     chestState = value;
+    const connectionRevision = value.connection?.revision ?? null;
+    if (chestConnectionRevision !== connectionRevision) {
+      // Both panels share this connection. Never carry takeover consent into a reconnect,
+      // even if its intermediate "connecting" view finished between renderer polls.
+      $('chest-takeover').checked = false;
+      chestConnectionRevision = connectionRevision;
+    }
     if (!chestLoaded || !chestDirty && !chestBusy) {
       const prefs = value.preferences;
       if (prefs) {
