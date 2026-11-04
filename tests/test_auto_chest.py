@@ -102,10 +102,9 @@ def test_real_renderer_save_connect_takeover_start_stop_and_language(qt_chat,tmp
 def test_heartbeat_only_follows_this_clients_explicit_start_and_close_stops(tmp_path):
     server=FileServer(tmp_path,interactive=True,chest=True)
     server.state['chest'].update(armed=True,enabled=True,reason='running')
-    server.publish()
     adapter=InteractiveAdapter(channel=BridgeChannel(tmp_path,verify_target=lambda config:None))
     try:
-        until(lambda:adapter.chest_snapshot() is not None)
+        until(lambda:adapter.chest_snapshot() is not None and adapter.chest_snapshot()['armed'])
         time.sleep(.9)
         assert not server.requests  # No adoption of an earlier run.
         adapter.chest_stop()
@@ -198,7 +197,9 @@ def test_takeover_consent_expires_on_shared_connection_reconnect(qt_chat,tmp_pat
         assert js(app,page,"document.querySelector('#chest-takeover').checked")
         # Synthetic replacement game lifetime, without restarting the messenger.
         server.state['chest'].update(legacy_taken_over=False,reason='ready')
-        server.publish()
+        # The background server is the only snapshot writer. A test-side publish
+        # would race its shared .tmp path and Windows readers' delete-sharing window.
+        wait_until(app,lambda:not manager.chest_snapshot()['legacy_taken_over'])
         previous=manager.connection_snapshot()['revision']
         # The other automation panel can also replace this shared connection.
         assert controller.dispatch({'action':'merge_connect'})['ok']
