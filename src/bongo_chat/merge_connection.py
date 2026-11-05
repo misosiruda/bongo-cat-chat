@@ -91,6 +91,11 @@ class MergeConnection:
     def stop_selection(self):
         return self._call('stop_selection')
 
+    def cancel_pending(self):
+        with self.lock:
+            adapter = self.adapter
+        if adapter:adapter.cancel_pending()
+
     def chest_snapshot(self):
         with self.lock:
             adapter = self.adapter

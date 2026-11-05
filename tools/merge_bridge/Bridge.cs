@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Runtime.InteropServices;
 using BongoCat;
 using Heathen.SteamworksIntegration;
@@ -29,7 +30,8 @@ namespace BongoCatChat.MergeBridge
         static string lastRequest = "";
         static string directory, epoch, token, group = "cosmetics", owned = "", selectionAttempt = "", pending = "", error = "";
         static int maxRequests, spent, completed, mainThread, generation;
-        static bool installed, stopped, unknown, callbackSeen, callbackFailed, originalCallbackFailed;
+        static bool installed, unknown, callbackSeen, callbackFailed, originalCallbackFailed;
+        static volatile bool stopped;
         static bool interactive;
         static string runAttempt = "";
         static long commandSequence;
@@ -39,6 +41,11 @@ namespace BongoCatChat.MergeBridge
         static IList renderCallbacks;
         static object renderBlock;
         static UnityAction renderAction;
+        static SynchronizationContext mainContext;
+        static Timer mainPump;
+        static int tickQueued;
+        static string heartbeatRun = "";
+        static long heartbeatSequence;
         static JObject lastReceipt;
         static FieldInfo slotsField, busyField, countField, categoryField, recipesField, handlesField;
         static MethodInfo duplicatesMethod;
@@ -47,15 +54,22 @@ namespace BongoCatChat.MergeBridge
         [DllImport("kernel32.dll")] static extern bool GetProcessTimes(IntPtr process, out long created, out long exited, out long kernel, out long user);
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         static extern bool MoveFileEx(string from, string to, uint flags);
+        [DllImport("kernel32.dll", EntryPoint = "ReplaceFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern bool ReplaceFile(string target, string replacement, string backup, uint flags, IntPtr exclude, IntPtr reserved);
         static Stopwatch NewClock() { var clock = new Stopwatch(); clock.Start(); return clock; }
         static long StartTicks() { long c, e, k, u; if (!GetProcessTimes(GetCurrentProcess(), out c, out e, out k, out u)) throw new InvalidOperationException("process_unverified"); return c + 504911232000000000L; }
 
         static JObject ReadJson(string path)
         {
             using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                if (stream.Length > 4096) throw new InvalidOperationException("oversized_request");
-            using (var reader = new JsonTextReader(new StringReader(File.ReadAllText(path))))
-                return JObject.Load(reader, null);
+            {
+                var bytes = new byte[4097];
+                int count = 0, read;
+                while (count < bytes.Length && (read = stream.Read(bytes, count, bytes.Length - count)) > 0) count += read;
+                if (count > 4096) throw new InvalidOperationException("oversized_request");
+                using (var reader = new JsonTextReader(new StringReader(Encoding.UTF8.GetString(bytes, 0, count).TrimStart('\uFEFF'))))
+                    return JObject.Load(reader, null);
+            }
         }
         internal static JObject Object(params object[] pairs)
         {
@@ -83,7 +97,11 @@ namespace BongoCatChat.MergeBridge
         {
             string target = Path.Combine(directory, name), tmp = target + ".tmp";
             File.WriteAllText(tmp, value.ToString(Formatting.None));
-            if (!MoveFileEx(tmp, target, 9)) throw new IOException("atomic_write_failed");
+            // Repeatable observations/replies use ReplaceFile's compatible share
+            // mode. Keep consumption ledgers on their existing publication path.
+            bool published = (name == "snapshot.json" || name == "response.json") && File.Exists(target)
+                ? ReplaceFile(target, tmp, null, 0, IntPtr.Zero, IntPtr.Zero) : MoveFileEx(tmp, target, 9);
+            if (!published) throw new IOException("atomic_write_failed");
         }
 
         // Executed on an attached Mono worker. Only managed file/reflection/list APIs here.
@@ -122,21 +140,55 @@ namespace BongoCatChat.MergeBridge
             var blockType = helper.GetNestedType("OrderBlock", BindingFlags.NonPublic | BindingFlags.Public);
             renderBlock = Activator.CreateInstance(blockType);
             Field(blockType, "order").SetValue(renderBlock, int.MaxValue);
-            renderAction = Tick;
+            renderAction = BootstrapMainLoop;
             Field(blockType, "callback").SetValue(renderBlock, renderAction);
             installed = true;
             lastCommand = Clock.ElapsedMilliseconds;
             lock (renderCallbacks) renderCallbacks.Add(renderBlock);
         }
 
+        static void BootstrapMainLoop()
+        {
+            if (stopped || mainPump != null) return;
+            var context = SynchronizationContext.Current;
+            if (context == null || context.GetType().FullName != "UnityEngine.UnitySynchronizationContext") return;
+            mainThread = Thread.CurrentThread.ManagedThreadId;
+            mainContext = context;
+            // Rendering is used only once to acquire Unity's main-thread context.
+            // Timer callbacks enqueue work; they never call a game or Unity API.
+            mainPump = new Timer(QueueTick, null, 50, 50);
+            lock (renderCallbacks) renderCallbacks.Remove(renderBlock);
+        }
+        static void QueueTick(object unused)
+        {
+            if (stopped || Interlocked.CompareExchange(ref tickQueued, 1, 0) != 0) return;
+            try { mainContext.Post(RunQueuedTick, null); }
+            catch { Interlocked.Exchange(ref tickQueued, 0); }
+        }
+        static void RunQueuedTick(object unused)
+        {
+            try { Tick(); }
+            finally { Interlocked.Exchange(ref tickQueued, 0); }
+        }
+
+        sealed class GameNotReady : InvalidOperationException
+        {
+            internal GameNotReady(string reason) : base(reason) { }
+        }
+        static void RequireAccount()
+        {
+            ulong current = SteamUser.GetSteamID().m_SteamID;
+            if (current == 0) throw new GameNotReady("game_unavailable");
+            if (account != 0 && current != account) throw new InvalidOperationException("account_changed");
+            if (account == 0) account = current;
+        }
         static ItemExchange RequireGame()
         {
+            RequireAccount();
             var x = ItemExchange.Instance;
-            if (x == null || CatInventory.Instance == null || !CatInventory.Instance.IsInitialized || CatInventory.Instance.FetchingItems)
-                throw new InvalidOperationException("game_unavailable");
-            ulong current = SteamUser.GetSteamID().m_SteamID;
-            if (current == 0 || account != 0 && current != account) throw new InvalidOperationException("account_changed");
-            if (account == 0) account = current;
+            if (x == null || CatInventory.Instance == null) throw new GameNotReady("game_unavailable");
+            if (!CatInventory.Instance.IsInitialized || CatInventory.Instance.FetchingItems)
+                throw new GameNotReady("inventory_refreshing");
             return x;
         }
         static void RequireIdle(ItemExchange x)
@@ -176,7 +228,7 @@ namespace BongoCatChat.MergeBridge
             }
             long units = Units(x);
             bool ready = !stopped && !unknown && !x.IsVisible && error == "";
-            long? available = !busy && pending == "" && units == 0 ? (long?)Available(x) : null;
+            long? available = !ChestRuntime.BlocksMerge && !busy && pending == "" && units == 0 ? (long?)Available(x) : null;
             var result = Object("protocol", Protocol, "epoch", epoch, "pid", GetCurrentProcessId(),
                 "captured_utc_ms", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "generation", ++generation,
                 "main_thread", mainThread, "group", group, "ready", ready,
@@ -192,6 +244,21 @@ namespace BongoCatChat.MergeBridge
                 "receipt", lastReceipt == null ? (JToken)JValue.CreateNull() : lastReceipt);
             result["chest"] = ChestRuntime.Snapshot();
             return result;
+        }
+        static JObject UnavailableSnapshot(string reason)
+        {
+            // Transport liveness must not depend on a complete inventory read.
+            // Unknown inventory fields cannot authorize selection or consumption.
+            return Object("protocol", Protocol, "epoch", epoch, "pid", GetCurrentProcessId(),
+                "captured_utc_ms", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "generation", ++generation,
+                "main_thread", mainThread, "group", group, "ready", false, "reason", reason,
+                "favorites_allowed", null, "events_excluded", null, "selected_units", 0, "exchanges", 0,
+                "selection", "", "selection_attempt", selectionAttempt, "can_select", null,
+                "exchanging", pending != "", "available_exchanges", null, "available_group", group,
+                "pending_attempt", pending, "spent", spent, "test_budget", maxRequests,
+                "mode", interactive ? "interactive" : "test", "run_attempt", runAttempt,
+                "command_sequence", commandSequence, "per_request_limit", PerRequest,
+                "confirmed_completed", completed, "receipt", null, "chest", ChestRuntime.Snapshot());
         }
         static void Select(ItemExchange x, string id)
         {
@@ -266,7 +333,7 @@ namespace BongoCatChat.MergeBridge
             {
                 if (!interactive && Replies.Count >= 512) throw new InvalidOperationException("session_capacity");
                 double age = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - (double)request["issued_utc_ms"];
-                if (age < -1000 || age > 3000) throw new InvalidOperationException("request_expired");
+                if (age < -1000 || age > 3000) throw new GameNotReady("connection_recovering");
                 if (interactive)
                 {
                     long sequence = (long?)request["sequence"] ?? 0;
@@ -274,57 +341,76 @@ namespace BongoCatChat.MergeBridge
                     commandSequence = sequence;
                 }
                 string op = (string)request["op"];
-                var x = RequireGame(); lastCommand = Clock.ElapsedMilliseconds; error = "";
-                if (op == "select" || op == "merge" || op == "begin")
+                string operationId = (string)request["operation_id"] ?? id;
+                if (!Guid.TryParseExact(operationId, "N", out parsed)) throw new InvalidOperationException("invalid_operation_id");
+                // Stop and heartbeat do not need the inventory. A heartbeat can
+                // renew only the exact run owned by this app, never a stopped run.
+                if (op != "chest_stop") RequireAccount();
+                if (op == "chest_stop") { ChestRuntime.Stop("user_stopped"); reply["ok"] = new JValue(true); }
+                else if (op == "chest_heartbeat")
                 {
-                    if ((string)request["expected_group"] != group) throw new InvalidOperationException("group_changed");
-                    if ((bool?)request["favorites_allowed"] != FavoriteOption(x) || (bool?)request["events_excluded"] != EventOption(x))
-                        throw new InvalidOperationException("settings_changed");
-                    if (interactive && op != "begin" && (runAttempt == "" || (string)request["run_attempt"] != runAttempt))
+                    if ((string)request["chest_run_attempt"] != ChestRuntime.RunAttempt)
                         throw new InvalidOperationException("run_not_authorized");
+                    ChestRuntime.Heartbeat(); reply["ok"] = new JValue(true);
                 }
-                if (op == "snapshot") { }
-                else if (op == "chest_start")
+                else
                 {
-                    RequireIdle(x);
-                    if (!interactive || Units(x) != 0) throw new InvalidOperationException("run_not_authorized");
-                    runAttempt = ""; maxRequests = spent;
-                    ChestRuntime.Start(directory, request, id);
+                    var x = op == "snapshot" ? null : RequireGame(); lastCommand = Clock.ElapsedMilliseconds; error = "";
+                    if (op == "select" || op == "merge" || op == "begin")
+                    {
+                        if ((string)request["expected_group"] != group) throw new InvalidOperationException("group_changed");
+                        if ((bool?)request["favorites_allowed"] != FavoriteOption(x) || (bool?)request["events_excluded"] != EventOption(x))
+                            throw new InvalidOperationException("settings_changed");
+                        if (interactive && op != "begin" && (runAttempt == "" || (string)request["run_attempt"] != runAttempt))
+                            throw new InvalidOperationException("run_not_authorized");
+                    }
+                    if (op == "snapshot") { }
+                    else if (op == "chest_start")
+                    {
+                        RequireIdle(x);
+                        if (!interactive || Units(x) != 0) throw new InvalidOperationException("run_not_authorized");
+                        runAttempt = ""; maxRequests = spent;
+                        ChestRuntime.Start(directory, request, operationId);
+                    }
+                    else if (op == "begin")
+                    {
+                        RequireIdle(x);
+                        if (!interactive || Units(x) != 0) throw new InvalidOperationException("run_not_authorized");
+                        int count = (int?)request["limit"] ?? 0;
+                        if (count < 1 || count > int.MaxValue - spent) throw new InvalidOperationException("invalid_limit");
+                        Atomic("authorization.json", Object("epoch", epoch, "run_attempt", operationId, "spent", spent, "authorized_total", spent + count));
+                        runAttempt = operationId; maxRequests = spent + count; lastReceipt = null;
+                    }
+                    else if (op == "group")
+                    {
+                        RequireIdle(x);
+                        if (Units(x) != 0) throw new InvalidOperationException("existing_selection");
+                        string next = (string)request["group"];
+                        if (next != "cosmetics" && next != "emotes") throw new InvalidOperationException("invalid_group");
+                        group = next; selectionAttempt = ""; lastReceipt = null;
+                        if (interactive) { runAttempt = ""; maxRequests = spent; }
+                    }
+                    else if (op == "select") Select(x, operationId);
+                    else if (op == "merge") Merge(x, request, operationId);
+                    else if (op == "stop")
+                    {
+                        ClearOwned(x);
+                        if (interactive) { runAttempt = ""; maxRequests = spent; }
+                    }
+                    else if (op == "shutdown")
+                    {
+                        if (pending != "" || Busy(x) || ChestRuntime.BlocksMerge) throw new InvalidOperationException("exchange_pending");
+                        ClearOwned(x); stopped = true;
+                    }
+                    else throw new InvalidOperationException("unsupported_operation");
+                    reply["ok"] = new JValue(true);
                 }
-                else if (op == "chest_stop") ChestRuntime.Stop("user_stopped");
-                else if (op == "chest_heartbeat") ChestRuntime.Heartbeat();
-                else if (op == "begin")
-                {
-                    RequireIdle(x);
-                    if (!interactive || Units(x) != 0) throw new InvalidOperationException("run_not_authorized");
-                    int count = (int?)request["limit"] ?? 0;
-                    if (count < 1 || count > int.MaxValue - spent) throw new InvalidOperationException("invalid_limit");
-                    Atomic("authorization.json", Object("epoch", epoch, "run_attempt", id, "spent", spent, "authorized_total", spent + count));
-                    runAttempt = id; maxRequests = spent + count; lastReceipt = null;
-                }
-                else if (op == "group")
-                {
-                    RequireIdle(x);
-                    if (Units(x) != 0) throw new InvalidOperationException("existing_selection");
-                    string next = (string)request["group"];
-                    if (next != "cosmetics" && next != "emotes") throw new InvalidOperationException("invalid_group");
-                    group = next; selectionAttempt = ""; lastReceipt = null;
-                    if (interactive) { runAttempt = ""; maxRequests = spent; }
-                }
-                else if (op == "select") Select(x, id);
-                else if (op == "merge") Merge(x, request, id);
-                else if (op == "stop")
-                {
-                    ClearOwned(x);
-                    if (interactive) { runAttempt = ""; maxRequests = spent; }
-                }
-                else if (op == "shutdown")
-                {
-                    if (pending != "" || Busy(x) || ChestRuntime.BlocksMerge) throw new InvalidOperationException("exchange_pending");
-                    ClearOwned(x); stopped = true;
-                }
-                else throw new InvalidOperationException("unsupported_operation");
-                reply["ok"] = new JValue(true);
+            }
+            catch (GameNotReady e)
+            {
+                // Positive acknowledgement that nothing was dispatched. The app
+                // may retry with a NEW transport id and the same operation id.
+                reply["reason"] = new JValue(e.Message); reply["deferred"] = new JValue(true);
             }
             catch (Exception e) { error = e is InvalidOperationException ? e.Message : "game_exception"; reply["reason"] = new JValue(error); }
             // Interactive sessions use a monotonic sequence to reject old commands,
@@ -345,31 +431,61 @@ namespace BongoCatChat.MergeBridge
             long now = Clock.ElapsedMilliseconds;
             if (now < nextPoll) return;
             nextPoll = now + 50;
+            // Independent mailbox: no acknowledgement wait and no command queue
+            // contention can delay the owning app's heartbeat.
+            try { ReadHeartbeat(); } catch { }
+            // A sharing conflict is a transport failure, not a game-state failure.
+            try { Handle(); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            catch { error = "bridge_observation_failed"; }
+            string unavailable = "";
             try
             {
-                Handle();
-                // Dispatch only while the app maintains a live lease. No reconnect or hotkey can arm a run.
                 RequireGame();
                 // Inventory refresh/read failures are observations, not a permanent
                 // connection fault. Clear only this transient error after the game
                 // validates again; retain command errors and unknown results.
                 if (error == "bridge_observation_failed") error = "";
                 ChestRuntime.Tick();
-                if (pending == "" && owned != "" && now - lastCommand > 15000) ClearOwned(RequireGame());
+                if ((!interactive || runAttempt == "") && pending == "" && owned != "" && now - lastCommand > 15000) ClearOwned(RequireGame());
             }
-            catch { error = "bridge_observation_failed"; ChestRuntime.Stop("game_unavailable"); }
+            catch (GameNotReady e) { unavailable = e.Message; ChestRuntime.Tick(false); }
+            catch (InvalidOperationException e)
+            {
+                if (e.Message == "account_changed") { error = "target_changed"; ChestRuntime.Stop("game_unavailable"); }
+                else { unavailable = "bridge_observation_failed"; ChestRuntime.Tick(false); }
+            }
+            catch { unavailable = "bridge_observation_failed"; ChestRuntime.Tick(false); }
             if (now >= nextSnapshot || stopped)
             {
                 nextSnapshot = now + 250;
                 // A transient reader sharing conflict must not poison a later
                 // valid observation. The client's source timestamp still expires.
-                try { Atomic("snapshot.json", Snapshot()); } catch { }
+                JObject snapshot;
+                try { snapshot = unavailable == "" ? Snapshot() : UnavailableSnapshot(unavailable); }
+                catch { snapshot = UnavailableSnapshot(error == "target_changed" ? error : "bridge_observation_failed"); }
+                try { Atomic("snapshot.json", snapshot); } catch { }
             }
             if (stopped)
             {
+                if (mainPump != null) mainPump.Dispose();
                 // Removing the last callback while Invoke owns this list is safe under its monitor.
                 lock (renderCallbacks) renderCallbacks.Remove(renderBlock);
             }
+        }
+        static void ReadHeartbeat()
+        {
+            string path = Path.Combine(directory, "heartbeat.json");
+            if (!File.Exists(path)) return;
+            var value = ReadJson(path);
+            string run = (string)value["chest_run_attempt"];
+            if ((string)value["epoch"] != epoch || (string)value["token"] != token ||
+                string.IsNullOrEmpty(run) || run != ChestRuntime.RunAttempt) return;
+            double age = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - (double)value["issued_utc_ms"];
+            long sequence = (long)value["sequence"];
+            if (age < 0 || age > 1500 || sequence < 1 || run == heartbeatRun && sequence <= heartbeatSequence) return;
+            RequireAccount();
+            heartbeatRun = run; heartbeatSequence = sequence;
+            ChestRuntime.Heartbeat(age / 1000);
         }
     }
 }
@@ -490,11 +606,13 @@ namespace BongoCatChat.MergeBridge
             fault.SetValue(null, true); enable.SetValue(null, false); takenOver = true;
         }
         internal static bool BlocksMerge { get { return armed || pending || unknown; } }
+        internal static string RunAttempt { get; private set; }
         internal static JObject Snapshot()
         {
             Initialize();
             return Bridge.Object("supported", supported, "armed", armed, "enabled", enabled,
                 "pending", pending, "unknown", unknown, "reason", reason,
+                "run_attempt", RunAttempt ?? "",
                 "legacy_detected", legacy != null, "legacy_taken_over", takenOver,
                 "attempted", attempted, "own_confirmed", confirmed,
                 "failed", failed, "remote_requested", remoteRequested,
@@ -522,17 +640,18 @@ namespace BongoCatChat.MergeBridge
             own = nextOwn; others = nextOthers; minDelay = lo; maxDelay = hi;
             // Durable evidence is written before arming, and before every consuming request.
             WriteLedger("armed", id);
+            RunAttempt = id;
             lease = Now() + 3; nextAction = Now() + Delay();
             hotkeyDown = Hotkey();
             armed = enabled = true; reason = "running";
         }
-        internal static void Heartbeat()
+        internal static void Heartbeat(double sourceAge = 0)
         {
             if (!armed) return;
             double now = Now();
-            // Handle runs before Tick. A delayed heartbeat must never revive an expired lease.
-            if (now >= lease) { Stop("app_disconnected"); return; }
-            lease = now + 3;
+            // Lease expiry suspends dispatch. Only this still-authorized run's
+            // owning app can renew it; Stop and unknown results remain terminal.
+            lease = now + 3 - sourceAge;
         }
         internal static void Stop(string why) { armed = enabled = false; if (!unknown) reason = why; }
         static void WriteLedger(string state, string id)
@@ -588,7 +707,7 @@ namespace BongoCatChat.MergeBridge
             var item = (ShopItem)itemField.GetValue(shop);
             if (item != null && item.CanBuy()) candidates.Add(new Candidate { Gate = gate, Shop = shop, Item = item, Button = button });
         }
-        internal static void Tick()
+        internal static void Tick(bool gameReady = true)
         {
             if (!armed && !pending) return;
             double now = Now();
@@ -596,7 +715,8 @@ namespace BongoCatChat.MergeBridge
             {
                 if (pending && now - requestedAt > 30) { unknown = true; Stop("result_unverified"); reason = "result_unverified"; }
                 if (!armed) return;
-                if (now >= lease) { Stop("app_disconnected"); return; }
+                if (now >= lease) { reason = "connection_recovering"; return; }
+                if (!gameReady) { reason = "inventory_refreshing"; return; }
                 RequireLegacyStopped(false);
                 bool pressed = Hotkey();
                 if (pressed && !hotkeyDown) { enabled = !enabled; nextAction = now + Delay(); }

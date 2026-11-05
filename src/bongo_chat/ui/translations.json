@@ -402,5 +402,9 @@
   "자동 시작을 위해 게임에 연결하고 있습니다.": "Connecting to the game for automatic startup.",
   "자동 시작 전에 게임 상태를 확인하고 있습니다.": "Checking the game state before starting automatically.",
   "자동 시작 설정은 다음 앱 실행부터 적용됩니다.": "The automatic startup setting applies from the next app launch.",
-  "게임 상태가 일시적으로 변경되어 자동 개봉을 중지했습니다. 게임 연결이 회복되면 직접 다시 시작해 주세요.": "Chest opening stopped after a temporary game state change. Start it again yourself once the game connection recovers."
+  "게임 상태가 일시적으로 변경되어 자동 개봉을 중지했습니다. 게임 연결이 회복되면 직접 다시 시작해 주세요.": "Chest opening stopped after a temporary game state change. Start it again yourself once the game connection recovers.",
+  "연결 복구 대기 중": "Waiting for connection recovery",
+  "인벤토리 갱신 대기 중": "Waiting for inventory refresh",
+  "인벤토리 갱신이 끝나면 기존 실행을 이어갑니다.": "The current run will continue after the inventory refresh.",
+  "연결을 자동으로 복구하고 있습니다. 복구 후 남은 작업을 이어갑니다.": "Recovering the connection automatically. Remaining work will continue once it recovers."
 }

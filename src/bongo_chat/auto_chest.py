@@ -13,7 +13,7 @@ BOOL_FIELDS = ('supported', 'armed', 'enabled', 'pending', 'unknown', 'legacy_de
 COUNT_FIELDS = ('attempted', 'own_confirmed', 'failed', 'remote_requested')
 REASONS = frozenset({'ready', 'running', 'paused', 'waiting_result', 'starting', 'user_stopped',
                      'app_disconnected', 'result_unverified', 'chest_fault', 'unsupported_chest',
-                     'disconnected', 'game_unavailable', 'input_failed'})
+                     'disconnected', 'game_unavailable', 'input_failed', 'connection_recovering', 'inventory_refreshing'})
 
 
 def observation(raw, captured_at):
@@ -84,7 +84,8 @@ class AutoChest:
                                    and self.preferences_valid
                                    and not any(result[k] for k in ('armed', 'pending', 'unknown')))
         if not fresh:
-            result['reason'] = 'observation_stale' if value else self.reason
+            result['reason'] = ('connection_recovering' if result['armed'] and not result['unknown']
+                                else 'observation_stale' if value else self.reason)
         return result
 
     @property
