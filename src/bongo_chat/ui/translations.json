@@ -406,5 +406,9 @@
   "연결 복구 대기 중": "Waiting for connection recovery",
   "인벤토리 갱신 대기 중": "Waiting for inventory refresh",
   "인벤토리 갱신이 끝나면 기존 실행을 이어갑니다.": "The current run will continue after the inventory refresh.",
-  "연결을 자동으로 복구하고 있습니다. 복구 후 남은 작업을 이어갑니다.": "Recovering the connection automatically. Remaining work will continue once it recovers."
+  "연결을 자동으로 복구하고 있습니다. 복구 후 남은 작업을 이어갑니다.": "Recovering the connection automatically. Remaining work will continue once it recovers.",
+  "현재 게임의 상자·합성·인벤토리 기능이 지원 계약과 다릅니다. 호환되는 앱 업데이트가 필요합니다.": "The chest, merge or inventory behavior differs from the supported contract. A compatible app update is required.",
+  "상자·합성 기능의 호환성을 확인하지 못했습니다. 앱 파일을 확인한 뒤 다시 연결해 주세요.": "Chest and merge compatibility could not be verified. Check the app files and reconnect.",
+  "검사한 게임 파일과 실행 중인 게임이 다릅니다. 작업을 중지하고 게임 업데이트 상태를 확인해 주세요.": "The verified game files do not match the running game. Stop automation and check the game update state.",
+  "상자·합성에 필요한 런타임 또는 연결 모듈이 지원 목록과 다릅니다. 호환되는 앱 업데이트가 필요합니다.": "A runtime or dependency required for chest and merge is unsupported. A compatible app update is required."
 }

@@ -53,7 +53,7 @@ def install(budget):
     if budget not in (0, 1, 2): raise ValueError('invalid_test_budget')
     game = running_game()
     contract = json.loads(Path(__file__).with_name('local-contract.json').read_text())
-    validate_game_files(game.root, contract)
+    compatibility = validate_game_files(game.root, contract)
     k = kernel()
     handle = k.OpenProcess(0x043a, False, game.pid)
     if not handle: raise RuntimeError('process_access_failed')
@@ -88,10 +88,11 @@ def install(budget):
                        check=True, creationflags=subprocess.CREATE_NO_WINDOW)
         config = dict(protocol=1, pid=game.pid, process_start_ticks=ticks, epoch=uuid.uuid4().hex,
                       token=secrets.token_hex(32), test_budget=budget,
-                      helper_sha256=hashlib.sha256(dll.read_bytes()).hexdigest())
+                      assembly_mvids=compatibility['modules'], helper_sha256=hashlib.sha256(dll.read_bytes()).hexdigest())
         (session / 'session.json').write_text(json.dumps(config), encoding='utf-8')
         shutil.copyfile(dll, session / dll.name)
         if not game.alive() or start_ticks(k, handle) != ticks: raise RuntimeError('process_changed')
+        if compatibility != validate_game_files(game.root, contract): raise RuntimeError('automation_files_changed')
         (session / 'attach-attempt.json').write_text(json.dumps(dict(attempted_at=time.time())), encoding='utf-8')
         result = execute(handle, exports, session / dll.name)
         # Do not print or persist a live exception address.

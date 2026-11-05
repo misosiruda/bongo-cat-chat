@@ -390,6 +390,10 @@ Steam의 빈 메타데이터는 제목 삭제와 조회 불가를 구분할 수 
 
 Windows의 양쪽 독자는 `FILE_SHARE_READ | WRITE | DELETE`를 유지한다. 이 PC의 열린 핸들 검사에서 삭제 공유만 추가한 `MoveFileExW` 교체도 실패했으므로, 반복 가능한 상태·응답·heartbeat 발행에는 [ReplaceFileW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew)를 사용한다. 소비 요청·허가·ledger의 전달 보장은 바꾸지 않는다. 실제 게임에 새 모듈을 로드하지 않고 모의 게임·파일 IPC·메타데이터 컴파일로 검증한다. 최소화·장시간 실사용 인수는 별도다.
 
+## D-040. 상자·합성은 하나의 기능 계약으로 호환성을 검사한다
+
+2026-11-05 사용자 지시에 따라 D-034의 전체 게임 파일 프로필을 상자·합성·인벤토리 기능 계약으로 대체한다. Assembly-CSharp와 System.Core의 관련 타입·메서드·필드·콜백·반복자·예외 처리와 호출 의존성을 정규화하고, 외부 의존성과 네이티브 런타임 검증은 유지한다. 상자 내부의 별도 Assembly-CSharp 해시 목록을 제거한다. 검사·컴파일·연결 사이 파일 변경과 실행 중 모듈의 MVID 불일치는 차단한다. 명시적 시작/저장한 자동 시작 선택, 소비·미확인 결과·기존 도우미 전환 보호는 변경하지 않는다. [계약과 소비 없는 검증 범위](automation-feature-compatibility.md)를 따른다.
+
 ## 아직 결정하지 않은 것
 
 로비 자동 추적과 개별 사용자 숨김의 인수 항목은 [엣지 케이스](edge-cases.md), 후속 제품 실행 증거는 [제품 검증](product-validation.md)에 있다. D-013~015의 개발판 결정을 일반 배포 승인으로 확대하지 않는다.

@@ -23,6 +23,15 @@
     const text = language === 'en' ? (translations[source] ?? source) : source;
     return text.replace(/\{(\w+)\}/g, (match,key) => Object.hasOwn(values,key) ? String(values[key]) : match);
   }
+  function automationConnectionError(error) {
+    return {
+      unsupported_automation_features:t('현재 게임의 상자·합성·인벤토리 기능이 지원 계약과 다릅니다. 호환되는 앱 업데이트가 필요합니다.'),
+      automation_probe_failed:t('상자·합성 기능의 호환성을 확인하지 못했습니다. 앱 파일을 확인한 뒤 다시 연결해 주세요.'),
+      automation_files_changed:t('검사한 게임 파일과 실행 중인 게임이 다릅니다. 작업을 중지하고 게임 업데이트 상태를 확인해 주세요.'),
+      unsupported_game_files:t('상자·합성에 필요한 런타임 또는 연결 모듈이 지원 목록과 다릅니다. 호환되는 앱 업데이트가 필요합니다.')
+    }[error];
+  }
+
   function applyLanguage(data) {
     if (data.language && data.language !== language && data.translations) {
       language=data.language; translations=data.translations;
@@ -717,7 +726,6 @@
         merge_prepare_failed:t('게임 연결 모듈을 준비하지 못했습니다. 게임 버전과 앱 파일을 확인해 주세요.'),
         game_missing_or_ambiguous:t('Bongo Cat을 실행한 뒤 다시 연결해 주세요.'),
         unsupported_game_build:t('현재 게임 버전은 자동 합성 연결을 지원하지 않습니다. 호환되는 앱 업데이트가 필요합니다.'),
-        unsupported_game_files:t('현재 게임 파일 조합은 자동 합성 지원 목록과 일치하지 않습니다. 같은 게임 버전이어도 설치된 모듈이 다를 수 있습니다. 호환되는 앱 업데이트가 필요합니다.'),
         merge_game_files_missing:t('자동 합성 호환성 검사에 필요한 게임 파일이 없습니다. 현재 설치 구성을 지원하는 앱 업데이트가 필요합니다.'),
         merge_game_files_unreadable:t('자동 합성 호환성 검사에 필요한 게임 파일을 읽지 못했습니다. 파일 접근 권한을 확인한 뒤 다시 연결해 주세요.'),
         bridge_assets_missing:t('이 앱에 자동 합성 연결 파일이 없습니다. 자동 합성을 포함한 앱을 설치해 주세요.'),
@@ -727,7 +735,7 @@
         attach_not_confirmed_no_retry:t('연결 완료를 확인하지 못했습니다. 자동으로 재시도하지 않습니다. 게임을 직접 다시 실행한 뒤 연결해 주세요.')};
       $('merge-connection-message').textContent = connection.state === 'connecting'
         ? t('게임과 연결 파일을 확인하고 있습니다. 아이템을 선택하거나 소비하지 않습니다.')
-        : connection.state === 'error' ? connectionErrors[connection.error] || t('게임 연결에 실패했습니다. 게임과 앱의 실행 상태를 확인해 주세요.')
+        : connection.state === 'error' ? automationConnectionError(connection.error) || connectionErrors[connection.error] || t('게임 연결에 실패했습니다. 게임과 앱의 실행 상태를 확인해 주세요.')
         : connection.state === 'connected' ? t('그룹과 횟수를 선택하고 시작을 눌러 주세요. 앱을 다시 열어도 자동으로 시작하지 않습니다.')
         : t('게임에 연결한 뒤 그룹과 횟수를 선택해 주세요. 연결만으로 합성하지 않습니다.');
     }
@@ -866,9 +874,9 @@
     $('chest-connect').disabled = chestBusy || active || mergeState?.active || mergeState?.unresolved || !connection?.can_connect;
     $('chest-connection-title').textContent = connection?.state === 'connected' ? t('게임 연결됨') : connection?.state === 'connecting' ? t('게임에 연결 중') : t('게임 연결');
     $('chest-connection-message').textContent = connection?.state === 'error'
-      ? (['prior_bridge_active','bridge_session_unavailable'].includes(connection.error)
+      ? (automationConnectionError(connection.error) || (['prior_bridge_active','bridge_session_unavailable'].includes(connection.error)
         ? t('기존 연결 상태를 확인할 수 없습니다. 게임을 직접 다시 실행한 뒤 연결해 주세요.')
-        : t('게임 연결에 실패했습니다. 지원하는 게임 파일과 기존 연결 상태를 확인해 주세요.'))
+        : t('게임 연결에 실패했습니다. 지원하는 게임 파일과 기존 연결 상태를 확인해 주세요.')))
       : t('게임에 연결한 뒤 시작할 수 있습니다. 자동 시작은 저장한 설정을 따릅니다.');
     $('merge-connect').disabled ||= active;
     $('merge-start').disabled ||= active;

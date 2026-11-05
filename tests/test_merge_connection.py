@@ -66,7 +66,10 @@ def test_connection_errors_are_bounded_and_close_during_connect_does_not_publish
 
 
 @pytest.mark.parametrize('error,fragment',[
-    ('unsupported_game_files','현재 게임 파일 조합'),
+    ('unsupported_game_files','런타임 또는 연결 모듈'),
+    ('unsupported_automation_features','상자·합성·인벤토리 기능'),
+    ('automation_probe_failed','호환성을 확인하지 못했습니다'),
+    ('automation_files_changed','실행 중인 게임이 다릅니다'),
     ('merge_game_files_missing','게임 파일이 없습니다'),
     ('merge_game_files_unreadable','게임 파일을 읽지 못했습니다'),
 ])
@@ -84,6 +87,10 @@ def test_file_compatibility_errors_reach_renderer_without_enabling_start(qt_chat
         assert manager.connection_snapshot()['error']==error
         assert js(app,page,"document.querySelector('#merge-start').disabled && document.querySelector('#merge-maximum').disabled")
         assert not controller.merger.active
+        if error in {'unsupported_game_files','unsupported_automation_features','automation_probe_failed','automation_files_changed'}:
+            js(app,page,"document.querySelector('#merge-dialog').close();document.querySelector('#chest-open').click()")
+            wait_until(app,lambda:fragment in js(app,page,"document.querySelector('#chest-connection-message').textContent"))
+            assert js(app,page,"document.querySelector('#chest-start').disabled")
     finally:manager.close()
 
 

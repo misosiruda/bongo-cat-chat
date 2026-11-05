@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-05",
+  "game_build": "26431657",
+  "current_features": {
+    "chest": "7df60ef06843b25d26533ab84a5d54e09b4020455659ddc2c0822939f3bcdc64",
+    "inventory": "836d34483235661dbfad08a6d2a67b57d71d97769d1bd166373e69b14339cf31",
+    "merge": "b787751a93fce3516885305b71c6c2477cc8b730bf23365c8894f4638e030438"
+  },
+  "previous_clean_assembly_features_equal": true,
+  "comparison_scope": "Previous inspected Assembly-CSharp backup with current dependencies; no claim about unavailable older System.Core",
+  "feature_method_counts": [
+    700,
+    892,
+    938
+  ],
+  "pawpass_in_selected_graph": false,
+  "managed_input_writes": 0,
+  "game_module_loads": 0,
+  "real_consumption_requests": 0,
+  "compile_and_stripped_member_resolution": "passed"
+}

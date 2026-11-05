@@ -9,13 +9,18 @@ $compiler = Join-Path $env:SystemRoot 'Microsoft.NET/Framework64/v4.0.30319/csc.
 & $compiler /nologo /target:exe "/out:$output/MergePrepare.exe" "/reference:$cecil" (Join-Path $PSScriptRoot 'Prepare.cs') (Join-Path $root 'artifacts/windows-version/MergePrepare.Version.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Merge prepare tool compilation failed' }
 Copy-Item -LiteralPath $cecil -Destination $output
+Copy-Item -LiteralPath (Join-Path $compatibility 'FeatureProbe.exe') -Destination $output
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Bridge.cs') -Destination $output
 $contract = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'local-contract.json') -Raw | ConvertFrom-Json
+$contract.probe | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $output 'feature-spec.json') -Encoding utf8
 @{
     schema=$contract.schema
+    probe=$contract.probe
     profiles=$contract.profiles
     source_sha256=(Get-FileHash -LiteralPath (Join-Path $output 'Bridge.cs')).Hash.ToLowerInvariant()
     prepare_sha256=(Get-FileHash -LiteralPath (Join-Path $output 'MergePrepare.exe')).Hash.ToLowerInvariant()
     cecil_sha256=(Get-FileHash -LiteralPath $cecil).Hash.ToLowerInvariant()
-} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $output 'contract.json') -Encoding utf8
+    probe_sha256=(Get-FileHash -LiteralPath (Join-Path $output 'FeatureProbe.exe')).Hash.ToLowerInvariant()
+    spec_sha256=(Get-FileHash -LiteralPath (Join-Path $output 'feature-spec.json')).Hash.ToLowerInvariant()
+} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $output 'contract.json') -Encoding utf8
 Write-Output 'Merge source assets prepared without game binaries.'

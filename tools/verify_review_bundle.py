@@ -50,11 +50,14 @@ assert toast.tag == 'verification'
 def verify_merge_assets(merge_assets):
     contract = json.loads((merge_assets / 'contract.json').read_text(encoding='utf-8-sig'))
     expected = json.loads((ROOT / 'tools/merge_bridge/local-contract.json').read_text(encoding='utf-8'))
-    if contract.get('schema') != expected['schema'] or contract.get('profiles') != expected['profiles']:
+    if any(contract.get(key) != expected[key] for key in ('schema', 'profiles', 'probe')):
         raise ValueError('Packaged merge contract differs from this checkout')
+    if json.loads((merge_assets / 'feature-spec.json').read_text(encoding='utf-8-sig')) != expected['probe']:
+        raise ValueError('Packaged automation feature specification differs from this checkout')
     if (merge_assets / 'Bridge.cs').read_bytes() != (ROOT / 'tools/merge_bridge/Bridge.cs').read_bytes():
         raise ValueError('Packaged merge source differs from this checkout')
-    for name, key in [('Bridge.cs', 'source_sha256'), ('MergePrepare.exe', 'prepare_sha256'), ('Mono.Cecil.dll', 'cecil_sha256')]:
+    for name, key in [('Bridge.cs', 'source_sha256'), ('MergePrepare.exe', 'prepare_sha256'), ('Mono.Cecil.dll', 'cecil_sha256'),
+                      ('FeatureProbe.exe', 'probe_sha256'), ('feature-spec.json', 'spec_sha256')]:
         if hashlib.sha256((merge_assets / name).read_bytes()).hexdigest() != contract[key]:
             raise ValueError('Packaged merge payload digest mismatch')
 
@@ -74,7 +77,8 @@ def main():
     for target in (bundle / 'BongoCatChat.exe', app / 'BongoCatChatApp.exe',
                    app / '_internal/bongo_chat/compatibility/FeatureProbe.exe',
                    app / '_internal/bongo_chat/compatibility/MemoryScan.exe',
-                   app / '_internal/bongo_chat/merge-assets/MergePrepare.exe'):
+                   app / '_internal/bongo_chat/merge-assets/MergePrepare.exe',
+                   app / '_internal/bongo_chat/merge-assets/FeatureProbe.exe'):
         with pefile.PE(str(target)) as executable:
             entries = {}
             for group in getattr(executable, 'FileInfo', []):

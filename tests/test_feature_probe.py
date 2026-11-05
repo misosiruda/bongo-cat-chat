@@ -67,5 +67,42 @@ def test_missing_field_and_malformed_binary_fail_closed(fixture_tools):
     build, inspect, _, _ = fixture_tools
     path, _ = build('missing')
     assert inspect(path) == (2, {'error': 'feature_probe_failed'})
+
     (path / 'Fixture.dll').write_bytes(b'synthetic invalid executable')
     assert inspect(path) == (2, {'error': 'feature_probe_failed'})
+
+
+@pytest.fixture(scope='module')
+def automation_probe(fixture_tools, tmp_path_factory):
+    build, _, _, _ = fixture_tools
+    spec = tmp_path_factory.mktemp('automation-spec') / 'spec.json'
+    spec.write_text(json.dumps({'schema': 2, 'assemblies': ['Fixture.dll'],
+        'pinned_assemblies': ['mscorlib.dll'],
+        'features': {'automation': {'types': ['Fixture|Demo.Automation']}}}))
+    def inspect(mode):
+        path, digest = build(mode)
+        result = run([ROOT / 'artifacts/compatibility/FeatureProbe.exe', path, spec])
+        return result.returncode, json.loads(result.stdout), digest
+    return inspect
+
+
+@pytest.mark.parametrize('mode', ['unrelated', 'metadata', 'rebuild'])
+def test_automation_allows_unrelated_changes_but_binds_new_module_identity(automation_probe, mode):
+    code, baseline, digest = automation_probe('baseline')
+    changed_code, changed, changed_digest = automation_probe(mode)
+    assert code == changed_code == 0 and digest != changed_digest
+    assert baseline['features'] == changed['features']
+    assert baseline['modules']['Fixture.dll'] != changed['modules']['Fixture.dll']
+
+
+@pytest.mark.parametrize('mode', ['auto_field', 'auto_callback', 'auto_virtual', 'auto_initializer', 'auto_exception'])
+def test_automation_tracks_protection_callback_iterator_initializer_and_exception_changes(automation_probe, mode):
+    code, baseline, _ = automation_probe('baseline')
+    changed_code, changed, _ = automation_probe(mode)
+    assert code == changed_code == 0
+    assert baseline['features'] != changed['features']
+
+
+def test_automation_refuses_dependency_outside_verified_modules(automation_probe):
+    code, result, _ = automation_probe('auto_external')
+    assert code == 2 and result == {'error': 'feature_probe_failed'}

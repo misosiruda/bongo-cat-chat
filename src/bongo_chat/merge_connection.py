@@ -59,7 +59,8 @@ class MergeConnection:
                     'bridge_client_in_use', 'prior_bridge_active', 'attach_not_confirmed_no_retry',
                     'process_access_failed', 'bridge_session_unavailable', 'bridge_binary_changed',
                     'merge_compiler_missing', 'merge_prepare_failed', 'unsupported_game_files',
-                    'merge_game_files_missing', 'merge_game_files_unreadable'}
+                    'merge_game_files_missing', 'merge_game_files_unreadable', 'automation_probe_failed',
+                    'automation_files_changed', 'unsupported_automation_features'}
             with self.lock:
                 self.state = 'error'
                 self.error = str(exc) if str(exc) in safe else 'bridge_connection_failed'

@@ -141,14 +141,15 @@ def test_packaged_merge_contract_matches_source_and_rejects_drift(tmp_path, monk
     monkeypatch.syspath_prepend(str(ROOT / 'tools'))
     module = tool('verify_review_bundle')
     expected = json.loads((ROOT / 'tools/merge_bridge/local-contract.json').read_text())
-    contract = {'schema': expected['schema'], 'profiles': expected['profiles']}
-    for name, key in [('Bridge.cs', 'source_sha256'), ('MergePrepare.exe', 'prepare_sha256'), ('Mono.Cecil.dll', 'cecil_sha256')]:
+    contract = {'schema': expected['schema'], 'profiles': expected['profiles'], 'probe': expected['probe']}
+    for name, key in [('Bridge.cs', 'source_sha256'), ('MergePrepare.exe', 'prepare_sha256'), ('Mono.Cecil.dll', 'cecil_sha256'), ('FeatureProbe.exe', 'probe_sha256'), ('feature-spec.json', 'spec_sha256')]:
         data = (ROOT / 'tools/merge_bridge/Bridge.cs').read_bytes() if name == 'Bridge.cs' else b'inert fixture'
+        if name == 'feature-spec.json':data = json.dumps(expected['probe']).encode()
         (tmp_path / name).write_bytes(data)
         contract[key] = hashlib.sha256(data).hexdigest()
     if change == 'old_schema':contract['schema'] = 2
     if change == 'missing_files':contract['profiles'] = []
-    if change == 'missing_variant':contract['profiles'][0]['BongoCat_Data/Managed/BongoAutoChest.dll'].pop()
+    if change == 'missing_variant':contract['profiles'][0]['files']['BongoCat_Data/Managed/BongoAutoChest.dll'].pop()
     if change == 'source':
         (tmp_path / 'Bridge.cs').write_bytes(b'changed source')
         contract['source_sha256'] = hashlib.sha256(b'changed source').hexdigest()

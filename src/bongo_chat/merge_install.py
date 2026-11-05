@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import secrets
 import subprocess
 import sys
@@ -14,6 +13,7 @@ from uuid import uuid4
 
 import pefile
 
+from .automation_compat import validate_game_files
 from .environment import running_game
 from .memory import Reader, MonoCatalog, fields
 from .merge_bootstrap import EXPORTS, ERROR_EXPORT, execute, kernel, start_ticks
@@ -100,67 +100,18 @@ def check_prior_modules(reader):
         node = reader.pointer(node + 8)
 
 
-def game_profiles(contract):
-    schema = contract['schema']
-    if schema not in (2, 3, 4, 5):raise ValueError('unsupported_asset_schema')
-    profiles = contract['profiles'] if schema >= 4 else [contract['files']]
-    if not isinstance(profiles, list) or not 1 <= len(profiles) <= 16:
-        raise ValueError('invalid_game_profiles')
-    allowed_profiles = []
-    for files in profiles:
-        if not isinstance(files, dict) or not files:raise ValueError('invalid_game_files')
-        if allowed_profiles and files.keys() != allowed_profiles[0].keys():
-            raise ValueError('incomplete_game_profile')
-        allowed = {}
-        for name, digests in files.items():
-            path = Path(name)
-            if not name or path.is_absolute() or path.drive or '..' in path.parts:
-                raise ValueError('invalid_game_path')
-            if isinstance(digests, str):digests = [digests]
-            elif schema == 2:raise ValueError('unsupported_hash_list')
-            if (not isinstance(digests, list) or not 1 <= len(digests) <= 16
-                    or any(not (schema == 5 and name == 'BongoCat_Data/Managed/BongoAutoChest.dll' and d is None)
-                           and (not isinstance(d, str) or not re.fullmatch('[0-9a-f]{64}', d)) for d in digests)):
-                raise ValueError('invalid_game_hash')
-            allowed[name] = digests
-        allowed_profiles.append(allowed)
-    return allowed_profiles
-
-
-def validate_game_files(root, contract):
-    try:
-        allowed_profiles = game_profiles(contract)
-    except (KeyError, ValueError, TypeError):
-        raise RuntimeError('bridge_assets_missing') from None
-    observed = {}
-    for name in allowed_profiles[0]:
-        try:
-            observed[name] = hashlib.sha256((root/name).read_bytes()).hexdigest()
-        except FileNotFoundError:
-            if any(None in profile[name] for profile in allowed_profiles):
-                observed[name] = None
-            else:
-                raise RuntimeError('merge_game_files_missing') from None
-        except OSError:
-            raise RuntimeError('merge_game_files_unreadable') from None
-    # Accept an entire inspected installation, never a cross-build mixture.
-    if not any(all(observed[name] in digests for name,digests in allowed.items())
-               for allowed in allowed_profiles):
-        raise RuntimeError('unsupported_game_files')
-    return observed
-
-
 def validate_assets(game, assets):
     try:
         contract = read_json(assets/'contract.json')
         schema = contract['schema']
-        if schema not in (2, 3, 4, 5):raise ValueError('unsupported_asset_schema')
-        for name,key in [('Bridge.cs','source_sha256'),('MergePrepare.exe','prepare_sha256'),('Mono.Cecil.dll','cecil_sha256')]:
+        if schema != 6:raise ValueError('unsupported_asset_schema')
+        for name,key in [('Bridge.cs','source_sha256'),('MergePrepare.exe','prepare_sha256'),('Mono.Cecil.dll','cecil_sha256'),
+                         ('FeatureProbe.exe','probe_sha256'),('feature-spec.json','spec_sha256')]:
             if hashlib.sha256((assets/name).read_bytes()).hexdigest() != contract[key]:
                 raise RuntimeError('bridge_binary_changed')
     except (OSError,KeyError,ValueError,TypeError):
         raise RuntimeError('bridge_assets_missing') from None
-    validate_game_files(game.root, contract)
+    validate_game_files(game.root, contract, assets)
     return assets,contract
 
 
@@ -184,11 +135,17 @@ def compile_helper(game, assets, session):
     return dll
 
 
-def prepare_session(game, assets, session):
+def prepare_session(game, assets, session, compatibility=None):
     """Prepare in our newly created directory; retain any attachment evidence."""
     try:
+        _, contract = validate_assets(game, assets)
+        before = validate_game_files(game.root, contract, assets)
+        if compatibility is not None and compatibility != before:
+            raise RuntimeError('automation_files_changed')
         dll = compile_helper(game, assets, session)
         validate_assets(game, assets)  # Recheck inputs before any game memory write.
+        if before != validate_game_files(game.root, contract, assets):
+            raise RuntimeError('automation_files_changed')
         return dll
     except Exception:
         try:
@@ -251,21 +208,32 @@ def connect():
                     exports[name] = base+symbol.address
                 if set(exports) != set((*EXPORTS,ERROR_EXPORT)):raise RuntimeError('unsupported_game_build')
         finally:reader.close()
+        compatibility = validate_game_files(game.root, contract, assets)
         private_directory(session)  # Exclusive creation is the installation lock.
-        dll = prepare_session(game,assets,session)
+        dll = prepare_session(game,assets,session,compatibility)
         digest = hashlib.sha256(dll.read_bytes()).hexdigest()
         config = dict(protocol=1,pid=game.pid,process_start_ticks=ticks,epoch=uuid4().hex,
                       token=secrets.token_hex(32),test_budget=0,mode='interactive',helper_sha256=digest,
-                      source_sha256=contract['source_sha256'])
+                      source_sha256=contract['source_sha256'],
+                      assembly_mvids=compatibility['modules'])
         (session/'session.json').write_text(json.dumps(config),encoding='utf-8')
         if hashlib.sha256((session/HELPER).read_bytes()).hexdigest() != digest:
             raise RuntimeError('bridge_binary_changed')
         if not game.alive() or start_ticks(k,handle) != ticks:raise RuntimeError('game_missing_or_ambiguous')
+        if compatibility != validate_game_files(game.root, contract, assets):
+            raise RuntimeError('automation_files_changed')
         (session/'attach-attempt.json').write_text(json.dumps({'attempted_at':time.time()}),encoding='utf-8')
         result = execute(handle,exports,session/HELPER)
         public = dict(status=result['status'],stage=result['stage'],managed_exception=bool(result['exception']))
         (session/'attach-result.json').write_text(json.dumps(public),encoding='utf-8')
-        if result['status'] != 1:raise RuntimeError('attach_not_confirmed_no_retry')
+        if result['status'] != 1:
+            try:
+                failure = read_json(session/'compatibility-error.json')
+            except (OSError, ValueError):
+                failure = {}
+            if failure == {'epoch': config['epoch'], 'reason': 'automation_files_changed'}:
+                raise RuntimeError('automation_files_changed')
+            raise RuntimeError('attach_not_confirmed_no_retry')
         channel = BridgeChannel(session)
         deadline = time.monotonic()+5
         while time.monotonic()<deadline:
