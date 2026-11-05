@@ -15,6 +15,20 @@ namespace UnityEngine {
     class BeforeRenderHelper {
         internal struct OrderBlock { internal int order; internal Events.UnityAction callback; }
         static List<OrderBlock> s_OrderBlocks = new List<OrderBlock>();
+        internal static int Count { get { return s_OrderBlocks.Count; } }
+        internal static void Render() { foreach (var block in s_OrderBlocks.ToArray()) block.callback(); }
+    }
+    class UnitySynchronizationContext : System.Threading.SynchronizationContext {
+        readonly Queue<Action> queue = new Queue<Action>();
+        public override void Post(System.Threading.SendOrPostCallback callback, object state) {
+            lock (queue) queue.Enqueue(delegate { callback(state); });
+        }
+        internal int Pending { get { lock (queue) return queue.Count; } }
+        internal void Drain() {
+            Action action;
+            lock (queue) { if (queue.Count == 0) return; action = queue.Dequeue(); }
+            action();
+        }
     }
 }
 namespace Steamworks {
@@ -70,8 +84,8 @@ namespace BongoCat {
         public bool IsVisible;
         public bool AllowFavoriteItems { get; set; }
         public bool ExcludeEventItems { get; set; }
-        public int Selections, Merges;
-        List<SteamItemRuntime> GetDuplicateItems(bool ignoreTab) { return CatInventory.Instance.Items.Where(i => i.RuntimeData.quantity > 1 && (!i.Favorite || AllowFavoriteItems) && (!i.Event || !ExcludeEventItems)).ToList(); }
+        public int Selections, Merges, DuplicateReads;
+        List<SteamItemRuntime> GetDuplicateItems(bool ignoreTab) { DuplicateReads++; return CatInventory.Instance.Items.Where(i => i.RuntimeData.quantity > 1 && (!i.Favorite || AllowFavoriteItems) && (!i.Event || !ExcludeEventItems)).ToList(); }
         public bool IsItemExchangeable(SteamItemRuntime item) { return true; }
         void UpdateInteractable() { _possibleExchanges = (int)(_exchangeSlots.Where(s => s.ItemSlotted != null).Sum(s => s.SlottedAmount)/10); }
         public void SlotDuplicates() {
@@ -105,15 +119,24 @@ class Fixture {
     static JObject Json(string path) { using(var r = new JsonTextReader(new StringReader(File.ReadAllText(path)))) return JObject.Load(r,null); }
     static JObject Snap() { return (JObject)Call("Snapshot"); }
     static void Check(bool ok) { checks++; if (!ok) throw new Exception("check_"+checks); }
-    static JObject Request(string op, string extra = "", string id = null, long age = 0, string expectedGroup = null, bool? expectedFavorites = null) {
+    internal static JObject Request(string op, string extra = "", string id = null, long age = 0, string expectedGroup = null, bool? expectedFavorites = null, bool refreshing = false) {
         id = id ?? Guid.NewGuid().ToString("N");
         var observed=Snap();
         if (interactive) extra += ",\"sequence\":"+(++sequence)+",\"run_attempt\":\""+(string)observed["run_attempt"]+"\"";
         extra += ",\"expected_group\":\""+(expectedGroup ?? (string)observed["group"])+"\",\"favorites_allowed\":"+((expectedFavorites ?? (bool)observed["favorites_allowed"])?"true":"false")+",\"events_excluded\":"+((bool)observed["events_excluded"]?"true":"false");
         File.WriteAllText(Path.Combine(folder,"request.json"), "{\"id\":\""+id+"\",\"epoch\":\""+epoch+"\",\"token\":\""+token+"\",\"op\":\""+op+"\",\"issued_utc_ms\":"+(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()-age)+extra+"}");
-        Call("Handle"); return Json(Path.Combine(folder,"response.json"));
+        BongoCat.CatInventory.Instance.FetchingItems = refreshing;
+        try { Call("Handle"); return Json(Path.Combine(folder,"response.json")); }
+        finally { BongoCat.CatInventory.Instance.FetchingItems = false; }
     }
     static string Material() { var s=Snap(); return ",\"count\":1,\"selection\":\""+(string)s["selection"]+"\",\"selection_attempt\":\""+(string)s["selection_attempt"]+"\""; }
+    internal static void Pulse(string run, long sequence, long age = 0, bool refreshing = false) {
+        var value = Bridge.Object("epoch",epoch,"token",token,"chest_run_attempt",run,
+            "sequence",sequence,"issued_utc_ms",DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()-age);
+        File.WriteAllText(Path.Combine(folder,"heartbeat.json"),value.ToString(Formatting.None));
+        BongoCat.CatInventory.Instance.FetchingItems=refreshing;
+        try { Call("ReadHeartbeat"); } finally { BongoCat.CatInventory.Instance.FetchingItems=false; }
+    }
     public static void Main() {
         try { Run(); }
         catch (Exception e) {
@@ -133,6 +156,8 @@ class Fixture {
         var e=new BongoCat.SteamItemRuntime { Id=2,IsEmote=true };e.RuntimeData.quantity=21;
         BongoCat.CatInventory.Instance.Items.Add(c);BongoCat.CatInventory.Instance.Items.Add(e);
         Bridge.Install(); Bridge.Install();
+        CheckSharedPublication();
+        CheckMainLoopWithoutRendering();
         var x=BongoCat.ItemExchange.Instance;
         CheckTransientObservationRecovery(x);
         if (interactive) { RunInteractive(x); ChestFixture.Run(folder); return; }
@@ -166,13 +191,51 @@ class Fixture {
         Check((bool)Request("shutdown")["ok"]);
         Console.WriteLine("Bridge fixture: "+checks+" checks passed; synthetic exchanges="+x.Merges);
     }
+    static void CheckSharedPublication() {
+        Call("Atomic","snapshot.json",Bridge.Object("generation",1));
+        using (var held = new FileStream(Path.Combine(folder,"snapshot.json"),FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete)) {
+            for (int n=2;n<=101;n++) Call("Atomic","snapshot.json",Bridge.Object("generation",n));
+            Check((int)Json(Path.Combine(folder,"snapshot.json"))["generation"]==101);
+            using (var reader = new StreamReader(held)) Check(reader.ReadToEnd().Contains("\"generation\":1"));
+        }
+    }
+    static void CheckMainLoopWithoutRendering() {
+        var context = new UnityEngine.UnitySynchronizationContext();
+        System.Threading.SynchronizationContext.SetSynchronizationContext(context);
+        Check(UnityEngine.BeforeRenderHelper.Count==1);
+        UnityEngine.BeforeRenderHelper.Render(); // Exactly one bootstrap render.
+        Check(UnityEngine.BeforeRenderHelper.Count==0);
+        var deadline=Stopwatch.StartNew();
+        while (context.Pending==0 && deadline.ElapsedMilliseconds<2000) System.Threading.Thread.Sleep(10);
+        Check(context.Pending==1);
+        System.Threading.Thread.Sleep(200);
+        Check(context.Pending==1); // Stalled main loop never accumulates callbacks.
+        context.Drain();
+        var first=Json(Path.Combine(folder,"snapshot.json"));
+        System.Threading.Thread.Sleep(300);
+        context.Drain(); // No render callback, but Unity's task queue still runs.
+        var second=Json(Path.Combine(folder,"snapshot.json"));
+        Check((int)second["generation"]>(int)first["generation"]);
+        Check((int)second["main_thread"]==System.Threading.Thread.CurrentThread.ManagedThreadId);
+    }
     static void CheckTransientObservationRecovery(BongoCat.ItemExchange x) {
         typeof(Bridge).GetField("mainThread",flags).SetValue(null,System.Threading.Thread.CurrentThread.ManagedThreadId);
+        ChestRuntime.Snapshot();
         typeof(ChestRuntime).GetField("armed",flags).SetValue(null,true);
+        typeof(ChestRuntime).GetField("lease",flags).SetValue(null,double.MaxValue);
         BongoCat.CatInventory.Instance.FetchingItems=true;
+        typeof(Bridge).GetField("nextSnapshot",flags).SetValue(null,0L);
         typeof(Bridge).GetField("nextPoll",flags).SetValue(null,0L); Call("Tick");
-        Check((string)typeof(Bridge).GetField("error",flags).GetValue(null)=="bridge_observation_failed");
+        var refreshing = Json(Path.Combine(folder,"snapshot.json"));
+        Check(!(bool)refreshing["ready"] && (string)refreshing["reason"]=="inventory_refreshing");
+        Check((bool)refreshing["chest"]["armed"] && (string)refreshing["chest"]["reason"]=="inventory_refreshing");
         BongoCat.CatInventory.Instance.FetchingItems=false;
+        int duplicateReads=x.DuplicateReads;
+        Check(Snap()["available_exchanges"].Type==JTokenType.Null && x.DuplicateReads==duplicateReads);
+        var deferred = Request("select", refreshing:true);
+        Check(!(bool)deferred["ok"] && (bool)deferred["deferred"] && x.Selections==0);
+        BongoCat.CatInventory.Instance.FetchingItems=false;
+        ChestRuntime.Stop("user_stopped"); // Fixture has not bound the synthetic chest API yet.
         typeof(Bridge).GetField("nextPoll",flags).SetValue(null,0L); Call("Tick");
         Check((bool)Snap()["ready"] && (string)Snap()["reason"]=="ready");
         Check(!(bool)Snap()["chest"]["armed"] && !(bool)Snap()["chest"]["enabled"]);
@@ -188,11 +251,18 @@ class Fixture {
         Check(!(bool)Request("begin",",\"limit\":0")["ok"]);
         Check((bool)Request("begin",",\"limit\":3")["ok"]);
         for (int i=0;i<3;i++) {
-            Check((bool)Request("select")["ok"]);
-            Check((bool)Request("merge",Material())["ok"] && x.Merges==i+1);
+            string selection = Guid.NewGuid().ToString("N"), merge = Guid.NewGuid().ToString("N");
+            if (i == 0) {
+                var deferred = Request("select",",\"operation_id\":\""+selection+"\"",refreshing:true);
+                Check((bool)deferred["deferred"] && x.Selections==0);
+            }
+            Check((bool)Request("select",",\"operation_id\":\""+selection+"\"")["ok"]);
+            Check((string)Snap()["selection_attempt"]==selection);
+            Check((bool)Request("merge",Material()+",\"operation_id\":\""+merge+"\"")["ok"] && x.Merges==i+1);
             Check(!(bool)Request("begin",",\"limit\":100")["ok"]);
             Heathen.SteamworksIntegration.API.Inventory.Client.Complete();
             Check((int)Snap()["spent"]==i+1 && (int)Snap()["confirmed_completed"]==i+1);
+            Check((string)Snap()["receipt"]["attempt"]==merge);
         }
         Check(!(bool)Request("select")["ok"] && x.Merges==3);
         Check((bool)Request("stop")["ok"] && (string)Snap()["run_attempt"]=="");

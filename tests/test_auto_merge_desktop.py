@@ -98,6 +98,24 @@ def test_unknown_result_and_language_switch_preserve_truth(qt_chat):
     assert runner.completed == 0 and len(game.calls) == 2
 
 
+def test_recovery_status_is_translated_and_stop_remains_available(qt_chat):
+    app, controller, page = qt_chat
+    game = FakeGameUI(time.monotonic)
+    controller.merger = runner = AutoMerge(game)
+    assert runner.start(2)
+    game.value = replace(game.value, ready=False, reason='inventory_refreshing')
+    js(app, page, "document.querySelector('#merge-open').click()")
+    wait_until(app, lambda: js(app, page, "document.querySelector('#merge-state').textContent") == '연결 복구 대기 중')
+    assert js(app, page, "!document.querySelector('#merge-stop').disabled")
+    request(controller, 'setting', key='language', value='en')
+    wait_until(app, lambda: js(app, page, "document.querySelector('#merge-state').textContent") == 'Waiting for connection recovery')
+    js(app, page, "document.querySelector('#merge-stop').click()")
+    wait_until(app, lambda: runner.state == 'stopped')
+    game.value = replace(game.value, ready=True)
+    runner.tick()
+    assert runner.state == 'stopped' and not game.calls
+
+
 def test_maximum_button_populates_arbitrary_count_without_starting(qt_chat):
     app, controller, page = qt_chat
     game = FakeGameUI(time.monotonic)

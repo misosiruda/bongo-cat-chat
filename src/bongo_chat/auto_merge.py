@@ -18,7 +18,9 @@ REASONS = frozenset({'adapter_unverified', 'offline', 'read_only', 'closed',
     'selection_timeout', 'result_timeout', 'result_unverified', 'input_failed',
     'game_failed', 'no_duplicates', 'limit_reached', 'user_stopped', 'app_closed',
     'checked_in_game', 'ready', 'manual_exchange_screen_open', 'group_changing',
-    'test_budget_exhausted', 'bridge_observation_failed'})
+    'test_budget_exhausted', 'bridge_observation_failed', 'inventory_refreshing', 'connection_recovering'})
+RECOVERABLE = frozenset({'game_unavailable', 'observation_stale', 'bridge_observation_failed',
+                         'inventory_refreshing', 'connection_recovering'})
 # ItemExchange.MatchesCurrentTab / SteamItemRuntime.IsCosmetic: UI tabs are
 # narrower than exchange groups. A hats tab can auto-select skins and bongos.
 GROUP_BY_CATEGORY = {'cosmetics': 'cosmetics', 'hats': 'cosmetics', 'skins': 'cosmetics', 'bongos': 'cosmetics',
@@ -62,6 +64,7 @@ class Observation:
     available_group: str = ''  # Must match the current tab's group; no combined total.
     execution_budget_remaining: int | None = None  # Separate local test limit, not inventory quantity.
     run_attempt: str = ''
+    cancelled_attempt: str = ''  # Adapter confirms this queued operation was never dispatched.
 
 
 class GameUI(Protocol):
@@ -117,6 +120,8 @@ class AutoMerge:
         self.deadline = 0.0
         self.stop_requested = self.closed = self.unresolved = False
         self.revision = 0
+        self.recovering_since = None
+        self.previous_receipt_attempt = ''
 
     @property
     def active(self):
@@ -127,7 +132,18 @@ class AutoMerge:
         return self.active or self.unresolved
 
     def finish(self, state, reason):
+        if state in TERMINAL and self.active:
+            cancel = getattr(self.adapter, 'cancel_pending', None)
+            if cancel:cancel()
+            if not self.pending_attempt and not self.stop_requested:
+                # Recovery keeps our selection; a terminal run must release it
+                # and its authorization so the next explicit start is possible.
+                stop = getattr(self.adapter, 'stop_selection', None)
+                if stop:
+                    try: stop()
+                    except Exception: pass
         self.state, self.reason = state, reason
+        self.recovering_since = None
         self.unresolved = state == 'unknown'
         if not self.unresolved:
             self.pending_attempt = ''
@@ -209,15 +225,15 @@ class AutoMerge:
         if not self.active:
             return
         self.stop_requested = True
+        stop_selection = getattr(self.adapter, 'stop_selection', None)
+        if stop_selection:
+            try: stop_selection()
+            except Exception: pass
         if self.pending_attempt:
             self.state, self.reason = 'stopping', 'user_stopped'
             self.revision += 1
         else:
             self.finish('stopped', 'user_stopped')
-            stop_selection = getattr(self.adapter, 'stop_selection', None)
-            if stop_selection:
-                try: stop_selection()
-                except Exception: pass
 
     def acknowledge(self):
         """User checked the game; this never retroactively counts a success."""
@@ -235,12 +251,16 @@ class AutoMerge:
 
     def context_reason(self, value):
         base = self.baseline
+        if value.target and (value.target != base.target or value.category != base.category):
+            return 'target_changed'
         if not value.ready:
             return value.reason if value.reason in REASONS else 'screen_unavailable'
         if (value.target, value.category) != (base.target, base.category):
             return 'target_changed'
         if (value.favorites_allowed, value.events_excluded) != (base.favorites_allowed, base.events_excluded):
             return 'settings_changed'
+        if self.run_attempt and self.state != 'arming' and not self.stop_requested and value.run_attempt != self.run_attempt:
+            return 'target_changed'
         return ''
 
     def tick(self):
@@ -253,10 +273,26 @@ class AutoMerge:
                 self.reason = self.preparation_reason(value) or 'ready'
                 self.state = 'blocked' if self.reason != 'ready' else 'idle'
             return
+        if self.stop_requested and self.pending_attempt and value.cancelled_attempt == self.pending_attempt:
+            self.finish('stopped', 'user_stopped')
+            return
         reason = self.context_reason(value)
         if reason:
+            if reason in RECOVERABLE:
+                if self.pending_attempt and self.clock() >= self.deadline:
+                    self.finish('unknown', 'result_timeout')
+                    return
+                if self.recovering_since is None:
+                    self.recovering_since = self.clock()
+                self.reason = 'connection_recovering'
+                return
             self.finish('unknown' if self.pending_attempt else 'failed', reason)
             return
+        if self.recovering_since is not None:
+            if not self.pending_attempt:
+                self.deadline += self.clock() - self.recovering_since
+            self.recovering_since = None
+            self.reason = 'ready'
         if self.pending_attempt:
             self.accept_result(value)
             return
@@ -310,18 +346,22 @@ class AutoMerge:
                 self.finish('failed', 'selection_unverified')
                 return
             self.pending_attempt = uuid4().hex
+            self.previous_receipt_attempt = value.receipt.attempt if isinstance(value.receipt, Receipt) else ''
             self.pending_count, self.batch_confirmed = value.exchanges, 0
             self.deadline = self.clock() + self.RESULT_TIMEOUT
             self.state = 'waiting'  # Set before dispatch: input exceptions can be ambiguous.
             try:
                 self.adapter.merge(value, self.pending_attempt)
             except InputRefused:
+                self.pending_attempt = ''  # Adapter guarantees no dispatch.
                 self.finish('failed', 'input_failed')
             except Exception:
                 self.finish('unknown', 'input_failed')
 
     def accept_result(self, value):
         receipt = value.receipt
+        if isinstance(receipt, Receipt) and receipt.attempt == self.previous_receipt_attempt:
+            receipt = None  # A delayed snapshot can still contain the previous completed operation.
         if receipt is not None:
             if (not isinstance(receipt, Receipt) or receipt.attempt != self.pending_attempt
                     or type(receipt.completed) is not int
@@ -361,7 +401,8 @@ class AutoMerge:
             and not self.pending_attempt and not self.closed) else None
         if type(count) is not int or not 0 <= count <= MAX_SAFE_COUNT:
             count = None
-        return dict(state=self.state, reason=self.reason, active=self.active,
+        return dict(state='recovering' if self.active and self.recovering_since is not None else self.state,
+                    reason=self.reason, active=self.active,
                     can_change_group=not self.blocks_restart and not self.closed and hasattr(self.adapter,'set_group'),
                     available_exchanges=count,
                     exchange_group=group,

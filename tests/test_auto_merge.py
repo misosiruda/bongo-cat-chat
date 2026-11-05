@@ -205,6 +205,14 @@ def test_bad_receipt_never_authorizes_more_input(session, receipt):
     assert runner.state == 'unknown' and len(game.calls) == 2
 
 
+def test_malformed_receipt_during_recovery_is_unknown_without_crashing(session):
+    runner, game, _ = session
+    request_merge(runner, game)
+    game.value = replace(game.value, receipt={'completed': 1})
+    runner.tick()
+    assert runner.state == 'unknown' and runner.completed == 0
+
+
 def test_selection_timeout_and_stale_preflight(session):
     runner, game, now = session
     runner.start(10); runner.tick()
@@ -212,6 +220,76 @@ def test_selection_timeout_and_stale_preflight(session):
     assert runner.reason == 'selection_timeout' and len(game.calls) == 1
     game.fresh = False
     assert not runner.start(10) and runner.reason == 'observation_stale'
+
+
+@pytest.mark.parametrize('reason', ['inventory_refreshing', 'game_unavailable', 'bridge_observation_failed'])
+@pytest.mark.parametrize('stage', ['preparing', 'selecting', 'merging'])
+def test_transient_observation_recovers_same_run_without_repeating_selection(session, reason, stage):
+    runner, game, now = session
+    assert runner.start(2)
+    if stage != 'preparing':runner.tick()
+    if stage == 'merging':game.selected(); runner.tick()
+    baseline = game.value
+    calls = list(game.calls)
+    game.value = replace(game.value, ready=False, reason=reason)
+    runner.tick()
+    now[0] += 12
+    runner.tick()
+    assert runner.snapshot()['state'] == 'recovering' and runner.blocks_restart
+    assert game.calls == calls and runner.limit == 2
+    game.value = baseline
+    if stage == 'selecting':game.selected()
+    runner.tick()
+    assert runner.active and runner.reason == 'ready'
+    assert runner.snapshot()['state'] != 'recovering'
+    assert len([call for call in game.calls if call[0] == 'select']) == 1
+
+
+def test_lost_observation_during_merge_waits_for_original_result_without_replay(session):
+    runner, game, now = session
+    request_merge(runner, game, limit=1)
+    game.fresh = False
+    now[0] += 2
+    runner.tick()
+    assert runner.snapshot()['state'] == 'recovering' and runner.completed == 0
+    now[0] += 8
+    game.fresh = True
+    game.result()
+    runner.tick(); runner.tick()
+    assert runner.state == 'completed' and runner.completed == 1
+    assert [call[0] for call in game.calls] == ['select', 'merge']
+
+
+def test_recovery_never_extends_unconfirmed_consumption_deadline(session):
+    runner, game, now = session
+    request_merge(runner, game)
+    game.value = replace(game.value, ready=False, reason='inventory_refreshing')
+    runner.tick()
+    now[0] += 31
+    runner.tick()
+    assert runner.state == 'unknown' and runner.reason == 'result_timeout'
+    game.value = replace(game.value, ready=True)
+    game.result(); runner.tick()
+    assert runner.state == 'unknown' and runner.completed == 0 and len(game.calls) == 2
+
+
+def test_user_stop_during_recovery_does_not_resume(session):
+    runner, game, now = session
+    runner.start(2)
+    game.value = replace(game.value, ready=False, reason='inventory_refreshing')
+    runner.tick(); runner.stop()
+    game.value = replace(game.value, ready=True)
+    now[0] += 10
+    runner.tick()
+    assert runner.state == 'stopped' and not game.calls
+
+
+def test_target_change_during_inventory_wait_is_terminal(session):
+    runner, game, _ = session
+    runner.start(2)
+    game.value = replace(game.value, ready=False, reason='inventory_refreshing', target='other-game')
+    runner.tick()
+    assert runner.state == 'failed' and runner.reason == 'target_changed'
 
 
 def test_opaque_identity_and_selection_never_leave_orchestrator(session):

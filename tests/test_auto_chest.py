@@ -145,12 +145,12 @@ def test_lost_stop_ack_is_reconciled_from_fresh_snapshot_without_retry(tmp_path,
         original=channel.request
         def lost_ack(op,**kwargs):
             reply=original(op,**kwargs)
-            if op=='chest_stop':raise RuntimeError('synthetic lost acknowledgement')
+            if op=='chest_stop':raise RuntimeError('result_unverified')
             return reply
         monkeypatch.setattr(channel,'request',lost_ack)
         adapter.chest_stop()
-        until(lambda:adapter.fault and not adapter.chest_snapshot()['armed'])
-        assert not adapter.chest_snapshot()['supported']  # Explicit reconnect is required before starting.
+        until(lambda:not adapter.busy and not adapter.chest_snapshot()['armed'])
+        assert not adapter.fault and adapter.chest_snapshot()['supported']
         assert [r['op'] for r in server.requests].count('chest_stop')==1
     finally:adapter.close();server.close()
 

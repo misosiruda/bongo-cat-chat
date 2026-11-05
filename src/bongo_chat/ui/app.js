@@ -674,7 +674,7 @@
       $('merge-target-group').value = value.exchange_group;
     }
     const states = {idle:t('시작할 수 있어요'),blocked:t('시작할 수 없어요'),arming:t('합성 준비 중'),preparing:t('합성 준비 중'),
-      selecting:t('중복 아이템 선택 중'),merging:t('합성 요청 준비 중'),waiting:t('합성 결과 확인 중'),
+      selecting:t('중복 아이템 선택 중'),merging:t('합성 요청 준비 중'),waiting:t('합성 결과 확인 중'),recovering:t('연결 복구 대기 중'),
       stopping:t('중지 요청 · 진행 중인 결과 확인 중'),completed:t('합성 종료'),stopped:t('중지됨'),
       failed:t('확인 필요 · 실행 중단'),unknown:t('결과 미확인 · 실행 중단')};
     const reasons = {adapter_unverified:t('게임 내부 연결 모듈이 연결되지 않았습니다. 현재는 시작할 수 없습니다.'),
@@ -692,6 +692,8 @@
       group_changing:t('선택한 그룹의 가능 횟수를 확인하고 있습니다.'),
       test_budget_exhausted:t('이번 연결의 시험 횟수를 모두 사용했습니다. 추가 합성은 요청하지 않습니다.'),
       bridge_observation_failed:t('게임 내부 상태를 확인할 수 없습니다. 연결 상태를 확인해 주세요.'),
+      inventory_refreshing:t('인벤토리 갱신이 끝나면 기존 실행을 이어갑니다.'),
+      connection_recovering:t('연결을 자동으로 복구하고 있습니다. 복구 후 남은 작업을 이어갑니다.'),
       no_duplicates:t('현재 합성 그룹에 합성할 중복 아이템이 더 없습니다.'),
       limit_reached:t('설정한 상한에 도달했거나 다음 합성이 상한을 넘습니다.'),
       user_stopped:t('새 합성 요청을 중지했습니다. 이미 요청한 합성은 취소되지 않습니다.'),
@@ -813,11 +815,13 @@
     const labels = {
       running:t('자동 개봉 실행 중'), paused:t('자동 개봉 일시 정지'), waiting_result:t('개봉 결과 대기 중'),
       starting:t('자동 개봉 시작 중'), result_unverified:t('개봉 결과 확인 필요'), chest_fault:t('자동 개봉 중단'),
-      ready:t('시작 전'), user_stopped:t('자동 개봉 중지됨'), game_unavailable:t('자동 개봉 중지됨'), app_disconnected:t('앱 연결 끊김으로 중지됨')
+      ready:t('시작 전'), user_stopped:t('자동 개봉 중지됨'), game_unavailable:t('자동 개봉 중지됨'), app_disconnected:t('앱 연결 끊김으로 중지됨'),
+      inventory_refreshing:t('인벤토리 갱신 대기 중'), connection_recovering:t('연결 복구 대기 중')
     };
     const startupLabels = {waiting_game:t('자동 시작 대기 중'), connecting:t('게임에 연결 중'),
       waiting_state:t('게임 상태 확인 중'), confirmation_required:t('전환 확인 필요')};
     const title = value.startup_pending ? startupLabels[value.startup_status] || t('자동 시작 대기 중')
+      : value.reason === 'connection_recovering' ? labels.connection_recovering
       : !value.fresh ? t('게임 연결 확인 필요') : labels[value.reason] || t('게임 연결 확인 필요');
     const reasons = {
       unsupported_chest:t('현재 게임 파일은 상자 자동 개봉을 지원하지 않습니다. 앱 업데이트가 필요합니다.'),
@@ -825,6 +829,8 @@
       chest_fault:t('개봉 처리를 확인할 수 없어 중단했습니다. 게임에서 결과를 확인해 주세요.'),
       app_disconnected:t('앱과 연결이 끊겨 새 개봉 요청을 중단했습니다.'),
       game_unavailable:t('게임 상태가 일시적으로 변경되어 자동 개봉을 중지했습니다. 게임 연결이 회복되면 직접 다시 시작해 주세요.'),
+      inventory_refreshing:t('인벤토리 갱신이 끝나면 기존 실행을 이어갑니다.'),
+      connection_recovering:t('연결을 자동으로 복구하고 있습니다. 복구 후 남은 작업을 이어갑니다.'),
       offline:t('오프라인 모드에서는 자동 개봉을 시작할 수 없습니다.'),
       read_only:t('읽기 전용 모드에서는 자동 개봉을 시작할 수 없습니다.'),
       paused:t('Ctrl+Alt+F9를 다시 누르면 이번 실행을 재개합니다.'),

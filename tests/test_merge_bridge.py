@@ -9,7 +9,7 @@ import time
 import pytest
 
 from bongo_chat.auto_merge import AutoMerge
-from bongo_chat.merge_bridge import BridgeAdapter, BridgeChannel, observation
+from bongo_chat.merge_bridge import BridgeAdapter, BridgeChannel, observation, read_json, shared_reader, replace_observation
 
 
 def raw_snapshot():
@@ -24,6 +24,8 @@ class FileServer:
     def __init__(self,path,interactive=False,chest=False):
         self.path=path;self.state=raw_snapshot();self.requests=[];self.seen=set();self.pending=None
         self.stopping=threading.Event()
+        self.drop_responses=set()
+        self.heartbeat_sequence=0
         helper=b'synthetic helper, never loaded'
         (path/('BongoCatChat.MergeBridge.Live.dll' if interactive else 'BongoCatChat.MergeBridge.Shared.dll')).write_bytes(helper)
         config=dict(protocol=1,epoch='a'*32,token='b'*64,pid=42,process_start_ticks=1,test_budget=2,
@@ -41,7 +43,7 @@ class FileServer:
         self.thread=threading.Thread(target=self.run,daemon=True);self.thread.start()
 
     def write(self,name,value):
-        temp=self.path/(name+'.server.tmp');temp.write_text(json.dumps(value));os.replace(temp,self.path/name)
+        temp=self.path/(name+'.server.tmp');temp.write_text(json.dumps(value));replace_observation(temp,self.path/name)
 
     def publish(self):
         self.state.update(captured_utc_ms=int(time.time()*1000),generation=self.state['generation']+1)
@@ -50,15 +52,22 @@ class FileServer:
     def run(self):
         while not self.stopping.wait(.02):
             try:
+                try:h=read_json(self.path/'heartbeat.json')
+                except (OSError,ValueError):h=None
+                if (h and h['sequence'] > self.heartbeat_sequence and h['epoch']==self.state['epoch']
+                        and h['chest_run_attempt']==self.state.get('chest',{}).get('run_attempt')):
+                    self.heartbeat_sequence=h['sequence']
+                    self.requests.append(dict(h,op='chest_heartbeat'))
                 if self.pending and time.monotonic()>=self.pending[1]:
                     self.state.update(exchanging=False,selected_units=0,exchanges=0,selection='',
                         pending_attempt='',available_exchanges=179,can_select=True,
                         receipt=dict(attempt=self.pending[0],completed=1,finished=True,failed=False))
                     self.pending=None
-                try:r=json.loads((self.path/'request.json').read_text())
+                try:r=read_json(self.path/'request.json')
                 except (OSError,ValueError):r=None
                 if r and r['id'] not in self.seen:
                     self.seen.add(r['id']);self.requests.append(r)
+                    operation = r.get('operation_id', r['id'])
                     if self.state.get('mode') == 'interactive':
                         assert r['sequence'] > self.state['command_sequence']
                         self.state['command_sequence'] = r['sequence']
@@ -66,28 +75,30 @@ class FileServer:
                             assert r['run_attempt'] and r['run_attempt'] == self.state['run_attempt']
                             assert self.state['spent'] < self.state['test_budget']
                     if r['op']=='begin':
-                        self.state.update(run_attempt=r['id'],test_budget=self.state['spent']+r['limit'],receipt=None)
+                        self.state.update(run_attempt=operation,test_budget=self.state['spent']+r['limit'],receipt=None)
                     elif r['op']=='select':
-                        self.state.update(selected_units=10,exchanges=1,selection=r['id'],selection_attempt=r['id'],
+                        self.state.update(selected_units=10,exchanges=1,selection=operation,selection_attempt=operation,
                                           available_exchanges=None,can_select=None,receipt=None)
                     elif r['op']=='merge':
                         assert r['count']==1 and r['expected_group']==self.state['group']
                         assert r['selection']==self.state['selection']
-                        self.state.update(exchanging=True,pending_attempt=r['id'],spent=self.state['spent']+1)
-                        self.pending=(r['id'],time.monotonic()+.15)
+                        self.state.update(exchanging=True,pending_attempt=operation,spent=self.state['spent']+1)
+                        self.pending=(operation,time.monotonic()+.15)
                     elif r['op']=='group':
                         self.state.update(group=r['group'],available_group=r['group'],available_exchanges=193)
                     elif r['op']=='stop':
-                        self.state.update(selected_units=0,exchanges=0,selection='')
+                        self.state.update(selected_units=0,exchanges=0,selection='',can_select=True)
                         if self.state.get('mode')=='interactive':
                             self.state.update(run_attempt='',test_budget=self.state['spent'])
                     elif r['op']=='chest_start':
                         assert not self.state['chest']['legacy_detected'] or r['replace_legacy'] or self.state['chest']['legacy_taken_over']
-                        self.state['chest'].update(r['chest_settings'],armed=True,enabled=True,reason='running',legacy_taken_over=True)
+                        self.state['chest'].update(r['chest_settings'],armed=True,enabled=True,reason='running',legacy_taken_over=True,
+                                                   run_attempt=operation)
                     elif r['op']=='chest_stop':
                         self.state['chest'].update(armed=False,enabled=False,reason='user_stopped')
                     self.publish()
-                    self.write('response.json',dict(id=r['id'],epoch=r['epoch'],ok=True))
+                    if r['op'] not in self.drop_responses:
+                        self.write('response.json',dict(id=r['id'],epoch=r['epoch'],ok=True))
                 else:self.publish()
             except OSError:pass  # File sharing race: the next observation stays timestamped.
 
@@ -150,3 +161,27 @@ def test_snapshot_age_is_not_refreshed_and_budget_is_separate_from_inventory():
 def test_unverified_snapshot_rejected(patch):
     raw=raw_snapshot();raw.update(patch)
     with pytest.raises(ValueError):observation(raw)
+
+
+@pytest.mark.skipif(os.name!='nt',reason='Windows file sharing contract')
+def test_reader_does_not_block_atomic_snapshot_replacement(tmp_path):
+    path=tmp_path/'snapshot.json'
+    path.write_bytes(b'{"generation":1}')
+    replacement=tmp_path/'snapshot.tmp'
+    with shared_reader(path) as held:
+        for generation in range(2,102):
+            replacement.write_text(json.dumps({'generation':generation}))
+            replace_observation(replacement,path)
+            assert read_json(path)['generation']==generation
+        assert json.loads(held.read())=={'generation':1}
+    assert read_json(path)=={'generation':101}
+
+
+def test_shared_json_reader_preserves_size_and_object_validation(tmp_path):
+    path=tmp_path/'snapshot.json'
+    path.write_bytes(b'\xef\xbb\xbf{"ready":true}')
+    assert read_json(path)=={'ready':True}
+    path.write_bytes(b'[]')
+    with pytest.raises(ValueError,match='invalid_bridge_file'):read_json(path)
+    path.write_bytes(b' '*16385)
+    with pytest.raises(ValueError,match='oversized_bridge_file'):read_json(path)
