@@ -1,4 +1,4 @@
-"""Validate one complete game profile before developer compilation; never attach."""
+"""Validate the common automation feature contract before developer compilation; never attach."""
 import argparse
 import json
 from pathlib import Path

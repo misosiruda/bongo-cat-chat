@@ -22,18 +22,7 @@ static class ChestFixture {
     static void Reject(Action action, string message) { bool refused = false; try { action(); } catch { refused = true; } Check(refused,message); }
     internal static void Run(string folder) {
         Shop.NormalShop = new Shop(); Shop.EmoteShop = new Shop();
-        Check(!(bool)ChestRuntime.Snapshot()["supported"],"unknown binary is blocked");
-        // Bind only the synthetic types, without weakening the shipped binary allowlist.
-        foreach (var pair in new[] { new[] {"itemField","_shopItem"},new[] {"openingField","_openingChest"} })
-            Set(pair[0],typeof(Shop).GetField(pair[1],BindingFlags.Instance|BindingFlags.NonPublic));
-        foreach (var pair in new[] { new[] {"waitingField","_waitingForServer"},new[] {"exchangerField","_chestExchanger"} })
-            Set(pair[0],typeof(ShopItem).GetField(pair[1],BindingFlags.Instance|BindingFlags.NonPublic));
-        Set("exchangingField",typeof(Steam.ChestExchanger).GetField("IsExchanging",F));
-        foreach (var pair in new[] { new[] {"targetField","_targetUser"},new[] {"typeField","_chestType"},new[] {"activeField","_setChestActive"},new[] {"clickedField","_hasClicked"} })
-            Set(pair[0],typeof(OpenChestForMember).GetField(pair[1],BindingFlags.Instance|BindingFlags.NonPublic));
-        foreach (var pair in new[] { new[] {"memberField","_lobbyMemberData"},new[] {"keyField","_key"},new[] {"objectField","_gameObject"} })
-            Set(pair[0],typeof(SetActiveBasedOnLobbyMemberValue).GetField(pair[1],BindingFlags.Instance|BindingFlags.NonPublic));
-        Set("supported",true); Set("initialized",true);
+        Check((bool)ChestRuntime.Snapshot()["supported"],"shared compatibility-approved fixture binds chest without another hash gate");
         ChestRuntime.Now = delegate { return now; }; ChestRuntime.Hotkey = delegate { return key; };
         Check(!ChestRuntime.BlocksMerge && !(bool)ChestRuntime.Snapshot()["armed"],"connection never arms");
         ChestRuntime.Start(folder,Config(),"first");

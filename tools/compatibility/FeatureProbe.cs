@@ -10,6 +10,7 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 
 public sealed class FeatureSpec {
+    public string[] types { get; set; }
     public string[] methods { get; set; }
     public string[] fields { get; set; }
     public string[] packets { get; set; }
@@ -20,12 +21,15 @@ public sealed class FeatureSpec {
 public sealed class ProbeSpec {
     public int schema { get; set; }
     public string[] assemblies { get; set; }
+    public string[] pinned_assemblies { get; set; }
+    public string[] optional_pinned_assemblies { get; set; }
     public Dictionary<string, FeatureSpec> features { get; set; }
 }
 
 sealed class Modules : IAssemblyResolver, IDisposable {
     internal readonly Dictionary<string, AssemblyDefinition> assemblies = new Dictionary<string, AssemblyDefinition>(StringComparer.Ordinal);
     internal readonly Dictionary<string, TypeDefinition> types = new Dictionary<string, TypeDefinition>(StringComparer.Ordinal);
+    internal readonly HashSet<string> external = new HashSet<string>(StringComparer.Ordinal);
     internal Modules(string root, string[] names) {
         if (names == null || names.Length < 1 || names.Length > 8) throw new InvalidDataException();
         foreach (string name in names) {
@@ -88,25 +92,68 @@ sealed class Feature {
     readonly HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
     readonly JavaScriptSerializer json = new JavaScriptSerializer();
     int instructions;
-    internal Feature(Modules modules) { this.modules = modules; }
+    readonly bool automation;
+    readonly HashSet<string> expanded = new HashSet<string>(StringComparer.Ordinal);
+    internal Feature(Modules modules, bool automation) { this.modules = modules; this.automation = automation; }
     static string MethodKey(MethodReference method) { return Modules.Scope(method.DeclaringType) + "|" + method.FullName; }
     void Record(string key, object value) { records[key] = json.Serialize(value); }
     void Type(TypeDefinition type) {
         Record("type:" + Modules.TypeName(type), new object[] { (int)type.Attributes, Modules.TypeName(type.BaseType), type.PackingSize, type.ClassSize });
+        if (automation) {
+            UseType(type.BaseType);
+            foreach (var implemented in type.Interfaces) UseType(implemented.InterfaceType);
+            Record("interfaces:" + Modules.TypeName(type), type.Interfaces.Select(i => Modules.TypeName(i.InterfaceType)).OrderBy(n => n, StringComparer.Ordinal).ToArray());
+            Record("generics:" + Modules.TypeName(type), Generics(type.GenericParameters));
+        }
+    }
+    void UseType(TypeReference type) {
+        if (!automation || type == null || type is GenericParameter) return;
+        string scope = Modules.Scope(type);
+        if (!modules.assemblies.ContainsKey(scope)) modules.external.Add(scope);
+        var generic = type as GenericInstanceType;
+        if (generic != null) foreach (var argument in generic.GenericArguments) UseType(argument);
+    }
+    object Generics(IEnumerable<GenericParameter> parameters) {
+        return parameters.Select(p => new object[] { p.Position, (int)p.Attributes,
+            p.Constraints.Select(c => { UseType(c.ConstraintType); return Modules.TypeName(c.ConstraintType); }).ToArray() }).ToArray();
+    }
+    void WholeType(TypeDefinition type) {
+        if (!expanded.Add(Modules.TypeName(type))) return;
+        Type(type);
+        Record("shape:" + Modules.TypeName(type), type.Fields.Select(f => f.FullName).OrderBy(n => n, StringComparer.Ordinal).ToArray());
+        foreach (var field in type.Fields) Field(field);
+        foreach (var method in type.Methods) Enqueue(method);
+        foreach (var nested in type.NestedTypes) WholeType(nested);
     }
     void Field(FieldDefinition field) {
         Type(field.DeclaringType);
+        UseType(field.FieldType);
         Record("field:" + Modules.Scope(field.DeclaringType) + "|" + field.FullName,
             new object[] { (int)field.Attributes, Modules.TypeName(field.FieldType), field.HasConstant ? field.Constant : null,
                 field.HasLayoutInfo ? field.Offset : -1 });
     }
     void Enqueue(MethodReference method) {
+        UseType(method.DeclaringType); UseType(method.ReturnType);
+        foreach (var parameter in method.Parameters) UseType(parameter.ParameterType);
+        var generic = method as GenericInstanceMethod;
+        if (generic != null) foreach (var argument in generic.GenericArguments) UseType(argument);
         if (!modules.assemblies.ContainsKey(Modules.Scope(method.DeclaringType))) return;
         var definition = method.Resolve();
         if (definition == null) throw new InvalidDataException("missing_dependency");
         if (seen.Add(MethodKey(definition))) {
-            if (seen.Count > 256) throw new InvalidDataException("method_budget");
+            if (seen.Count > (automation ? 4096 : 256)) throw new InvalidDataException("method_budget");
             pending.Enqueue(definition);
+            if (automation) {
+                // Iterator/async bodies and lambdas are reached through delegates or
+                // interfaces, not necessarily through a direct call instruction.
+                if (definition.DeclaringType.Name.StartsWith("<", StringComparison.Ordinal)) WholeType(definition.DeclaringType);
+                if (definition.IsConstructor && !definition.IsStatic) {
+                    // IEnumerator.MoveNext/Dispose and virtual callbacks may be
+                    // invoked by pinned framework code outside this call graph.
+                    foreach (var callback in definition.DeclaringType.Methods.Where(m => m.IsVirtual)) Enqueue(callback);
+                }
+                foreach (var initializer in definition.DeclaringType.Methods.Where(m => m.IsConstructor && m.IsStatic)) Enqueue(initializer);
+            }
         }
     }
     object Operand(object value, Dictionary<Instruction, int> labels) {
@@ -119,6 +166,7 @@ sealed class Feature {
         if (method != null) { Enqueue(method); return new object[] { "method", MethodKey(method) }; }
         var field = value as FieldReference;
         if (field != null) {
+            UseType(field.DeclaringType); UseType(field.FieldType);
             if (modules.assemblies.ContainsKey(Modules.Scope(field.DeclaringType))) {
                 var definition = field.Resolve();
                 if (definition == null) throw new InvalidDataException("missing_field_dependency");
@@ -127,7 +175,7 @@ sealed class Feature {
             return new object[] { "field", Modules.Scope(field.DeclaringType), field.FullName };
         }
         var type = value as TypeReference;
-        if (type != null) return new object[] { "type", Modules.TypeName(type) };
+        if (type != null) { UseType(type); return new object[] { "type", Modules.TypeName(type) }; }
         var variable = value as VariableDefinition;
         if (variable != null) return new object[] { "local", variable.Index, Modules.TypeName(variable.VariableType) };
         var parameter = value as ParameterDefinition;
@@ -142,6 +190,11 @@ sealed class Feature {
     }
     void Method(MethodDefinition method) {
         Type(method.DeclaringType);
+        if (automation) {
+            Record("signature:" + MethodKey(method), new object[] { Generics(method.GenericParameters),
+                method.Overrides.Select(MethodKey).ToArray(), method.Parameters.Select(p => new object[] {
+                    (int)p.Attributes, p.HasConstant ? p.Constant : null }).ToArray() });
+        }
         if (!method.HasBody) {
             Record("method:" + MethodKey(method), new object[] { (int)method.Attributes, (int)method.ImplAttributes,
                 method.IsPInvokeImpl ? method.PInvokeInfo.Module.Name : null,
@@ -151,8 +204,10 @@ sealed class Feature {
         }
         if (method.Body.Instructions.Count > 8192) throw new InvalidDataException("unsupported_method");
         var body = method.Body;
+        foreach (var variable in body.Variables) UseType(variable.VariableType);
+        foreach (var handler in body.ExceptionHandlers) UseType(handler.CatchType);
         instructions += body.Instructions.Count;
-        if (instructions > 30000) throw new InvalidDataException("instruction_budget");
+        if (instructions > (automation ? 300000 : 30000)) throw new InvalidDataException("instruction_budget");
         var labels = Labels(body.Instructions);
         Func<Instruction, int> label = i => i == null ? body.Instructions.Count : labels[i];
         Record("method:" + MethodKey(method), new object[] {
@@ -208,6 +263,8 @@ sealed class Feature {
             i == dispatch ? new object[] { "channel", channel, labels[targets[index]] } : Operand(i.Operand, labels) }).ToArray());
     }
     internal string Digest(FeatureSpec spec) {
+        if (spec.types != null && !automation) throw new InvalidDataException("unsupported_types");
+        foreach (string key in spec.types ?? new string[0]) WholeType(modules.FindType(key));
         foreach (string key in spec.fields ?? new string[0]) Field(modules.FindField(key));
         foreach (string key in spec.packets ?? new string[0]) {
             var type = modules.FindType(key);
@@ -244,11 +301,30 @@ public static class FeatureProbe {
             if (args.Length != 2 || new FileInfo(args[1]).Length > 65536) throw new InvalidDataException();
             var json = new JavaScriptSerializer { MaxJsonLength = 65536 };
             var spec = json.Deserialize<ProbeSpec>(File.ReadAllText(args[1], Encoding.UTF8));
-            if (spec.schema != 1 || spec.features == null || spec.features.Count < 1 || spec.features.Count > 16) throw new InvalidDataException();
+            if ((spec.schema != 1 && spec.schema != 2) || spec.features == null || spec.features.Count < 1 || spec.features.Count > 16) throw new InvalidDataException();
             using (var modules = new Modules(args[0], spec.assemblies)) {
                 var result = new SortedDictionary<string, string>(StringComparer.Ordinal);
-                foreach (var row in spec.features) result.Add(row.Key, new Feature(modules).Digest(row.Value));
-                Console.WriteLine(json.Serialize(result));
+                foreach (var row in spec.features) result.Add(row.Key, new Feature(modules, spec.schema == 2).Digest(row.Value));
+                if (spec.schema == 1) Console.WriteLine(json.Serialize(result));
+                else {
+                    var optional = spec.optional_pinned_assemblies ?? new string[0];
+                    var pins = (spec.pinned_assemblies ?? new string[0]).Concat(optional).ToArray();
+                    if (pins.Length > 32 || pins.Distinct(StringComparer.Ordinal).Count() != pins.Length) throw new InvalidDataException();
+                    var identities = new SortedDictionary<string, string>(StringComparer.Ordinal);
+                    foreach (var row in modules.assemblies) identities.Add(row.Key + ".dll", row.Value.MainModule.Mvid.ToString("D"));
+                    foreach (string name in pins) {
+                        if (Path.GetFileName(name) != name || !name.EndsWith(".dll", StringComparison.Ordinal)) throw new InvalidDataException();
+                        string path = Path.Combine(args[0], name);
+                        if (optional.Contains(name) && !File.Exists(path)) continue;
+                        if (new FileInfo(path).Length > 64 * 1024 * 1024) throw new InvalidDataException();
+                        using (var assembly = AssemblyDefinition.ReadAssembly(path, new ReaderParameters { InMemory = true })) {
+                            if (assembly.Name.Name + ".dll" != name || assembly.Modules.Count != 1) throw new InvalidDataException();
+                            identities.Add(name, assembly.MainModule.Mvid.ToString("D"));
+                        }
+                    }
+                    if (modules.external.Any(n => !identities.ContainsKey(n + ".dll"))) throw new InvalidDataException("unverified_dependency");
+                    Console.WriteLine(json.Serialize(new { features = result, modules = identities }));
+                }
             }
             return 0;
         } catch {

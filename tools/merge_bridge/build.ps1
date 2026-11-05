@@ -33,5 +33,5 @@ try {
 } finally { $a.Dispose(); $resolver.Dispose() }
 Get-FileHash -LiteralPath (Join-Path $output $dllName) | Select-Object Hash
 if ($Interactive) {
-    @{files=$verifiedFiles;helper_sha256=(Get-FileHash -LiteralPath (Join-Path $output $dllName)).Hash.ToLowerInvariant()} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $output 'contract.json') -Encoding utf8
+    @{files=$verifiedFiles.files;assembly_mvids=$verifiedFiles.modules;helper_sha256=(Get-FileHash -LiteralPath (Join-Path $output $dllName)).Hash.ToLowerInvariant()} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $output 'contract.json') -Encoding utf8
 }

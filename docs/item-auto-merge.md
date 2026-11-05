@@ -1,5 +1,7 @@
 # 아이템 자동 합성 — 내부 함수 연결 개발판
 
+dev26부터 상자·합성·인벤토리 공통 기능 계약으로 연결 호환성을 검사한다. 보호 옵션·원본 합성·콜백과 의존 코드를 검사하며, 소비·미확인 결과 보호는 유지한다. [검사 범위와 소비 없는 검증](automation-feature-compatibility.md)을 참고한다.
+
 관련 이슈: [#43](https://github.com/misosiruda/bongo-cat-chat/issues/43)
 
 2026-10-30 노트북 후속 수정: dev19 설치본이 동일 build에서 Auto Chest 파일 해시 차이로 연결을 거부한 원인을 확인했다. 현재 소스는 다른 11개 게임 파일 해시를 유지하면서 확인된 Auto Chest 해시 2개만 허용한다. 파일 조합 불일치·누락·읽기 실패 안내도 구분한다. 공개 dev19 자체는 변경하지 않았다. [노트북 실패 재현·호환성 근거·로컬 검증](item-auto-merge-laptop-validation.md)을 참고한다.

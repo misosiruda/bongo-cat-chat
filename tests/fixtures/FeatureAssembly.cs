@@ -67,7 +67,49 @@ public static class FeatureAssembly {
             if (mode == "other_channel") for (int i = 0; i < 10; i++) il.Add(Instruction.Create(OpCodes.Nop));
             il.Add(Instruction.Create(OpCodes.Ret)); il.Add(chat); il.Add(Instruction.Create(OpCodes.Ret));
             il.Add(emote); il.Add(Instruction.Create(OpCodes.Ret));
+            var automation = new TypeDefinition("Demo", "Automation", TypeAttributes.Public, module.TypeSystem.Object);
+            module.Types.Add(automation);
+            var protection = new FieldDefinition("ExcludeFavorites", FieldAttributes.Private, module.TypeSystem.Boolean);
+            automation.Fields.Add(protection);
+            if (mode == "auto_field") protection.FieldType = module.TypeSystem.Int32;
+            var closure = new TypeDefinition("", "<Callback>", TypeAttributes.NestedPrivate, module.TypeSystem.Object);
+            automation.NestedTypes.Add(closure);
+            var callback = Method(closure, "Result", module.TypeSystem.Int32);
+            callback.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4, mode == "auto_callback" ? 2 : 1));
+            callback.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            var iterator = new TypeDefinition("Demo", "Iterator", TypeAttributes.Public, module.TypeSystem.Object);
+            module.Types.Add(iterator);
+            var ctor = new MethodDefinition(".ctor", MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, module.TypeSystem.Void);
+            iterator.Methods.Add(ctor); ctor.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            var move = new MethodDefinition("MoveNext", MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.NewSlot, module.TypeSystem.Boolean);
+            iterator.Methods.Add(move);
+            move.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4, mode == "auto_virtual" ? 0 : 1));
+            move.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            var start = Method(automation, "Start", module.TypeSystem.Object);
+            start.Body.Instructions.Add(Instruction.Create(OpCodes.Newobj, ctor));
+            start.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            var init = new MethodDefinition(".cctor", MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, module.TypeSystem.Void);
+            iterator.Methods.Add(init);
+            init.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_I4, mode == "auto_initializer" ? 42 : 0));
+            init.Body.Instructions.Add(Instruction.Create(OpCodes.Pop)); init.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+            if (mode == "auto_external") {
+                var dependency = new TypeReference("Demo", "Unverified", module, new AssemblyNameReference("Unknown", new Version(1, 0)));
+                start.Body.Instructions.Insert(0, Instruction.Create(OpCodes.Call, new MethodReference("Invoke", module.TypeSystem.Void, dependency)));
+            }
+            var guard = Method(automation, "Guard", module.TypeSystem.Void);
+            var exit = Instruction.Create(OpCodes.Ret);
+            guard.Body.Instructions.Add(Instruction.Create(OpCodes.Nop));
+            guard.Body.Instructions.Add(Instruction.Create(OpCodes.Leave, exit));
+            var handler = Instruction.Create(OpCodes.Pop); guard.Body.Instructions.Add(handler);
+            guard.Body.Instructions.Add(Instruction.Create(OpCodes.Leave, exit)); guard.Body.Instructions.Add(exit);
+            guard.Body.ExceptionHandlers.Add(new ExceptionHandler(ExceptionHandlerType.Catch) {
+                TryStart = guard.Body.Instructions[0], TryEnd = handler, HandlerStart = handler, HandlerEnd = exit,
+                CatchType = new TypeReference("System", mode == "auto_exception" ? "InvalidOperationException" : "Exception", module, module.TypeSystem.Object.Scope)
+            });
             assembly.Write(args[0]);
         }
+        // Metadata-only framework placeholder: no runtime/game binary is copied.
+        using (var dependency = AssemblyDefinition.CreateAssembly(new AssemblyNameDefinition("mscorlib", new Version(4, 0)), "mscorlib", ModuleKind.Dll))
+            dependency.Write(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(args[0]), "mscorlib.dll"));
     }
 }

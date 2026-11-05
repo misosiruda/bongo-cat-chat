@@ -106,6 +106,32 @@ namespace BongoCatChat.MergeBridge
 
         // Executed on an attached Mono worker. Only managed file/reflection/list APIs here.
         // BeforeRenderHelper.Invoke locks this same list and invokes callbacks on Unity's thread.
+        static string ModuleIdentity(Assembly assembly)
+        {
+            var modules = assembly.GetModules();
+            if (modules.Length != 1) throw new InvalidOperationException("automation_files_changed");
+            return modules[0].ModuleVersionId.ToString("D");
+        }
+        internal static void VerifyAssemblyIdentity(JObject config)
+        {
+            // Compatibility is decided once by the metadata probe. Bind that
+            // observation to the assemblies in this game, including an update
+            // on disk while an older game process is still running.
+            var identities = config["assembly_mvids"] as JObject;
+            if (identities == null || identities.Count < 1 || identities.Count > 34)
+                throw new InvalidOperationException("automation_files_changed");
+            foreach (var required in new[] { typeof(ItemExchange).Assembly, typeof(Enumerable).Assembly })
+                if ((string)identities[required.GetName().Name + ".dll"] != ModuleIdentity(required))
+                    throw new InvalidOperationException("automation_files_changed");
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                string name = assembly.GetName().Name + ".dll";
+                var expected = identities[name];
+                if ((expected != null && (string)expected != ModuleIdentity(assembly)) ||
+                    (name == "BongoAutoChest.dll" && expected == null))
+                    throw new InvalidOperationException("automation_files_changed");
+            }
+        }
         public static void Install()
         {
             if (installed) return;
@@ -121,6 +147,13 @@ namespace BongoCatChat.MergeBridge
                 throw new InvalidOperationException("invalid_session");
             // Connecting never arms consumption. The UI must explicitly begin a run.
             if (interactive && maxRequests != 0) throw new InvalidOperationException("invalid_session");
+            try { VerifyAssemblyIdentity(config); }
+            catch (InvalidOperationException)
+            {
+                File.WriteAllText(Path.Combine(directory, "compatibility-error.json"),
+                    Object("epoch", epoch, "reason", "automation_files_changed").ToString(Formatting.None));
+                throw;
+            }
             var ledgerPath = Path.Combine(directory, "ledger.json");
             if (File.Exists(ledgerPath))
             {
@@ -545,11 +578,8 @@ namespace BongoCatChat.MergeBridge
             initialized = true;
             try
             {
-                // Only statically inspected chest code is supported, in addition to the full install contract.
-                string digest;
-                using (var sha = SHA256.Create())
-                    digest = BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(typeof(Shop).Assembly.Location))).Replace("-", "").ToLowerInvariant();
-                if (!SupportedAssembly(digest)) { reason = "unsupported_chest"; return; }
+                // The common installer validates chest/merge/inventory features.
+                // Do not maintain a second, narrower whole-assembly allowlist.
                 itemField = Field(typeof(Shop), "_shopItem"); openingField = Field(typeof(Shop), "_openingChest");
                 waitingField = Field(typeof(ShopItem), "_waitingForServer"); exchangerField = Field(typeof(ShopItem), "_chestExchanger");
                 exchangingField = typeof(Steam.ChestExchanger).GetField("IsExchanging", Static);
@@ -565,10 +595,6 @@ namespace BongoCatChat.MergeBridge
                 supported = true; reason = "ready";
             }
             catch { reason = "unsupported_chest"; }
-        }
-        static bool SupportedAssembly(string digest)
-        {
-            return digest == "6756b1e864340170e8f312da1d935f9b644d442974c1434bbd0d7eb4a1ab8a2c" || digest == "3ae33d93def6346f715256d2b65192097632059252eed969c2641f63b946d4dd";
         }
         static Type FindLegacy()
         {

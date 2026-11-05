@@ -148,6 +148,19 @@ class Fixture {
         folder=Path.GetDirectoryName(typeof(Fixture).Assembly.Location);
         interactive=Environment.GetCommandLineArgs().Contains("--interactive");
         File.WriteAllText(Path.Combine(folder,"session.json"), "{\"protocol\":1,\"pid\":"+Process.GetCurrentProcess().Id+",\"process_start_ticks\":"+Process.GetCurrentProcess().StartTime.ToUniversalTime().Ticks+",\"epoch\":\""+epoch+"\",\"token\":\""+token+"\",\"test_budget\":2}");
+        var identityConfig = JObject.Parse(File.ReadAllText(Path.Combine(folder,"session.json")));
+        var identities = new JObject();
+        foreach (var assembly in new[] { typeof(Bridge).Assembly, typeof(Enumerable).Assembly })
+            identities[assembly.GetName().Name + ".dll"] = assembly.ManifestModule.ModuleVersionId.ToString("D");
+        identityConfig["assembly_mvids"] = identities;
+        Bridge.VerifyAssemblyIdentity(identityConfig);
+        var changedIdentity = (JObject)identityConfig.DeepClone();
+        changedIdentity["assembly_mvids"][typeof(Bridge).Assembly.GetName().Name + ".dll"] = Guid.NewGuid().ToString("D");
+        bool identityRejected = false;
+        try { Bridge.VerifyAssemblyIdentity(changedIdentity); } catch (InvalidOperationException) { identityRejected = true; }
+        Check(identityRejected);
+        File.WriteAllText(Path.Combine(folder,"session.json"), identityConfig.ToString(Newtonsoft.Json.Formatting.None));
+
         if (interactive) {
             string config=File.ReadAllText(Path.Combine(folder,"session.json"));
             File.WriteAllText(Path.Combine(folder,"session.json"),config.Replace("\"test_budget\":2","\"test_budget\":0,\"mode\":\"interactive\""));
