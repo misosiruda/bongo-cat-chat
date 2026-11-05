@@ -135,6 +135,13 @@ class AutoMerge:
         if state in TERMINAL and self.active:
             cancel = getattr(self.adapter, 'cancel_pending', None)
             if cancel:cancel()
+            if not self.pending_attempt and not self.stop_requested:
+                # Recovery keeps our selection; a terminal run must release it
+                # and its authorization so the next explicit start is possible.
+                stop = getattr(self.adapter, 'stop_selection', None)
+                if stop:
+                    try: stop()
+                    except Exception: pass
         self.state, self.reason = state, reason
         self.recovering_since = None
         self.unresolved = state == 'unknown'
@@ -346,6 +353,7 @@ class AutoMerge:
             try:
                 self.adapter.merge(value, self.pending_attempt)
             except InputRefused:
+                self.pending_attempt = ''  # Adapter guarantees no dispatch.
                 self.finish('failed', 'input_failed')
             except Exception:
                 self.finish('unknown', 'input_failed')

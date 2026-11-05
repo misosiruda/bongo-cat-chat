@@ -87,7 +87,7 @@ class FileServer:
                     elif r['op']=='group':
                         self.state.update(group=r['group'],available_group=r['group'],available_exchanges=193)
                     elif r['op']=='stop':
-                        self.state.update(selected_units=0,exchanges=0,selection='')
+                        self.state.update(selected_units=0,exchanges=0,selection='',can_select=True)
                         if self.state.get('mode')=='interactive':
                             self.state.update(run_attempt='',test_budget=self.state['spent'])
                     elif r['op']=='chest_start':

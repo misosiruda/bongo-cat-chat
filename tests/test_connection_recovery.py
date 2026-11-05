@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from bongo_chat.auto_merge import AutoMerge
+from bongo_chat.auto_merge import AutoMerge, InputRefused
 from bongo_chat.auto_chest import DEFAULTS
 from bongo_chat.merge_bridge import BridgeChannel, CommandDeferred
 from bongo_chat.merge_connection import InteractiveAdapter
@@ -197,3 +197,28 @@ def test_stop_cancels_definitely_unsent_merge_without_claiming_unknown_result(br
     until(lambda: server.state['selected_units'] == 0)
     assert not runner.unresolved and runner.completed == 0 and server.state['spent'] == 0
     assert [r['op'] for r in server.requests] == ['begin', 'select', 'stop']
+
+
+@pytest.mark.parametrize('failure', ['protection_change', 'refused_before_dispatch'])
+def test_terminal_failure_releases_selection_and_run_without_consuming(bridge, monkeypatch, failure):
+    server, channel, adapter = bridge
+    runner = AutoMerge(adapter)
+    assert runner.start(1)
+    def selected():
+        runner.tick()
+        return runner.state == 'merging'
+    until(selected)
+    if failure == 'protection_change':
+        server.state['favorites_allowed'] = True
+        until(lambda: adapter.observe().favorites_allowed is True)
+    else:
+        def refuse(*args):raise InputRefused
+        monkeypatch.setattr(adapter, 'merge', refuse)
+    runner.tick()
+    assert runner.state == 'failed'
+    assert runner.reason == ('settings_changed' if failure == 'protection_change' else 'input_failed')
+    until(lambda: server.state['run_attempt'] == '' and server.state['selected_units'] == 0)
+    assert server.state['spent'] == 0
+    assert [r['op'] for r in server.requests] == ['begin', 'select', 'stop']
+    until(lambda: not adapter.busy and adapter.observe().run_attempt == '')
+    assert runner.start(1)
