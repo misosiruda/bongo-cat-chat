@@ -1,5 +1,25 @@
 # Windows 개발판 검증 기록
 
+## 2026-11-09 · dev28 출하 후보 검사
+
+버전을 `0.1.0.dev28`로 지정하고 한국어·영어 릴리스 노트에 설치 파일·설치 버튼 순서·첫 실행·기존 설치 업데이트·버그 제보·수집 정보와 한계를 기록했다. 자체 검수에서 진단이 마지막 채팅 상태의 `connected`만 읽는 것을 발견해, 실제 UI와 같은 freshness 판정을 사용하도록 수정했다. 오래된 연결 상태가 정상 연결로 제보되지 않는 회귀 검사를 추가했다.
+
+`QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`, NSIS 3.13의 `BONGO_TEST_NSIS_PATH` 조건에서 `pytest -q tests/test_bug_report.py tests/test_desktop.py tests/test_localization.py tests/test_updates.py tests/test_distribution.py tests/test_release_requests.py --junitxml=artifacts/release-dev28/affected-final.xml`은 **154 passed / 49.14초**, 실패·생략 0개였다. 제보·공통 UI·번역·버전/배포·업데이트와 설치 도구 소비자를 다시 검사했다. 아래 초기 구현의 전체 1077개 결과는 버전·freshness 수정 전 기록이며 최종 head의 전체 통과로 재사용하지 않는다. 최종 PR과 배포 후보의 필수 Windows CI에서 전체 suite·실제 패키징·오프라인 EXE 검증을 별도로 수행한다.
+
+JavaScript 문법과 diff 형식을 확인했다. 실제 게임/기존 설치 변경·소비·외부 GitHub 제보 등록은 수행하지 않는다. 원래 오류의 사용자 PC 원인을 확정한 릴리스가 아니며, 기존 초기화 결과 미확인·소비 중복 방지 보호를 유지한다.
+
+## 2026-11-09 · GitHub 버그 제보와 연결 진단
+
+비교 기준은 공개 dev27의 `f0803a30b92ae496bbec62f7368abca3f854a148`이다. `codex/bug-report`의 후속 로컬 소스에 설정·상자·합성 화면의 제보 버튼, 안전한 진단 미리보기, GitHub 작성 화면 열기와 진단 복사를 추가했다. 버전은 아직 `0.1.0.dev27`이며 공개 설치본에 이 기능이 포함됐다는 의미는 아니다. 수집·전송 정책은 [D-041](decisions.md#d-041-사용자가-진단을-확인한-뒤-github에서-버그를-제보한다)과 [개인정보 안내](privacy-policy.md)를 따른다.
+
+- **진단 경계:** 최근 연결 실패 3회의 허용된 단계·상태·오류와 숫자형 초기화 결과만 수집한다. 모의 계정/로비 ID·대화·경로·토큰·스택·원본 예외·메모리 주소를 넣어도 본문에 포함되지 않음을 검사했다. 잘못된 타입·범위·알 수 없는 문자열을 거부하며, 화면이 임의 URL이나 본문을 보내도 백엔드가 보관한 미리보기만 복사하거나 연다. 기존 연결 기록·ledger는 변경하지 않고 미확인 모듈을 다시 로드하지 않는다.
+- **실제 오프라인 Qt:** 세 진입점의 미리보기, 복사한 본문과 GitHub URL에 담긴 본문의 일치, 브라우저 실패 후 복사 가능, 만료된 미리보기·종료 뒤 요청 차단, 제보 중 업데이트 재시작 보류, 한국어·영어를 검사했다. 브라우저 실행은 가짜 핸들러로 대체했고 외부 이슈를 작성하지 않았다. 520×700 및 420×500 화면의 닫기·복사·GitHub 버튼을 합성 데이터 화면으로 확인했다. 캡처는 Git에서 제외한 `artifacts/bug-report-regular.png`, `bug-report-compact.png`에 있다.
+- **검사 실행 중 발견한 Qt 정리 문제:** 최초 전체 실행과 화면 집중 실행 두 번이 기존 `qt_chat` fixture 준비 중 `Qt6WebChannel.dll` 접근 위반으로 종료됐다. fixture 종료 시 등록 객체를 해제하고 예약된 창 삭제를 처리하도록 보완했다. 이후 제보·아바타·기존 화면·번역 검사 `pytest -q tests/test_bug_report.py tests/test_default_avatars.py tests/test_desktop.py tests/test_localization.py`는 **87 passed / 47.86초**였다. 앞선 중단을 통과로 세지 않는다.
+- **최종 전체 검사:** `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`, 검증된 NSIS 3.13 경로의 `BONGO_TEST_NSIS_PATH` 조건에서 `pytest -q --junitxml=artifacts/bug-report-full-final.xml`은 **1077 passed / 279.64초**, 실패·생략 0개였다. 공통 Controller·UI와 Qt fixture 정리가 바뀌어 연결·소비 보호·채팅·업데이트·개인정보·실제 NSIS 컴파일러 통합 검사까지 전체 범위를 실행했다. 위 87개 검사와 겹치므로 합산하지 않는다. Qt SharedImageManager 진단은 남았지만 검사는 통과했으며 제품의 GPU 설정은 변경하지 않았다.
+- **정적 검사:** 변경 Python 소스·검사의 `compileall`, `node --check src/bongo_chat/ui/app.js`, `git diff --check`가 통과했다. 한국어·영어 README, 사용법·결정·개인정보 안내를 갱신했다.
+
+이번 실행은 제보 PC의 오류 원인 확정이나 해결 증거가 아니다. 실제 GitHub 로그인·최종 등록, 실제 게임 연결·재시작·설치 변경·소비, 다른 PC 인수는 수행하지 않았다. C# 제품 소스·호환성 계약·소비 재전송 정책은 변경하지 않았다. 원격 CI·설치 파일 빌드·병합·후속 릴리스 배포도 이번 기능 작업에서는 수행하지 않았다.
+
 ## 2026-11-09 · dev27 출하 후보 검사
 
 연결 오류 수정과 버전 `0.1.0.dev27`을 반영한 최종 로컬 소스에서 자동화·IPC·bootstrap·복구·Qt·번역 관련 9개 테스트 파일은 **277 passed / 107.52초**, 버전·배포 요청·업데이트 관련 3개 파일은 **81 passed / 9.42초**였다. 두 실행 모두 생략 0개이며, Qt 검사는 `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu` 조건이다. JavaScript 문법·Python 컴파일·diff 형식도 확인했다. 상세 결과는 Git에서 제외한 `artifacts/release-dev27/automation-final.xml`, `version-release-tests.xml`에 보관한다.

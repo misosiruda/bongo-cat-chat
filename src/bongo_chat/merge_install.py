@@ -246,13 +246,32 @@ def wait_snapshot(channel, timeout_error='bridge_response_pending'):
 
 def connect():
     """Background connection after manual Connect or saved chest startup consent."""
+    from .diagnostics import clean_details
+    details = {'phase': 'find_game'}
+    try:
+        return _connect(details)
+    except Exception as exc:
+        # Only fixed labels/numbers reach reports. Keep the original exception
+        # type and failure behavior; never retry a load to collect diagnostics.
+        if isinstance(exc, OSError):
+            details['winerror'] = getattr(exc, 'winerror', None)
+        exc.connection_diagnostics = clean_details(details)
+        raise
+
+
+def _connect(details):
     from .merge_connection import InteractiveAdapter
     game = running_game()
+    details['phase'] = 'validate_assets'
     assets, contract = validate_assets(game,asset_directory())
+    details['phase'] = 'open_process'
     k = kernel()
     handle = k.OpenProcess(0x043a,False,game.pid)
-    if not handle:raise RuntimeError('process_access_failed')
+    if not handle:
+        details['winerror'] = C.get_last_error()
+        raise RuntimeError('process_access_failed')
     try:
+        details['phase'] = 'session_path'
         ticks = start_ticks(k,handle)
         # Outside AppData: the MSIX development host and the game see the same path.
         parent = no_links(Path(os.environ['USERPROFILE'])/'.bongo-cat-chat')
@@ -261,6 +280,7 @@ def connect():
         if not parent.exists():private_directory(parent)
         session = no_links(parent/f'{game.pid}-{ticks}')
         if session.exists():
+            details.update(source='existing', phase='read_session')
             try:
                 config = read_json(session/'session.json')
             except FileNotFoundError:
@@ -273,24 +293,36 @@ def connect():
                 raise RuntimeError('bridge_session_invalid')
             if config.get('mode') != 'interactive' or config.get('source_sha256') != contract['source_sha256']:
                 raise RuntimeError('bridge_session_incompatible')
+            details['phase'] = 'open_channel'
             channel = open_channel(session)
             try:
+                details['phase'] = 'read_attach_result'
                 try:
                     attached = read_json(session/'attach-result.json')
+                    details.update(attach_record='present')
+                    from .diagnostics import clean_details
+                    details.update(clean_details({key: attached.get(key) for key in
+                        ('status', 'stage', 'managed_exception', 'load_error')}))
                 except FileNotFoundError:
+                    details['attach_record'] = 'missing'
                     attached = {}
                 except OSError as exc:
+                    details['attach_record'] = 'unreadable'
                     raise RuntimeError(storage_error(exc)) from None
                 except ValueError:
+                    details['attach_record'] = 'invalid'
                     raise RuntimeError('bridge_session_invalid') from None
                 confirmed = (attached.get('status') == 1 and attached.get('stage') == 7
                              and attached.get('managed_exception') is False)
+                details['phase'] = 'wait_response'
                 raw = wait_snapshot(channel, 'bridge_response_pending' if confirmed else 'attach_not_confirmed_no_retry')
                 if raw.get('chest', {}).get('armed'):
+                    details['phase'] = 'stop_previous'
                     try:
                         channel.request('chest_stop')  # Reconnect never adopts an earlier run's lease.
                     except Exception:
                         raise RuntimeError('bridge_stop_unconfirmed') from None
+                details['phase'] = 'refresh_response'
                 try:
                     channel.request('snapshot')  # Read-only refresh; never begin/select/merge.
                 except Exception:
@@ -299,6 +331,7 @@ def connect():
             except Exception:
                 channel.close()
                 raise
+        details.update(source='new', phase='inspect_modules')
         reader = Reader(game)
         try:
             check_prior_modules(reader)
@@ -314,7 +347,9 @@ def connect():
                     exports[name] = base+symbol.address
                 if set(exports) != set((*EXPORTS,ERROR_EXPORT)):raise RuntimeError('unsupported_game_build')
         finally:reader.close()
+        details['phase'] = 'validate_game'
         compatibility = validate_game_files(game.root, contract, assets)
+        details['phase'] = 'prepare_module'
         private_directory(session)  # Exclusive creation is the installation lock.
         dll = prepare_session(game,assets,session,compatibility)
         digest = hashlib.sha256(dll.read_bytes()).hexdigest()
@@ -322,6 +357,7 @@ def connect():
                       token=secrets.token_hex(32),test_budget=0,mode='interactive',helper_sha256=digest,
                       source_sha256=contract['source_sha256'],
                       assembly_mvids=compatibility['modules'])
+        details['phase'] = 'write_session'
         write_session_json(session/'session.json', config)
         if hashlib.sha256((session/HELPER).read_bytes()).hexdigest() != digest:
             raise RuntimeError('bridge_binary_changed')
@@ -329,12 +365,21 @@ def connect():
         if compatibility != validate_game_files(game.root, contract, assets):
             raise RuntimeError('automation_files_changed')
         write_session_json(session/'attach-attempt.json', {'attempted_at':time.time()})
+        details.update(phase='bootstrap', attach_record='missing')
         try:
             result = execute(handle,exports,session/HELPER)
-        except (OSError, RuntimeError):
+        except (OSError, RuntimeError) as exc:
+            from .diagnostics import NATIVE_ERRORS
+            details['native_error'] = (str(exc) if str(exc) in NATIVE_ERRORS else
+                                       'native_os_error' if isinstance(exc, OSError) else 'native_failed')
+            details['winerror'] = getattr(exc, 'winerror', None)
             raise RuntimeError('attach_not_confirmed_no_retry') from None
+        details.update(status=result['status'], stage=result['stage'],
+                       managed_exception=bool(result['exception']), load_error=result.get('load_error'))
+        details['phase'] = 'write_attach_result'
         public = dict(status=result['status'],stage=result['stage'],managed_exception=bool(result['exception']))
         write_session_json(session/'attach-result.json', public)
+        details.update(phase='bootstrap', attach_record='present')
         if result['status'] != 1:
             try:
                 failure = read_json(session/'compatibility-error.json')
@@ -343,8 +388,10 @@ def connect():
             if failure == {'epoch': config['epoch'], 'reason': 'automation_files_changed'}:
                 raise RuntimeError('automation_files_changed')
             raise RuntimeError('attach_not_confirmed_no_retry')
+        details['phase'] = 'open_channel'
         channel = open_channel(session)
         try:
+            details['phase'] = 'wait_response'
             wait_snapshot(channel)
             return InteractiveAdapter(channel=channel)
         except Exception:

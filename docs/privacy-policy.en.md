@@ -54,6 +54,10 @@ The installer creates the current user's app files, Start menu shortcut, Windows
 
 ## Language preferences and other transfers
 
+The follow-up source dated 2026-11-09 adds **Report a bug**. On request it previews the app, Windows and Python versions, packaging/architecture, known connection state/errors and allowlisted numeric initialization results from up to three failed connection attempts during this app session. A verified game build number is included when present in the current state. It excludes chat, drafts, names, Steam/lobby IDs, file paths, process IDs, connection tokens, consumption ledgers, raw logs, stacks and game binaries. In-memory diagnostics disappear when the app exits. Existing initialization records contribute only allowed fields already read during a connection attempt.
+
+**Report on GitHub** opens the default browser with the reviewed report prefilled in the project's issue title/body. The diagnostics are sent to GitHub in the URL at this point and may remain in browser history. You sign in and submit on GitHub; submitted issues are public. The app does not receive GitHub credentials or create issues automatically. **Copy diagnostics** copies the same report to the system clipboard, subject to Windows clipboard history/synchronization settings. Any details you add on GitHub are also public; do not add personal information. Manual reporting is separate from update-check permission. Preparing the preview alone does not transmit it or open a browser.
+
 The selected language is stored locally with the other app settings. System default uses the Windows display language, choosing Korean for Korean and English otherwise. Translation is entirely local: messages, drafts, player names and lobby names are not sent to a translation service or automatically translated.
 
 The current implementation has no developer-operated chat upload service, cloud synchronization, advertising/analytics telemetry or automatic crash reporting. If data handling or connection destinations change, this policy and the related user controls must be updated together.
