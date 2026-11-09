@@ -182,17 +182,32 @@ def test_report_actions_use_cached_content_and_reject_after_shutdown(tmp_path, m
 
 
 @pytest.mark.parametrize('size', [(420, 500), (520, 700)])
-def test_report_actions_remain_reachable_with_long_diagnostics(qt_chat, size):
+@pytest.mark.parametrize('language', ['ko', 'en'])
+def test_report_actions_remain_reachable_with_long_diagnostics(qt_chat, size, language):
     app, controller, page = qt_chat
     connection = failed_connection()
     for _ in range(3): connection._connect()
     controller.merge_connection = connection
     page.parent().resize(*size)
     assert (page.parent().width(), page.parent().height()) == size
+    # Native resize and Chromium's viewport/layout updates are asynchronous.
+    wait_until(app, lambda: js(app, page, f'innerWidth === {size[0]} && innerHeight === {size[1]}'))
+    controller.dispatch({'action': 'setting', 'key': 'language', 'value': language})
+    wait_until(app, lambda: js(app, page, 'document.documentElement.lang') == language)
     js(app, page, "document.querySelector('#settings-button').click();document.querySelector('[data-report=app]').click()")
     wait_until(app, lambda: js(app, page, "!document.querySelector('#bug-report-open').disabled"))
-    js(app, page, "document.querySelector('#bug-report-dialog details').open=true")
-    assert js(app, page, """(() => {
-      const r=document.querySelector('#bug-report-open').getBoundingClientRect();
-      return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth;
-    })()""")
+    js(app, page, """document.querySelector('#bug-report-dialog details').open=true;
+      window.reportLayoutPainted=false;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>window.reportLayoutPainted=true));""")
+    wait_until(app, lambda: js(app, page, 'window.reportLayoutPainted'))
+    geometry = json.loads(js(app, page, """JSON.stringify((() => {
+      const selectors=['#bug-report-open','#bug-report-copy','#bug-report-dialog .dialog-heading button'];
+      return {width:innerWidth,height:innerHeight,buttons:selectors.map(selector=>{
+        const button=document.querySelector(selector), r=button.getBoundingClientRect();
+        const hit=document.elementFromPoint((r.left+r.right)/2,(r.top+r.bottom)/2);
+        return {selector,top:r.top,bottom:r.bottom,left:r.left,right:r.right,
+          visible:r.width>0 && r.height>0 && r.top>=0 && r.bottom<=innerHeight && r.left>=0 && r.right<=innerWidth,
+          reachable:hit===button || button.contains(hit)};
+      })};
+    })())"""))
+    assert all(button['visible'] and button['reachable'] for button in geometry['buttons']), geometry

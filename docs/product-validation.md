@@ -6,6 +6,8 @@
 
 `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`, NSIS 3.13의 `BONGO_TEST_NSIS_PATH` 조건에서 `pytest -q tests/test_bug_report.py tests/test_desktop.py tests/test_localization.py tests/test_updates.py tests/test_distribution.py tests/test_release_requests.py --junitxml=artifacts/release-dev28/affected-final.xml`은 **154 passed / 49.14초**, 실패·생략 0개였다. 제보·공통 UI·번역·버전/배포·업데이트와 설치 도구 소비자를 다시 검사했다. 아래 초기 구현의 전체 1077개 결과는 버전·freshness 수정 전 기록이며 최종 head의 전체 통과로 재사용하지 않는다. 최종 PR과 배포 후보의 필수 Windows CI에서 전체 suite·실제 패키징·오프라인 EXE 검증을 별도로 수행한다.
 
+PR #55의 최초 Windows CI는 **1077 passed, 1 failed / 404.07초**였다. 실패는 520×700 제보 창에서 상세 진단을 펼친 직후의 버튼 위치 검사다. 로컬 30회 비교에서는 즉시 측정과 두 프레임 후 측정 모두 통과해 CI 실패의 실제 좌표는 재현하지 못했다. 네이티브 창 크기 변경이 Chromium viewport에 반영되고 두 프레임이 지난 뒤 측정하도록 검사 동기화를 보완했다. 한국어·영어 각각에서 닫기·복사·GitHub 버튼의 화면 내부 배치와 hit test를 검사하며, 실패 시 좌표도 출력한다. 제품 CSS는 변경하지 않았다. 최종 `tests/test_bug_report.py tests/test_desktop.py tests/test_localization.py`는 **75 passed / 46.04초**, 생략 0개였다. 최초 CI 결과와 30회 관측은 `artifacts/release-dev28/pr-first-failure.json`, `report-layout-observation.json`에 보존한다. 변경 head의 필수 CI 결과는 별도로 확인한다.
+
 JavaScript 문법과 diff 형식을 확인했다. 실제 게임/기존 설치 변경·소비·외부 GitHub 제보 등록은 수행하지 않는다. 원래 오류의 사용자 PC 원인을 확정한 릴리스가 아니며, 기존 초기화 결과 미확인·소비 중복 방지 보호를 유지한다.
 
 ## 2026-11-09 · GitHub 버그 제보와 연결 진단
