@@ -4,6 +4,8 @@
 
 ## 검사 범위
 
+2026-11-09 dev30부터 JSON 읽기에 필요한 `System.Numerics.dll`도 필수 의존성으로 검사한다. 누락·읽기 실패·지원 파일 불일치를 연결 전 차단하고, 실행 중 타입 로드 실패에는 파일 복구 안내를 제공한다. 사용자 재설치로 해결된 #58과 격리 재현의 증거·한계는 [의존성 검사 기록](issue-58-dependencies.md)을 따른다.
+
 단일 원본은 `tools/merge_bridge/local-contract.json`이다. 빌드할 때 이 계약에서 읽기 전용 검사기의 입력과 무결성 해시를 생성한다. 제품 연결·개발용 컴파일·개발용 설치는 같은 검증 함수를 사용한다.
 
 - **합성:** ItemExchange, AutoExchanger, SteamItemRuntime, 교환 규칙·슬롯, 보호 옵션, 선택·원본 교환·결과 콜백을 포함한다. 연결 모듈이 직접 사용하는 LINQ와 HashSet도 명시한다.

@@ -1,5 +1,16 @@
 # Windows 개발판 검증 기록
 
+## 2026-11-09 · dev30 의존성 사전 검사와 복구 안내
+
+비교 기준은 공개 dev29 / `87f347b1ac8b0167dbac6c04ee7cb4b8dfe480c4`다. 사용자에게서 #58 제보자가 게임 재설치 후 연결을 복구했다는 확인을 받았다. 설치 전후 파일을 직접 비교한 기록은 아니며 특정 DLL의 실제 누락·손상이나 기존 도우미의 책임을 확정하지 않는다. [조사 기록](issue-58-dependencies.md)에 격리 재현과 사용자 확인을 구분했다.
+
+- **연결·진단·실제 오프라인 Qt:** `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`에서 `pytest -q tests/test_merge_install.py tests/test_bug_report.py tests/test_merge_connection.py tests/test_localization.py --junitxml=artifacts/issue58/affected.xml`은 **162 passed / 87.16초**, 실패·생략 0개였다. 누락·변조·권한 실패가 프로세스 접근 전에 차단되는지, 기존 기록 보존과 복구 후 검증, 새 연결/기존 실패 기록 분류, 한국어·영어 상자/합성 화면과 버그 제보를 검사했다.
+- **영향받는 소비자:** 같은 Qt 조건과 NSIS 3.13의 `BONGO_TEST_NSIS_PATH`로 `pytest -q tests/test_feature_probe.py tests/test_auto_chest.py tests/test_auto_merge.py tests/test_connection_recovery.py tests/test_distribution.py tests/test_release_requests.py tests/test_updates.py --junitxml=artifacts/issue58/consumers.xml`은 **224 passed / 50.05초**, 실패·생략 0개였다. 호환성 메타데이터·자동화 보호·복구·버전·설치/업데이트 소비자를 포함한다.
+- **실제 지원 파일의 읽기 전용 확인:** Steam의 설치된 depot manifest와 `System.Numerics.dll`의 크기·SHA-1이 일치하고, 계약 SHA-256과도 일치함을 확인했다. 별도 게임 파일 복사본에서 정상 검증 → 의존성 누락/변조 시 각각 안전한 오류 → 복원 후 정상 검증을 확인했다. 상세 결과는 `artifacts/issue58/dependency-validation.json`이다.
+- **검사 범위:** Python의 연결 사전 검사·오류 분류·고정 메시지와 계약 파일을 변경했다. C# 게임 모듈·네이티브 bootstrap·소비 정책은 변경하지 않았다. 영향이 연결·진단·자동화/배포 소비자로 한정돼 로컬 전체 suite는 반복하지 않는다. 최종 PR/main/배포 후보에서 필수 전체 Windows CI·패키징 검사를 별도로 확인한다. Qt SharedImageManager 진단은 남았지만 테스트 실패는 없었으며 제품 GPU 설정은 변경하지 않았다.
+
+한국어·영어 릴리스 노트에 설치·업데이트·게임 파일 복구 방법을 기록했다. 실제 게임/사용 중 설치 변경·재시작·상자·합성·포인트 소비는 수행하지 않는다. 사용자 PC의 재설치는 사용자가 전달한 인수 결과이며 이번 자동 시험으로 수행한 것으로 세지 않는다.
+
 ## 2026-11-09 · dev29 초기화 실패 진단·상태 보완
 
 공개 dev28 / `fb21be6092940e02f5e05f41a5c38f3dceb54870`을 기준으로 #56의 초기화 관리 예외를 별도 오류로 구분하고, 제한된 실패 단계·예외 종류를 기존 버그 제보에 포함했다. 콜백 등록 성공 전에 초기화 완료 상태가 남던 순서도 수정했다. [조사 기록](issue-56-initialization.md)과 한국어·영어 [dev29 설치 안내](releases/0.1.0.dev29.md)에 원인 미확정과 업데이트 후 사용자의 한 번의 게임 재실행 필요성을 명시했다.

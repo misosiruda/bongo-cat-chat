@@ -13,6 +13,8 @@ CONNECTION_ERRORS = frozenset({
     'bridge_session_invalid', 'bridge_response_unreadable', 'bridge_response_invalid',
     'bridge_reconnect_failed', 'bridge_stop_unconfirmed', 'bridge_target_changed',
     'bridge_target_unverified', 'bridge_connection_failed', 'bridge_initialization_failed',
+    'bridge_dependency_missing', 'bridge_dependency_unreadable',
+    'bridge_dependency_incompatible', 'bridge_dependency_load_failed',
 })
 MANAGED_TYPES = frozenset({'other', 'System.InvalidOperationException', 'System.TypeInitializationException',
     'System.TypeLoadException', 'System.MissingMethodException', 'System.MissingFieldException',
@@ -67,3 +69,13 @@ def clean_details(value):
 
 def connection_error(value):
     return value if isinstance(value, str) and value in CONNECTION_ERRORS else 'bridge_connection_failed'
+
+
+def initialization_error(details):
+    """A type-load failure does not prove that any particular DLL is missing."""
+    types = clean_details(details).get('managed_exception_types', [])
+    if any(kind in {'System.TypeLoadException', 'System.MissingMethodException',
+                   'System.MissingFieldException', 'System.IO.FileLoadException',
+                   'System.BadImageFormatException'} for kind in types):
+        return 'bridge_dependency_load_failed'
+    return 'bridge_initialization_failed'

@@ -300,7 +300,7 @@ def _connect(details):
                 try:
                     attached = read_json(session/'attach-result.json')
                     details.update(attach_record='present')
-                    from .diagnostics import clean_details
+                    from .diagnostics import clean_details, initialization_error
                     details.update(clean_details({key: attached.get(key) for key in
                         ('status', 'stage', 'managed_exception', 'load_error', 'managed_exception_types',
                          'managed_reason', 'initialization_step')}))
@@ -318,7 +318,7 @@ def _connect(details):
                 details['phase'] = 'wait_response'
                 failed = attached.get('status') == 2 and attached.get('stage') == 7 and attached.get('managed_exception') is True
                 raw = wait_snapshot(channel, 'bridge_response_pending' if confirmed else
-                    'bridge_initialization_failed' if failed else 'attach_not_confirmed_no_retry')
+                    initialization_error(attached) if failed else 'attach_not_confirmed_no_retry')
                 if raw.get('chest', {}).get('armed'):
                     details['phase'] = 'stop_previous'
                     try:
@@ -379,7 +379,7 @@ def _connect(details):
             raise RuntimeError('attach_not_confirmed_no_retry') from None
         details.update(status=result['status'], stage=result['stage'],
                        managed_exception=bool(result['exception']), load_error=result.get('load_error'))
-        from .diagnostics import clean_details
+        from .diagnostics import clean_details, initialization_error
         details.update(clean_details({key: result.get(key) for key in
             ('managed_exception_types', 'managed_reason', 'initialization_step')}))
         details['phase'] = 'write_attach_result'
@@ -396,7 +396,7 @@ def _connect(details):
             if failure == {'epoch': config['epoch'], 'reason': 'automation_files_changed'}:
                 raise RuntimeError('automation_files_changed')
             if result['status'] == 2 and result['stage'] == 7 and result['exception']:
-                raise RuntimeError('bridge_initialization_failed')
+                raise RuntimeError(initialization_error(details))
             raise RuntimeError('attach_not_confirmed_no_retry')
         details['phase'] = 'open_channel'
         channel = open_channel(session)
