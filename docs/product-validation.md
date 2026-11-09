@@ -1,5 +1,16 @@
 # Windows 개발판 검증 기록
 
+## 2026-11-09 · dev29 초기화 실패 진단·상태 보완
+
+공개 dev28 / `fb21be6092940e02f5e05f41a5c38f3dceb54870`을 기준으로 #56의 초기화 관리 예외를 별도 오류로 구분하고, 제한된 실패 단계·예외 종류를 기존 버그 제보에 포함했다. 콜백 등록 성공 전에 초기화 완료 상태가 남던 순서도 수정했다. [조사 기록](issue-56-initialization.md)과 한국어·영어 [dev29 설치 안내](releases/0.1.0.dev29.md)에 원인 미확정과 업데이트 후 사용자의 한 번의 게임 재실행 필요성을 명시했다.
+
+- **전체 회귀:** 네이티브 부트스트랩·공통 연결·C# 초기화가 바뀌어 `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`, NSIS 3.13의 `BONGO_TEST_NSIS_PATH` 조건에서 `pytest -q --junitxml=artifacts/issue56/full.xml`을 실행했다. **1091 passed / 299.24초**, 실패·생략 0개였다. 이 실행 뒤 GC 고정 순서, 네이티브 정수 반환 상위 비트, 본문 진입 전 단계 표시를 추가 보완했으므로 최종 head 전체 검사로 표현하지 않는다.
+- **최종 영향 범위 재검사:** 위 보완 뒤 `pytest -q tests/test_merge_bootstrap.py tests/test_merge_install.py tests/test_merge_connection.py tests/test_bug_report.py tests/test_localization.py --junitxml=artifacts/issue56/final-focused.xml`은 **165 passed / 69.36초**, 실패·생략 0개였다. 실제 Windows x64 명령어 실행, C# 합성 게임, 기록 재사용·재로드 차단, 진단 허용 목록·복사·URL 제한, 한국어·영어 오프라인 Qt 안내를 포함한다. 전체 실행과 겹치므로 합산하지 않는다. Qt SharedImageManager 진단은 남았지만 검사 실패는 없었고 제품 GPU 설정은 변경하지 않았다.
+- **지원 런타임 대조:** 현재 지원 게임 메타데이터 대상 컴파일·참조 확인 후, 게임 Mono를 로드한 별도 테스트 프로세스 자체에서 정상 초기화와 세 가지 주입 실패를 검사했다. 최종 소스로 네 경우 모두 예상 결과를 확인했다. `artifacts/issue56/final-isolated-mono-validation.json`에 보존하며 실제 게임 연결이나 제보 PC 재현으로 세지 않는다.
+- **정적·배포 검사 구분:** Python 컴파일·JavaScript 문법·diff 형식을 검사했다. 최종 PR과 병합 커밋의 필수 Windows CI, 실제 패키징·설치/제거·공개 업데이트 검사는 별도로 확인한다. 로컬 전체 검사는 영향이 넓어 한 번 수행했고, 이후 제한된 보완은 영향받는 연결·진단 소비자 검사로 재확인했다.
+
+기존 Auto Chest 설치 이력만으로 #56 원인을 확정하지 않는다. 실행 중 게임·실제 설치·개인 로그·ledger를 변경하지 않았고 실제 개봉·합성·포인트 소비도 수행하지 않았다. 새 진단으로 제보 PC의 실패 단계를 확인하는 인수가 남아 있으며 #56을 자동 종료하지 않는다.
+
 ## 2026-11-09 · dev28 출하 후보 검사
 
 버전을 `0.1.0.dev28`로 지정하고 한국어·영어 릴리스 노트에 설치 파일·설치 버튼 순서·첫 실행·기존 설치 업데이트·버그 제보·수집 정보와 한계를 기록했다. 자체 검수에서 진단이 마지막 채팅 상태의 `connected`만 읽는 것을 발견해, 실제 UI와 같은 freshness 판정을 사용하도록 수정했다. 오래된 연결 상태가 정상 연결로 제보되지 않는 회귀 검사를 추가했다.

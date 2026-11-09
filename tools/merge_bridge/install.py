@@ -16,7 +16,7 @@ import time
 import uuid
 
 import pefile
-from bootstrap import EXPORTS, ERROR_EXPORT, execute, kernel, start_ticks
+from bootstrap import EXPORTS, ERROR_EXPORT, DIAGNOSTIC_EXPORTS, execute, kernel, start_ticks
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'src'))
@@ -69,12 +69,12 @@ def install(budget):
             exports = {}
             for symbol in pe.DIRECTORY_ENTRY_EXPORT.symbols:
                 name = (symbol.name or b'').decode('ascii')
-                if name not in (*EXPORTS, ERROR_EXPORT): continue
+                if name not in (*EXPORTS, ERROR_EXPORT, *DIAGNOSTIC_EXPORTS): continue
                 if symbol.forwarder or reader.exact(base + symbol.address, 24) != pe.get_data(symbol.address, 24):
                     raise RuntimeError('loaded_export_changed')
                 exports[name] = base + symbol.address
             pe.close()
-            if set(exports) != set((*EXPORTS, ERROR_EXPORT)): raise RuntimeError('mono_exports_missing')
+            if set(exports) != set((*EXPORTS, ERROR_EXPORT, *DIAGNOSTIC_EXPORTS)): raise RuntimeError('mono_exports_missing')
         finally: reader.close()
         dll = ROOT / 'artifacts/merge-bridge/BongoCatChat.MergeBridge.Shared.dll'
         if not dll.is_file(): raise RuntimeError('build_bridge_first')

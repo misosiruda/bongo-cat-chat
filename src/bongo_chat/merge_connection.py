@@ -29,7 +29,7 @@ class MergeConnection:
     def diagnostic_snapshot(self):
         with self.lock:
             return dict(state=self.state, error=self.error,
-                        attempts=[dict(item) for item in self.diagnostics])
+                        attempts=[dict(clean_details(item), error=item['error']) for item in self.diagnostics])
 
     def connection_snapshot(self):
         with self.lock:

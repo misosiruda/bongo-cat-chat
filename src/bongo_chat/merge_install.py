@@ -17,7 +17,7 @@ import pefile
 from .automation_compat import validate_game_files
 from .environment import running_game
 from .memory import Reader, MonoCatalog, fields
-from .merge_bootstrap import EXPORTS, ERROR_EXPORT, execute, kernel, start_ticks
+from .merge_bootstrap import EXPORTS, ERROR_EXPORT, DIAGNOSTIC_EXPORTS, execute, kernel, start_ticks
 from .merge_bridge import BridgeChannel, read_json
 
 HELPER = 'BongoCatChat.MergeBridge.Live.dll'
@@ -302,7 +302,8 @@ def _connect(details):
                     details.update(attach_record='present')
                     from .diagnostics import clean_details
                     details.update(clean_details({key: attached.get(key) for key in
-                        ('status', 'stage', 'managed_exception', 'load_error')}))
+                        ('status', 'stage', 'managed_exception', 'load_error', 'managed_exception_types',
+                         'managed_reason', 'initialization_step')}))
                 except FileNotFoundError:
                     details['attach_record'] = 'missing'
                     attached = {}
@@ -315,7 +316,9 @@ def _connect(details):
                 confirmed = (attached.get('status') == 1 and attached.get('stage') == 7
                              and attached.get('managed_exception') is False)
                 details['phase'] = 'wait_response'
-                raw = wait_snapshot(channel, 'bridge_response_pending' if confirmed else 'attach_not_confirmed_no_retry')
+                failed = attached.get('status') == 2 and attached.get('stage') == 7 and attached.get('managed_exception') is True
+                raw = wait_snapshot(channel, 'bridge_response_pending' if confirmed else
+                    'bridge_initialization_failed' if failed else 'attach_not_confirmed_no_retry')
                 if raw.get('chest', {}).get('armed'):
                     details['phase'] = 'stop_previous'
                     try:
@@ -341,11 +344,11 @@ def _connect(details):
                 if pe.FILE_HEADER.Machine != 0x8664:raise RuntimeError('unsupported_game_build')
                 for symbol in pe.DIRECTORY_ENTRY_EXPORT.symbols:
                     name = (symbol.name or b'').decode('ascii')
-                    if name not in (*EXPORTS,ERROR_EXPORT):continue
+                    if name not in (*EXPORTS,ERROR_EXPORT,*DIAGNOSTIC_EXPORTS):continue
                     if symbol.forwarder or reader.exact(base+symbol.address,24) != pe.get_data(symbol.address,24):
                         raise RuntimeError('unsupported_game_build')
                     exports[name] = base+symbol.address
-                if set(exports) != set((*EXPORTS,ERROR_EXPORT)):raise RuntimeError('unsupported_game_build')
+                if set(exports) != set((*EXPORTS,ERROR_EXPORT,*DIAGNOSTIC_EXPORTS)):raise RuntimeError('unsupported_game_build')
         finally:reader.close()
         details['phase'] = 'validate_game'
         compatibility = validate_game_files(game.root, contract, assets)
@@ -376,8 +379,13 @@ def _connect(details):
             raise RuntimeError('attach_not_confirmed_no_retry') from None
         details.update(status=result['status'], stage=result['stage'],
                        managed_exception=bool(result['exception']), load_error=result.get('load_error'))
+        from .diagnostics import clean_details
+        details.update(clean_details({key: result.get(key) for key in
+            ('managed_exception_types', 'managed_reason', 'initialization_step')}))
         details['phase'] = 'write_attach_result'
         public = dict(status=result['status'],stage=result['stage'],managed_exception=bool(result['exception']))
+        public.update(clean_details({key: details.get(key) for key in
+            ('load_error', 'managed_exception_types', 'managed_reason', 'initialization_step')}))
         write_session_json(session/'attach-result.json', public)
         details.update(phase='bootstrap', attach_record='present')
         if result['status'] != 1:
@@ -387,6 +395,8 @@ def _connect(details):
                 failure = {}
             if failure == {'epoch': config['epoch'], 'reason': 'automation_files_changed'}:
                 raise RuntimeError('automation_files_changed')
+            if result['status'] == 2 and result['stage'] == 7 and result['exception']:
+                raise RuntimeError('bridge_initialization_failed')
             raise RuntimeError('attach_not_confirmed_no_retry')
         details['phase'] = 'open_channel'
         channel = open_channel(session)

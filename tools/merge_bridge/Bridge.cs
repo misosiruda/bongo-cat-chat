@@ -135,8 +135,21 @@ namespace BongoCatChat.MergeBridge
         public static void Install()
         {
             if (installed) return;
+            string step = "bridge_init_0";
+            try { InstallCore(ref step); }
+            catch (Exception exception)
+            {
+                // Only this fixed code and allowlisted exception types enter a report.
+                // Native diagnostics read fields without invoking exception.ToString().
+                throw new InvalidOperationException(step, exception);
+            }
+        }
+        static void InstallCore(ref string step)
+        {
+            step = "bridge_init_1";
             directory = Path.GetDirectoryName(typeof(Bridge).Assembly.Location);
             var config = ReadJson(Path.Combine(directory, "session.json"));
+            step = "bridge_init_2";
             if ((int)config["protocol"] != Protocol || (int)config["pid"] != GetCurrentProcessId() ||
                 (long)config["process_start_ticks"] != StartTicks())
                 throw new InvalidOperationException("process_mismatch");
@@ -147,6 +160,7 @@ namespace BongoCatChat.MergeBridge
                 throw new InvalidOperationException("invalid_session");
             // Connecting never arms consumption. The UI must explicitly begin a run.
             if (interactive && maxRequests != 0) throw new InvalidOperationException("invalid_session");
+            step = "bridge_init_3";
             try { VerifyAssemblyIdentity(config); }
             catch (InvalidOperationException)
             {
@@ -154,6 +168,7 @@ namespace BongoCatChat.MergeBridge
                     Object("epoch", epoch, "reason", "automation_files_changed").ToString(Formatting.None));
                 throw;
             }
+            step = "bridge_init_4";
             var ledgerPath = Path.Combine(directory, "ledger.json");
             if (File.Exists(ledgerPath))
             {
@@ -162,12 +177,14 @@ namespace BongoCatChat.MergeBridge
                 spent = (int)ledger["spent"];
                 if (spent < 0 || spent > maxRequests) throw new InvalidOperationException("ledger_invalid");
             }
+            step = "bridge_init_5";
             var type = typeof(ItemExchange);
             slotsField = Field(type, "_exchangeSlots"); busyField = Field(type, "_isExchanging");
             countField = Field(type, "_possibleExchanges"); categoryField = Field(type, "_currentCategoryTabIndex");
             recipesField = Field(type, "_exchanges"); duplicatesMethod = type.GetMethod("GetDuplicateItems", Flags);
             if (duplicatesMethod == null) throw new InvalidOperationException("missing_duplicates");
             handlesField = Field(typeof(Heathen.SteamworksIntegration.API.Inventory.Client), "_mResultHandles");
+            step = "bridge_init_6";
             var helper = typeof(UnityEngine.Application).Assembly.GetType("UnityEngine.BeforeRenderHelper");
             renderCallbacks = (IList)Field(helper, "s_OrderBlocks").GetValue(null);
             var blockType = helper.GetNestedType("OrderBlock", BindingFlags.NonPublic | BindingFlags.Public);
@@ -175,9 +192,9 @@ namespace BongoCatChat.MergeBridge
             Field(blockType, "order").SetValue(renderBlock, int.MaxValue);
             renderAction = BootstrapMainLoop;
             Field(blockType, "callback").SetValue(renderBlock, renderAction);
-            installed = true;
+            step = "bridge_init_7";
             lastCommand = Clock.ElapsedMilliseconds;
-            lock (renderCallbacks) renderCallbacks.Add(renderBlock);
+            lock (renderCallbacks) { renderCallbacks.Add(renderBlock); installed = true; }
         }
 
         static void BootstrapMainLoop()

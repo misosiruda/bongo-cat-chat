@@ -103,7 +103,8 @@ def test_unconfirmed_attachment_is_not_reported_as_only_delayed(reconnect_sessio
         path.unlink()
     else:
         path.write_text(json.dumps(result))
-    with pytest.raises(RuntimeError, match='^attach_not_confirmed_no_retry$'):
+    expected = 'bridge_initialization_failed' if result and result.get('status') == 2 else 'attach_not_confirmed_no_retry'
+    with pytest.raises(RuntimeError, match='^'+expected+'$'):
         merge_install.connect()
     assert channel.closed and calls == ['close_handle']
 
@@ -249,7 +250,7 @@ def test_module_scan_does_not_confuse_unreadable_metadata_with_a_loaded_bridge(m
 
 @pytest.mark.parametrize('outcome,expected', [
     ('ready', None), ('late', 'bridge_response_pending'),
-    ('managed_failure', 'attach_not_confirmed_no_retry'), ('native_failure', 'attach_not_confirmed_no_retry'),
+    ('managed_failure', 'bridge_initialization_failed'), ('native_failure', 'attach_not_confirmed_no_retry'),
     ('native_os_failure', 'attach_not_confirmed_no_retry'), ('load_failure', 'attach_not_confirmed_no_retry'),
 ])
 def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_path, monkeypatch, outcome, expected):
@@ -269,7 +270,7 @@ def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_pat
     class PE:
         FILE_HEADER = SimpleNamespace(Machine=0x8664)
         DIRECTORY_ENTRY_EXPORT = SimpleNamespace(symbols=[SimpleNamespace(name=name.encode(), forwarder=None, address=i)
-            for i,name in enumerate((*merge_install.EXPORTS, merge_install.ERROR_EXPORT))])
+            for i,name in enumerate((*merge_install.EXPORTS, merge_install.ERROR_EXPORT, *merge_install.DIAGNOSTIC_EXPORTS))])
         def __init__(self, path):pass
         def __enter__(self):return self
         def __exit__(self, *args):pass
@@ -290,7 +291,9 @@ def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_pat
         if outcome == 'load_failure':
             return dict(status=0, stage=3, exception=0, load_error=2, load_message='C:/private/user')
         return dict(status=2 if outcome == 'managed_failure' else 1, stage=7,
-                    exception=1 if outcome == 'managed_failure' else 0)
+                    exception=1 if outcome == 'managed_failure' else 0,
+                    **(dict(managed_exception_types=['System.InvalidOperationException', 'System.IO.IOException'],
+                            initialization_step='read_session', managed_reason='invalid_session') if outcome == 'managed_failure' else {}))
     monkeypatch.setattr(merge_install, 'execute', attach)
     def make_channel(path):
         def snapshot():
@@ -317,6 +320,8 @@ def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_pat
             assert diagnostic['native_error'] == 'native_os_error' and diagnostic['winerror'] == 5
         elif outcome == 'managed_failure':
             assert diagnostic['status'] == 2 and diagnostic['stage'] == 7 and diagnostic['managed_exception'] is True
+            assert diagnostic['initialization_step'] == 'read_session'
+            assert diagnostic['managed_exception_types'] == ['System.InvalidOperationException', 'System.IO.IOException']
         elif outcome == 'load_failure':
             assert diagnostic['status'] == 0 and diagnostic['stage'] == 3 and diagnostic['load_error'] == 2
         session = tmp_path/'.bongo-cat-chat'/'merge-bridge'/'123-456'
@@ -326,6 +331,9 @@ def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_pat
             merge_install.connect()
         assert reused.value.connection_diagnostics['source'] == 'existing'
         assert reused.value.connection_diagnostics['attach_record'] == ('missing' if outcome in {'native_failure', 'native_os_failure'} else 'present')
+        if outcome == 'managed_failure':
+            assert reused.value.connection_diagnostics['initialization_step'] == diagnostic['initialization_step']
+            assert reused.value.connection_diagnostics['managed_exception_types'] == diagnostic['managed_exception_types']
         assert {p.name:p.read_bytes() for p in session.iterdir()} == before
     else:
         assert merge_install.connect() is channels[0]
