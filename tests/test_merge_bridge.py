@@ -20,6 +20,21 @@ def raw_snapshot():
         spent=0,test_budget=2,per_request_limit=1)
 
 
+@pytest.mark.parametrize('changed,expected', [
+    ({'pid':99}, 'bridge_snapshot_mismatch'),
+    ({'epoch':'different'}, 'bridge_snapshot_mismatch'),
+    ({'protocol':2}, 'bridge_snapshot_mismatch'),
+    ({'captured_utc_ms':0}, 'observation_stale'),
+])
+def test_snapshot_identity_errors_are_not_reported_as_only_delayed(tmp_path, changed, expected):
+    channel = object.__new__(BridgeChannel)
+    channel.session = tmp_path
+    channel.config = dict(epoch='a'*32, pid=42)
+    (tmp_path/'snapshot.json').write_text(json.dumps(dict(raw_snapshot(), **changed)))
+    with pytest.raises(ValueError, match='^'+expected+'$'):
+        channel.snapshot()
+
+
 class FileServer:
     def __init__(self,path,interactive=False,chest=False):
         self.path=path;self.state=raw_snapshot();self.requests=[];self.seen=set();self.pending=None

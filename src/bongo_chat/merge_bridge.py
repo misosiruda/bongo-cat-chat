@@ -130,8 +130,9 @@ class BridgeChannel:
     def snapshot(self):
         raw = read_json(self.session/'snapshot.json')
         if (raw['protocol'] != 1 or raw['epoch'] != self.config['epoch']
-                or raw['pid'] != self.config['pid']
-                or not 0 <= time.time()*1000 - raw['captured_utc_ms'] <= 1500):
+                or raw['pid'] != self.config['pid']):
+            raise ValueError('bridge_snapshot_mismatch')
+        if not 0 <= time.time()*1000 - raw['captured_utc_ms'] <= 1500:
             raise ValueError('observation_stale')
         return raw
 
