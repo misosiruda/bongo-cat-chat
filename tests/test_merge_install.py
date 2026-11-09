@@ -1,5 +1,6 @@
 """Distribution preparation tests; no live process discovery or injection."""
 import hashlib
+import errno
 import importlib.util
 import json
 import os
@@ -10,8 +11,306 @@ from types import SimpleNamespace
 
 import pytest
 from bongo_chat.merge_install import validate_assets,compile_helper,prepare_session,HELPER
+from bongo_chat import merge_install
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture
+def reconnect_session(tmp_path, monkeypatch):
+    """An existing bridge with delayed telemetry; no game process is opened."""
+    game = SimpleNamespace(pid=123, root=tmp_path/'game')
+    session = tmp_path/'.bongo-cat-chat'/'merge-bridge'/'123-456'
+    session.mkdir(parents=True)
+    config = dict(mode='interactive', source_sha256='fixture-source', epoch='e'*32, pid=123, protocol=1)
+    (session/'session.json').write_text(json.dumps(config))
+    (session/'attach-result.json').write_text(json.dumps(dict(status=1, stage=7, managed_exception=False)))
+    calls, elapsed = [], [0.0]
+    class Channel:
+        def __init__(self, path):
+            assert path == session
+            self.session, self.config = session, config
+            self.reads = 0
+            self.closed = False
+            self.ready_after = 2
+            self.armed = False
+            self.terminal = False
+            self.target_changed = False
+            self.read_error = None
+            self.request_error = None
+        def verify_target(self, value):
+            if self.target_changed:
+                raise RuntimeError('target_changed')
+        def snapshot(self):
+            self.reads += 1
+            if self.read_error:
+                raise self.read_error
+            if self.reads <= self.ready_after:
+                raise FileNotFoundError('waiting for first render')
+            return dict(reason='closed' if self.terminal else '', chest=dict(armed=self.armed))
+        def request(self, op):
+            calls.append(op)
+            if op == self.request_error:
+                raise RuntimeError('result_unverified')
+        def close(self):
+            self.closed = True
+    channel = Channel(session)
+    monkeypatch.setenv('USERPROFILE', str(tmp_path))
+    monkeypatch.setattr(merge_install, 'running_game', lambda: game)
+    monkeypatch.setattr(merge_install, 'validate_assets', lambda *args: (tmp_path, config))
+    monkeypatch.setattr(merge_install, 'kernel', lambda: SimpleNamespace(OpenProcess=lambda *args: 1, CloseHandle=lambda h: calls.append('close_handle')))
+    monkeypatch.setattr(merge_install, 'start_ticks', lambda *args: 456)
+    monkeypatch.setattr(merge_install, 'BridgeChannel', lambda path: channel)
+    monkeypatch.setattr('bongo_chat.merge_connection.InteractiveAdapter', lambda **kwargs: kwargs['channel'])
+    monkeypatch.setattr(merge_install, 'time', SimpleNamespace(monotonic=lambda: elapsed[0], sleep=lambda n: elapsed.__setitem__(0, elapsed[0]+n)))
+    def forbidden(*args, **kwargs):
+        pytest.fail('reconnection must not read game memory, compile or attach another module')
+    for name in ('Reader', 'execute', 'prepare_session', 'private_directory'):
+        monkeypatch.setattr(merge_install, name, forbidden)
+    return channel, calls
+
+
+@pytest.mark.parametrize('armed', [False, True])
+def test_reconnect_waits_for_late_response_without_reattaching_or_consuming(reconnect_session, armed):
+    channel, calls = reconnect_session
+    channel.armed = armed
+    assert merge_install.connect() is channel
+    assert channel.reads == 3 and not channel.closed
+    assert calls == (['chest_stop'] if armed else []) + ['snapshot', 'close_handle']
+
+
+def test_reconnect_timeout_retains_evidence_and_can_read_same_session_later(reconnect_session):
+    channel, calls = reconnect_session
+    channel.ready_after = 1000
+    before = {p.name: p.read_bytes() for p in channel.session.iterdir()}
+    with pytest.raises(RuntimeError, match='^bridge_response_pending$'):
+        merge_install.connect()
+    assert channel.closed and calls == ['close_handle']
+    assert {p.name: p.read_bytes() for p in channel.session.iterdir()} == before
+    # A new manual Connect reads the same module after the game begins rendering.
+    channel.closed = False
+    channel.ready_after = 0
+    assert merge_install.connect() is channel
+    assert calls == ['close_handle', 'snapshot', 'close_handle']
+
+
+@pytest.mark.parametrize('result', [None, dict(status=2, stage=7, managed_exception=True), dict(status=0, stage=3, managed_exception=False)])
+def test_unconfirmed_attachment_is_not_reported_as_only_delayed(reconnect_session, result):
+    channel, calls = reconnect_session
+    channel.ready_after = 1000
+    path = channel.session/'attach-result.json'
+    if result is None:
+        path.unlink()
+    else:
+        path.write_text(json.dumps(result))
+    with pytest.raises(RuntimeError, match='^attach_not_confirmed_no_retry$'):
+        merge_install.connect()
+    assert channel.closed and calls == ['close_handle']
+
+
+@pytest.mark.parametrize('error,expected', [
+    (PermissionError('private path'), 'bridge_storage_access_denied'),
+    (OSError('read failure'), 'bridge_storage_failed'),
+    (ValueError('invalid JSON'), 'bridge_session_invalid'),
+])
+def test_attachment_record_read_error_does_not_become_a_restart_request(reconnect_session, monkeypatch, error, expected):
+    channel, calls = reconnect_session
+    original = merge_install.read_json
+    def read(path):
+        if path.name == 'attach-result.json':raise error
+        return original(path)
+    monkeypatch.setattr(merge_install, 'read_json', read)
+    with pytest.raises(RuntimeError, match='^'+expected+'$'):
+        merge_install.connect()
+    assert channel.closed and calls == ['close_handle']
+    assert (channel.session/'attach-result.json').is_file()
+
+
+@pytest.mark.parametrize('reason,expected', [
+    ('closed', 'bridge_session_closed'), ('stale_closed', 'bridge_session_closed'),
+    ('source_changed', 'bridge_session_incompatible'), ('target_changed', 'bridge_target_changed'),
+    ('missing_config', 'bridge_session_invalid'), ('malformed_config', 'bridge_session_invalid'),
+])
+def test_reconnect_keeps_terminal_session_guards(reconnect_session, reason, expected):
+    channel, calls = reconnect_session
+    if reason == 'closed':
+        channel.ready_after = 0
+        channel.terminal = True
+    elif reason == 'stale_closed':
+        (channel.session/'snapshot.json').write_text(json.dumps(dict(channel.config, reason='closed')))
+    elif reason == 'source_changed':
+        (channel.session/'session.json').write_text(json.dumps(dict(channel.config, source_sha256='old-source')))
+    elif reason == 'target_changed':
+        channel.target_changed = True
+    elif reason == 'missing_config':
+        (channel.session/'session.json').unlink()
+    else:
+        (channel.session/'session.json').write_text('{')
+    with pytest.raises(RuntimeError, match='^'+expected+'$'):
+        merge_install.connect()
+    assert calls == ['close_handle']
+
+
+@pytest.mark.parametrize('error,expected', [
+    (PermissionError('private path'), 'bridge_storage_access_denied'),
+    (OSError('sharing conflict'), 'bridge_response_unreadable'),
+    (ValueError('invalid JSON'), 'bridge_response_invalid'),
+    (ValueError('bridge_snapshot_mismatch'), 'bridge_response_invalid'),
+    (KeyError('private field'), 'bridge_response_invalid'),
+    (ValueError('observation_stale'), 'bridge_response_pending'),
+])
+def test_response_failures_are_distinguished_without_reattaching(reconnect_session, error, expected):
+    channel, calls = reconnect_session
+    channel.read_error = error
+    before = {p.name:p.read_bytes() for p in channel.session.iterdir()}
+    with pytest.raises(RuntimeError, match='^'+expected+'$'):
+        merge_install.connect()
+    assert channel.closed and calls == ['close_handle']
+    assert {p.name:p.read_bytes() for p in channel.session.iterdir()} == before
+
+
+@pytest.mark.parametrize('operation,expected', [('snapshot', 'bridge_reconnect_failed'), ('chest_stop', 'bridge_stop_unconfirmed')])
+def test_reconnection_requests_are_not_resent_when_the_reply_is_lost(reconnect_session, operation, expected):
+    channel, calls = reconnect_session
+    channel.armed = operation == 'chest_stop'
+    channel.request_error = operation
+    with pytest.raises(RuntimeError, match='^'+expected+'$'):
+        merge_install.connect()
+    assert calls == [operation, 'close_handle'] and channel.closed
+
+
+@pytest.mark.parametrize('error,expected', [
+    (PermissionError(errno.EACCES, 'private path'), 'bridge_storage_access_denied'),
+    (OSError(errno.ENOSPC, 'private path'), 'bridge_storage_full'),
+    (FileExistsError(errno.EEXIST, 'private path'), 'bridge_storage_conflict'),
+    (OSError(errno.EIO, 'private path'), 'bridge_storage_failed'),
+])
+def test_session_write_failure_has_safe_actionable_reason_and_preserves_evidence(tmp_path, monkeypatch, error, expected):
+    path = tmp_path/'attach-result.json'
+    path.write_bytes(b'preserved evidence')
+    def fail(*args, **kwargs):raise error
+    monkeypatch.setattr(Path, 'write_text', fail)
+    with pytest.raises(RuntimeError, match='^'+expected+'$'):
+        merge_install.write_session_json(path, {'status':1})
+    assert path.read_bytes() == b'preserved evidence'
+
+
+def test_linked_parent_is_an_unsupported_path_not_a_restart_request(tmp_path, monkeypatch):
+    linked = tmp_path/'linked'
+    linked.mkdir()
+    monkeypatch.setattr(Path, 'is_junction', lambda path: path == linked)
+    with pytest.raises(RuntimeError, match='^bridge_path_unsupported$'):
+        merge_install.no_links(linked/'new-session')
+    assert list(linked.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows directory ACLs')
+def test_directory_creation_reports_existing_path_and_other_os_failures(tmp_path):
+    session = tmp_path/'session'
+    merge_install.private_directory(session)
+    marker = session/'ledger.json'
+    marker.write_bytes(b'preserve')
+    with pytest.raises(RuntimeError, match='^bridge_storage_conflict$'):
+        merge_install.private_directory(session)
+    with pytest.raises(RuntimeError, match='^bridge_storage_failed$'):
+        merge_install.private_directory(tmp_path/'missing-parent'/'session')
+    assert marker.read_bytes() == b'preserve'
+
+
+@pytest.mark.parametrize('mode,expected', [
+    ('empty', None), ('cycle', 'bridge_module_scan_failed'), ('unreadable', 'bridge_module_scan_failed'),
+    ('active', 'prior_bridge_active'), ('missing_tables', 'bridge_module_scan_failed'),
+    ('uninitialized', 'bridge_module_scan_failed'),
+])
+def test_module_scan_does_not_confuse_unreadable_metadata_with_a_loaded_bridge(monkeypatch, mode, expected):
+    class Catalog:
+        base = 1000
+        def __init__(self, reader):pass
+        def images(self):
+            if mode == 'unreadable':raise ValueError('private memory diagnostic')
+        def klass(self, *args):return 100
+        def vtables(self, *args):return [] if mode == 'missing_tables' else [200]
+    class Reader:
+        def pointer(self, address):
+            return {1000+0x740f90:0 if mode == 'empty' else 1, 1:2, 2+0x60:3,
+                    3+0x30:4, 9:1 if mode == 'cycle' else 0, 200+0x48:300}.get(address, 0)
+        def cstring(self, address):return 'Unrelated' if mode == 'cycle' else HELPER[:-4]
+        def i32(self, address):return 0
+        def exact(self, address, size):
+            return bytes([0 if mode == 'uninitialized' else 4]) if address == 200+0x30 else b'\0'
+    monkeypatch.setattr(merge_install, 'MonoCatalog', Catalog)
+    monkeypatch.setattr(merge_install, 'fields', lambda *args: dict(installed=0, stopped=1, unknown=2, spent=4))
+    if expected:
+        with pytest.raises(RuntimeError, match='^'+expected+'$'):
+            merge_install.check_prior_modules(Reader())
+    else:
+        merge_install.check_prior_modules(Reader())
+
+
+@pytest.mark.parametrize('outcome,expected', [
+    ('ready', None), ('late', 'bridge_response_pending'),
+    ('managed_failure', 'attach_not_confirmed_no_retry'), ('native_failure', 'attach_not_confirmed_no_retry'),
+])
+def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_path, monkeypatch, outcome, expected):
+    """Execute the product flow with synthetic exports and a fake bootstrap only."""
+    calls, elapsed, channels = [], [0.0], []
+    game = SimpleNamespace(root=tmp_path/'game', pid=123, alive=lambda:True)
+    contract = dict(source_sha256='fixture-source')
+    monkeypatch.setenv('USERPROFILE', str(tmp_path))
+    monkeypatch.setattr(merge_install, 'running_game', lambda:game)
+    monkeypatch.setattr(merge_install, 'validate_assets', lambda *args:(tmp_path, contract))
+    monkeypatch.setattr(merge_install, 'validate_game_files', lambda *args:dict(modules={}))
+    monkeypatch.setattr(merge_install, 'kernel', lambda:SimpleNamespace(OpenProcess=lambda *args:1, CloseHandle=lambda h:None))
+    monkeypatch.setattr(merge_install, 'start_ticks', lambda *args:456)
+    monkeypatch.setattr(merge_install, 'private_directory', lambda path:path.mkdir())
+    monkeypatch.setattr(merge_install, 'check_prior_modules', lambda *args:None)
+    monkeypatch.setattr(merge_install, 'Reader', lambda game:SimpleNamespace(module=lambda name:4096, exact=lambda *args:b'x'*24, close=lambda:None))
+    class PE:
+        FILE_HEADER = SimpleNamespace(Machine=0x8664)
+        DIRECTORY_ENTRY_EXPORT = SimpleNamespace(symbols=[SimpleNamespace(name=name.encode(), forwarder=None, address=i)
+            for i,name in enumerate((*merge_install.EXPORTS, merge_install.ERROR_EXPORT))])
+        def __init__(self, path):pass
+        def __enter__(self):return self
+        def __exit__(self, *args):pass
+        def get_data(self, *args):return b'x'*24
+    monkeypatch.setattr(merge_install.pefile, 'PE', PE)
+    def prepare(game, assets, session, compatibility):
+        path = session/HELPER
+        path.write_bytes(b'synthetic module never loaded')
+        return path
+    monkeypatch.setattr(merge_install, 'prepare_session', prepare)
+    def attach(*args):
+        calls.append('attach')
+        if outcome == 'native_failure':raise RuntimeError('bootstrap_outcome_unknown_no_retry')
+        return dict(status=2 if outcome == 'managed_failure' else 1, stage=7,
+                    exception=1 if outcome == 'managed_failure' else 0)
+    monkeypatch.setattr(merge_install, 'execute', attach)
+    def make_channel(path):
+        def snapshot():
+            if outcome != 'ready':raise FileNotFoundError('no game response')
+            return dict(reason='ready', chest=dict(armed=False))
+        channel = SimpleNamespace(session=path, config=merge_install.read_json(path/'session.json'),
+                                  verify_target=lambda config:None, snapshot=snapshot,
+                                  close=lambda:calls.append('close_channel'))
+        channels.append(channel)
+        return channel
+    monkeypatch.setattr(merge_install, 'BridgeChannel', make_channel)
+    monkeypatch.setattr('bongo_chat.merge_connection.InteractiveAdapter', lambda **kwargs:kwargs['channel'])
+    monkeypatch.setattr(merge_install, 'time', SimpleNamespace(monotonic=lambda:elapsed[0], time=lambda:1234.0,
+        sleep=lambda n:elapsed.__setitem__(0, elapsed[0]+n)))
+    if expected:
+        with pytest.raises(RuntimeError, match='^'+expected+'$'):
+            merge_install.connect()
+        session = tmp_path/'.bongo-cat-chat'/'merge-bridge'/'123-456'
+        before = {p.name:p.read_bytes() for p in session.iterdir()}
+        assert 'attach-attempt.json' in before
+        with pytest.raises(RuntimeError, match='^'+expected+'$'):
+            merge_install.connect()
+        assert {p.name:p.read_bytes() for p in session.iterdir()} == before
+    else:
+        assert merge_install.connect() is channels[0]
+    assert calls.count('attach') == 1
+    assert not list(tmp_path.rglob('request.json'))
 
 
 @pytest.fixture

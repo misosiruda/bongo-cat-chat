@@ -24,12 +24,44 @@
     return text.replace(/\{(\w+)\}/g, (match,key) => Object.hasOwn(values,key) ? String(values[key]) : match);
   }
   function automationConnectionError(error) {
-    return {
+    const messages = {
       unsupported_automation_features:t('현재 게임의 상자·합성·인벤토리 기능이 지원 계약과 다릅니다. 호환되는 앱 업데이트가 필요합니다.'),
-      automation_probe_failed:t('상자·합성 기능의 호환성을 확인하지 못했습니다. 앱 파일을 확인한 뒤 다시 연결해 주세요.'),
-      automation_files_changed:t('검사한 게임 파일과 실행 중인 게임이 다릅니다. 작업을 중지하고 게임 업데이트 상태를 확인해 주세요.'),
-      unsupported_game_files:t('상자·합성에 필요한 런타임 또는 연결 모듈이 지원 목록과 다릅니다. 호환되는 앱 업데이트가 필요합니다.')
-    }[error];
+      automation_probe_failed:t('상자·합성 기능의 호환성을 확인하지 못했습니다. 개발 확인이 필요하므로 앱 버전과 오류 코드를 알려 주세요.'),
+      automation_files_changed:t('검사 도중 게임 파일이 바뀌었거나 실행 중인 게임과 일치하지 않습니다. 진행 중인 작업 결과를 확인하고 게임 업데이트를 마친 뒤 게임과 앱을 한 번 완전히 종료해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      unsupported_game_files:t('상자·합성에 필요한 런타임 또는 연결 모듈이 지원 목록과 다릅니다. 호환되는 앱 업데이트가 필요합니다.'),
+      merge_compiler_missing:t('게임 연결에 필요한 Windows .NET Framework 도구를 찾을 수 없습니다. Windows의 .NET Framework 설치 상태를 확인해 주세요.'),
+      merge_prepare_failed:t('게임 연결 모듈을 준비하지 못했습니다. 개발 확인이 필요하므로 앱 버전과 오류 코드를 알려 주세요.'),
+      game_missing_or_ambiguous:t('실행 중인 Bongo Cat 하나를 확인하지 못했습니다. 게임을 하나만 실행하고 게임과 앱의 실행 권한을 확인해 주세요.'),
+      unsupported_game_build:t('현재 게임 버전은 상자·합성 연결을 지원하지 않습니다. 호환되는 앱 업데이트가 필요합니다.'),
+      merge_game_files_missing:t('상자·합성 호환성 검사에 필요한 게임 파일이 없습니다. Steam에서 게임 파일 무결성을 확인해 주세요. 계속되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      merge_game_files_unreadable:t('상자·합성 호환성 검사에 필요한 게임 파일을 읽지 못했습니다. 파일 접근 권한을 확인한 뒤 다시 연결해 주세요.'),
+      bridge_assets_missing:t('앱의 게임 연결 파일이 없거나 올바르지 않습니다. 공식 배포본으로 앱을 다시 설치해 주세요. 계속되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_binary_changed:t('게임 연결 파일의 무결성을 확인하지 못했습니다. 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      process_access_failed:t('게임 프로세스에 접근하지 못했습니다. 게임과 앱의 실행 권한이 같은지 확인해 주세요.'),
+      bridge_client_in_use:t('다른 앱이 상자·합성에 연결되어 있습니다. 해당 앱을 닫은 뒤 연결해 주세요.'),
+      prior_bridge_active:t('이미 로드된 연결 모듈을 안전하게 재사용할 수 없습니다. 게임에서 진행 중인 작업 결과를 확인하고 게임과 앱을 한 번 완전히 종료한 뒤 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_session_unavailable:t('이전 연결을 확인하지 못했습니다. 원인 확인이 필요하므로 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      attach_not_confirmed_no_retry:t('연결 모듈의 로드·초기화 결과를 확인하지 못했습니다. 중복 로드를 막기 위해 게임과 앱을 한 번 완전히 종료한 뒤 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_response_pending:t('게임 응답을 기다리다 연결을 완료하지 못했습니다. 게임 창이 최소화되어 있으면 화면에 표시한 뒤 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_path_unsupported:t('사용자 폴더에 다른 위치로 연결된 경로가 있어 앱이 지원하지 못합니다. 개발 확인이 필요하므로 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_storage_access_denied:t('연결 기록 폴더 또는 파일에 접근이 거부됐습니다. 현재 Windows 계정의 폴더 읽기·쓰기 권한을 확인해 주세요. 권한이 정상인데 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_storage_full:t('연결 기록을 저장할 디스크 공간이 부족합니다. 사용자 폴더가 있는 드라이브의 여유 공간을 확보한 뒤 다시 연결해 주세요.'),
+      bridge_storage_conflict:t('연결 기록을 만들 위치에 이미 파일이나 폴더가 있습니다. 중복 실행한 채팅 앱이 있으면 닫고 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_storage_failed:t('연결 기록 폴더·파일을 처리하지 못했습니다. 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_storage_security_failed:t('연결 기록의 접근 권한 보호를 설정하지 못했습니다. 개발 확인이 필요하므로 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_module_scan_failed:t('게임 내부의 연결 모듈 목록이나 상태를 검사하지 못했습니다. 개발 확인이 필요하므로 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_session_incompatible:t('이번 게임의 연결 기록이 현재 앱과 호환되지 않습니다. 진행 중인 작업 결과를 확인하고 게임과 앱을 한 번 완전히 종료한 뒤 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_session_closed:t('이번 게임의 연결 모듈이 종료되어 다시 사용할 수 없습니다. 게임과 앱을 한 번 완전히 종료한 뒤 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_session_invalid:t('이번 게임의 연결 기록에 필요한 정보가 없거나 형식이 올바르지 않습니다. 기록을 삭제하지 말고 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_response_unreadable:t('게임 응답 파일을 읽지 못했습니다. 잠시 후 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_response_invalid:t('게임 연결 응답의 형식이나 대상 정보가 예상과 다릅니다. 개발 확인이 필요하므로 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_reconnect_failed:t('게임 상태를 읽었지만 재연결 확인 응답을 받지 못했습니다. 잠시 후 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_stop_unconfirmed:t('이전 자동 개봉의 중지를 확인하지 못했습니다. 게임에서 진행 중인 결과를 확인하고 게임과 앱을 한 번 완전히 종료해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_target_changed:t('연결 도중 게임이 종료되었거나 실행 대상이 바뀌었습니다. Bongo Cat 하나만 실행된 상태에서 다시 연결해 주세요.'),
+      bridge_target_unverified:t('실행 중인 게임을 확인하지 못했습니다. 게임과 앱의 실행 상태·권한을 확인하고 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.'),
+      bridge_connection_failed:t('게임 연결 중 원인을 분류하지 못한 오류가 발생했습니다. 개발자에게 앱 버전과 오류 코드를 알려 주세요.')
+    };
+    return Object.hasOwn(messages, error) ? messages[error] + ' ' + t('오류 코드: {code}', {code:error}) : '';
   }
 
   function applyLanguage(data) {
@@ -721,21 +753,9 @@
       $('merge-connect').textContent = connection.state === 'connected' ? t('다시 연결') : t('게임에 연결');
       $('merge-connection-title').textContent = connection.state === 'connecting' ? t('게임에 연결 중')
         : connection.state === 'connected' ? t('게임 연결됨') : connection.state === 'error' ? t('연결 확인 필요') : t('게임 연결');
-      const connectionErrors = {
-        merge_compiler_missing:t('게임 연결에 필요한 Windows .NET Framework 도구를 찾을 수 없습니다.'),
-        merge_prepare_failed:t('게임 연결 모듈을 준비하지 못했습니다. 게임 버전과 앱 파일을 확인해 주세요.'),
-        game_missing_or_ambiguous:t('Bongo Cat을 실행한 뒤 다시 연결해 주세요.'),
-        unsupported_game_build:t('현재 게임 버전은 자동 합성 연결을 지원하지 않습니다. 호환되는 앱 업데이트가 필요합니다.'),
-        merge_game_files_missing:t('자동 합성 호환성 검사에 필요한 게임 파일이 없습니다. 현재 설치 구성을 지원하는 앱 업데이트가 필요합니다.'),
-        merge_game_files_unreadable:t('자동 합성 호환성 검사에 필요한 게임 파일을 읽지 못했습니다. 파일 접근 권한을 확인한 뒤 다시 연결해 주세요.'),
-        bridge_assets_missing:t('이 앱에 자동 합성 연결 파일이 없습니다. 자동 합성을 포함한 앱을 설치해 주세요.'),
-        bridge_client_in_use:t('다른 앱이 자동 합성에 연결되어 있습니다. 해당 앱을 닫은 뒤 연결해 주세요.'),
-        prior_bridge_active:t('기존 연결 상태를 확인할 수 없습니다. 게임을 직접 다시 실행한 뒤 연결해 주세요.'),
-        bridge_session_unavailable:t('이전 연결 상태를 확인할 수 없습니다. 합성 결과를 확인하고 게임을 직접 다시 실행해 주세요.'),
-        attach_not_confirmed_no_retry:t('연결 완료를 확인하지 못했습니다. 자동으로 재시도하지 않습니다. 게임을 직접 다시 실행한 뒤 연결해 주세요.')};
       $('merge-connection-message').textContent = connection.state === 'connecting'
         ? t('게임과 연결 파일을 확인하고 있습니다. 아이템을 선택하거나 소비하지 않습니다.')
-        : connection.state === 'error' ? automationConnectionError(connection.error) || connectionErrors[connection.error] || t('게임 연결에 실패했습니다. 게임과 앱의 실행 상태를 확인해 주세요.')
+        : connection.state === 'error' ? automationConnectionError(connection.error) || t('게임 연결에 실패했습니다. 게임과 앱의 실행 상태를 확인해 주세요.')
         : connection.state === 'connected' ? t('그룹과 횟수를 선택하고 시작을 눌러 주세요. 앱을 다시 열어도 자동으로 시작하지 않습니다.')
         : t('게임에 연결한 뒤 그룹과 횟수를 선택해 주세요. 연결만으로 합성하지 않습니다.');
     }
@@ -833,7 +853,7 @@
       : !value.fresh ? t('게임 연결 확인 필요') : labels[value.reason] || t('게임 연결 확인 필요');
     const reasons = {
       unsupported_chest:t('현재 게임 파일은 상자 자동 개봉을 지원하지 않습니다. 앱 업데이트가 필요합니다.'),
-      result_unverified:t('이미 요청한 개봉 결과를 확인하지 못했습니다. 게임에서 확인한 뒤 게임과 앱을 직접 다시 실행해 주세요.'),
+      result_unverified:t('이미 요청한 개봉 결과를 확인하지 못했습니다. 게임에서 결과를 확인하고 게임과 앱을 한 번 완전히 종료한 뒤 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.') + ' ' + t('오류 코드: {code}', {code:'result_unverified'}),
       chest_fault:t('개봉 처리를 확인할 수 없어 중단했습니다. 게임에서 결과를 확인해 주세요.'),
       app_disconnected:t('앱과 연결이 끊겨 새 개봉 요청을 중단했습니다.'),
       game_unavailable:t('게임 상태가 일시적으로 변경되어 자동 개봉을 중지했습니다. 게임 연결이 회복되면 직접 다시 시작해 주세요.'),
@@ -845,7 +865,7 @@
       chest_busy:t('게임에서 상자 개봉이 진행 중입니다. 결과가 끝난 뒤 시작해 주세요.'),
       legacy_busy:t('기존 도우미의 개봉 결과를 기다리고 있습니다. 완료 후 다시 시작해 주세요.'),
       legacy_confirmation_required:t('기존 도우미 전환을 확인한 뒤 시작해 주세요.'),
-      legacy_unverified:t('기존 도우미 상태를 확인할 수 없습니다. 게임을 직접 다시 실행한 뒤 확인해 주세요.')
+      legacy_unverified:t('기존 Auto Chest 도우미의 상태를 검증하지 못했습니다. 개발 확인이 필요하므로 앱 버전과 오류 코드를 알려 주세요.') + ' ' + t('오류 코드: {code}', {code:'legacy_unverified'})
     };
     $('chest-state').textContent = title;
     const startupReasons = {waiting_game:t('게임 연결이 준비되면 저장한 설정으로 자동 개봉을 시작합니다.'),
@@ -874,9 +894,7 @@
     $('chest-connect').disabled = chestBusy || active || mergeState?.active || mergeState?.unresolved || !connection?.can_connect;
     $('chest-connection-title').textContent = connection?.state === 'connected' ? t('게임 연결됨') : connection?.state === 'connecting' ? t('게임에 연결 중') : t('게임 연결');
     $('chest-connection-message').textContent = connection?.state === 'error'
-      ? (automationConnectionError(connection.error) || (['prior_bridge_active','bridge_session_unavailable'].includes(connection.error)
-        ? t('기존 연결 상태를 확인할 수 없습니다. 게임을 직접 다시 실행한 뒤 연결해 주세요.')
-        : t('게임 연결에 실패했습니다. 지원하는 게임 파일과 기존 연결 상태를 확인해 주세요.')))
+      ? (automationConnectionError(connection.error) || t('게임 연결에 실패했습니다. 지원하는 게임 파일과 기존 연결 상태를 확인해 주세요.'))
       : t('게임에 연결한 뒤 시작할 수 있습니다. 자동 시작은 저장한 설정을 따릅니다.');
     $('merge-connect').disabled ||= active;
     $('merge-start').disabled ||= active;

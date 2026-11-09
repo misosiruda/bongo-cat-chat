@@ -52,6 +52,21 @@ def attach(controller,path):
     return server,manager
 
 
+@pytest.mark.parametrize('reason,restart', [('legacy_unverified', False), ('result_unverified', True)])
+def test_chest_reason_distinguishes_developer_investigation_from_unverified_consumption(qt_chat, monkeypatch, reason, restart):
+    app, controller, page = qt_chat
+    original = controller.chests.snapshot
+    monkeypatch.setattr(controller.chests, 'snapshot', lambda:dict(original(), reason=reason, fresh=True,
+        supported=True, can_start=False, unknown=restart))
+    js(app,page,"document.querySelector('#chest-open').click()")
+    wait_until(app,lambda:reason in js(app,page,"document.querySelector('#chest-reason').textContent"))
+    message = js(app,page,"document.querySelector('#chest-reason').textContent")
+    assert ('한 번 완전히 종료' in message) == restart
+    assert ('개발 확인이 필요' in message) == (not restart)
+    assert '앱 버전과 오류 코드' in message
+    assert js(app,page,"document.querySelector('#chest-start').disabled")
+
+
 def test_real_renderer_save_connect_takeover_start_stop_and_language(qt_chat,tmp_path):
     app,controller,page=qt_chat
     server,manager=attach(controller,tmp_path)

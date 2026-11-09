@@ -1,5 +1,36 @@
 # Windows 개발판 검증 기록
 
+## 2026-11-09 · dev27 출하 후보 검사
+
+연결 오류 수정과 버전 `0.1.0.dev27`을 반영한 최종 로컬 소스에서 자동화·IPC·bootstrap·복구·Qt·번역 관련 9개 테스트 파일은 **277 passed / 107.52초**, 버전·배포 요청·업데이트 관련 3개 파일은 **81 passed / 9.42초**였다. 두 실행 모두 생략 0개이며, Qt 검사는 `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu` 조건이다. JavaScript 문법·Python 컴파일·diff 형식도 확인했다. 상세 결과는 Git에서 제외한 `artifacts/release-dev27/automation-final.xml`, `version-release-tests.xml`에 보관한다.
+
+로컬 검사는 변경 영향이 있는 연결·소비 보호와 버전/업데이트 소비자까지 선택했다. 전체 pytest와 패키징·설치 파일·오프라인 renderer 검증은 필수 원격 Windows CI와 병합 커밋의 별도 배포 후보에서 수행하며 이 로컬 기록으로 통과를 대신하지 않는다. 한국어·영어 릴리스 노트와 설치 문서를 갱신했다. 실제 게임·사용 중인 설치 변경, 상자·합성·포인트 소비, 제보 PC 원인 확정은 수행하지 않았다.
+
+## 2026-11-09 · 연결 오류 분류와 사용자·개발 조치 구분
+
+같은 브랜치의 첫 응답 지연 수정에 이어, 재실행 후에도 반복될 수 있는 오류를 발생 단계별로 나눴다. 저장 경로·폴더 생성·기록 읽기/쓰기·모듈 검사·기존 세션 호환성/종료·응답 형식/대상·재연결/중지 확인을 구분한다. 미분류 오류에는 원인을 단정하지 않는다. [사용자 조치와 개발 항목](auto-chest.md#사용자-조치와-개발에서-해결할-항목)에 코드·안내·완료/남은 작업을 기록했다.
+
+- 실제 Windows 임시 경로에 ACL을 가진 폴더를 생성하고, 이미 있는 경로와 없는 상위 경로의 실패가 재실행 안내로 합쳐지지 않는지 확인했다. 권한 거부·공간 부족·파일 읽기 실패는 합성 오류로 분리 검사했고, 기존 기록·ledger 보존을 확인했다. 실제 사용자 프로필 권한이나 설치 파일은 변경하지 않았다.
+- 합성 Mono 목록의 순환·읽기 실패·초기화 상태 읽기 실패를 모듈 실제 잔류와 구분했다. 가짜 bootstrap으로 최초 연결 성공·응답 지연·관리 초기화 실패·실행 결과 미확인을 검사하고, 다시 연결해도 모듈 로드 시도는 한 번이며 소비 요청이 없음을 확인했다.
+- snapshot의 프로토콜·프로세스·연결 ID 불일치를 시간 만료와 구분했다. 재연결 중 상태 갱신/상자 중지 응답 유실에는 명령을 재전송하지 않는다. 상자·합성 Qt 화면의 원인별 문구·오류 코드·시작 차단과 한 번의 완전 종료가 필요한 오류/개발 확인 오류의 구분을 검사했다.
+- `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`에서 `pytest -q tests/test_merge_install.py tests/test_merge_connection.py tests/test_merge_bridge.py tests/test_merge_bootstrap.py tests/test_auto_chest.py tests/test_auto_merge.py tests/test_auto_merge_desktop.py tests/test_connection_recovery.py tests/test_localization.py`는 **272 passed / 102.12초**, 생략 0개였다. C# 모의 게임·Windows bootstrap fixture를 포함하며 실제 게임 모듈 로드는 없다. Qt SharedImageManager 진단은 있었지만 테스트 실패는 없었다.
+- 마지막 상자 결과 미확인 안내·오류 코드와 도우미 안내 회귀를 추가한 뒤 `pytest -q tests/test_auto_chest.py tests/test_localization.py`는 **50 passed / 10.94초**였다. 이어 초기화 결과 기록의 읽기/파싱 실패가 재실행 요구로 바뀌지 않도록 보완하고 `pytest -q tests/test_merge_install.py -k 'reconnect or response or attachment or initial_attach'`로 **31 passed, 43 deselected / 3.46초**를 확인했다. 선택 제외는 미실행 검사이며 통과 수에 포함하지 않는다. 세 검사 집합은 겹치므로 합산하지 않는다.
+- 최종 Python `compileall`, JavaScript `node --check`, `git diff --check`를 확인했다. 로컬 상세 결과는 `artifacts/chest-error-classification-final.xml`, `artifacts/chest-error-messages-final.xml`, `artifacts/chest-error-records-final.xml`에 보관한다.
+
+공유 IPC의 실패 분류까지 변경돼 연결 설치뿐 아니라 상자/합성 소비 보호·복구·Qt 소비자까지 검사 범위를 넓혔다. 무관한 채팅·배포 전체 suite와 원격 CI는 실행하지 않았다. C# 제품 소스·호환성 계약·권한 상승·게임 파일·실행 중 설치·ledger 삭제·소비 명령 재전송은 변경하지 않았다. 최초 렌더 의존 제거, 링크 경로 지원, 초기화 예외의 상세 진단, 실제 제보 PC 인수와 설치 파일 빌드/배포는 남아 있다.
+
+## 2026-11-09 · 첫 응답 지연과 재연결 오류 안내
+
+비교 기준은 `bf69d2708b86d2f7ead92f5c5c611bc266ed1b75`(dev26)이며, 수정 전 기본 checkout은 추적·비추적 변경 없이 깨끗했다. 게임과 앱을 재실행해도 연결 안내가 반복된다는 제보를 바탕으로 기존 연결의 첫 snapshot 지연 경로를 조사했다. 제보 PC의 정확한 오류·버전·로그는 확보되지 않았으며 실제 원인을 확정한 기록이 아니다.
+
+- 기준 커밋의 `connect` 함수를 격리된 테스트 프로세스에서 실행해 지연 응답·기존 상자 실행·시간 초과 구분 회귀 3개가 모두 `bridge_session_unavailable` 때문에 실패하는 것을 확인했다. 실제 게임 대신 가짜 프로세스/파일 채널과 제어된 시계를 사용했다.
+- 후속 소스는 기존 모듈의 응답만 최대 5초 확인하고, 초기화 성공 뒤 응답 지연과 초기화 결과 미확인을 구분한다. 종료 상태·소스 변경·대상 변경 거부, 기존 실행의 중지, 기록 보존과 모듈 재설치 금지를 검사했다. 상자와 합성 Qt 화면에서 원인별 안내·오류 코드·시작 차단 및 응답 지연 안내의 영어 전환을 확인했다.
+- `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`로 `pytest -q tests/test_merge_install.py tests/test_merge_connection.py tests/test_merge_bridge.py tests/test_auto_chest.py tests/test_auto_merge.py tests/test_auto_merge_desktop.py tests/test_connection_recovery.py tests/test_localization.py`를 실행해 **213 passed / 87.76초**, 생략 0개였다. Qt SharedImageManager 진단은 있었으나 검사 실패는 없었다.
+- 위 실행 중 초기화 성공 기록이 없는 연결의 시간 초과 분류를 추가 보완했다. 변경된 설치 경로 전체인 `tests/test_merge_install.py`를 최종 소스로 다시 실행해 **45 passed / 23.82초**, 생략 0개였다. 두 실행은 겹치므로 합산하지 않는다. C# 모의 게임·상자 fixture는 이 설치 검사에 포함되며 실제 소비가 아니다.
+- Python `compileall`, `node --check src/bongo_chat/ui/app.js`, `git diff --check`를 통과했다. 로컬 원본 결과는 Git에서 제외한 `artifacts/chest-connection-response-tests.xml`, `artifacts/chest-connection-install-final.xml`에 있다.
+
+변경 범위는 연결 시 관측 대기·오류 분류와 두 자동화 화면의 안내다. 영향을 받는 설치·IPC·복구·상자/합성 실행·Qt UI·번역을 검사했고, 무관한 채팅/배포 전체 suite와 원격 CI는 실행하지 않았다. C# 제품 소스·호환성 계약·소비 요청 규칙은 변경하지 않았다. 실행 중 게임/설치 변경·게임 재시작·실제 개봉/합성/포인트 소비·제보 PC 재현·설치 파일 빌드/배포는 수행하지 않았다. 운영 설명은 [상자 연결 오류 복구](auto-chest.md#2026-11-09-첫-응답-지연과-재연결-안내)를 따른다.
+
 ## 2026-11-05 · dev26 상자·합성 기능 호환성
 
 상자·합성·인벤토리 기능 계약으로 검사하고 중복 전체 DLL 해시 제한을 제거했다. 현재 build 26431657의 읽기 전용 정적 지문과 실제 설치 메타데이터 대상 컴파일·참조 해석을 확인했다. 독립 합성 어셈블리에서 무관한 변경 허용, 보호·콜백·반복자·초기화·예외 처리 변경 차단을 검사하며 모의 게임/IPC의 기존 소비 보호도 유지한다. [상세 범위](automation-feature-compatibility.md)를 참고한다. 실제 게임 모듈 로드·파일 변경·재시작·상자/합성/포인트 소비는 수행하지 않았다.

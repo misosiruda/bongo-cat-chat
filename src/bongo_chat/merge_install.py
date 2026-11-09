@@ -1,6 +1,7 @@
 """Pinned Windows runtime connection; no game files, restart or automation changes."""
 import ctypes as C
 from ctypes import wintypes as W
+import errno
 import hashlib
 import json
 import os
@@ -30,8 +31,27 @@ def asset_directory():
 def no_links(path):
     for part in (path, *path.parents):
         if part.exists() and (part.is_symlink() or part.is_junction()):
-            raise RuntimeError('bridge_session_unavailable')
+            raise RuntimeError('bridge_path_unsupported')
     return path
+
+
+def storage_error(exc):
+    """Classify only known filesystem operations; never publish a raw OS message."""
+    code = getattr(exc, 'winerror', None)
+    if code == 5 or isinstance(exc, PermissionError):
+        return 'bridge_storage_access_denied'
+    if code in (39, 112) or exc.errno == errno.ENOSPC:
+        return 'bridge_storage_full'
+    if code in (80, 183) or isinstance(exc, FileExistsError):
+        return 'bridge_storage_conflict'
+    return 'bridge_storage_failed'
+
+
+def write_session_json(path, value):
+    try:
+        path.write_text(json.dumps(value), encoding='utf-8')
+    except OSError as exc:
+        raise RuntimeError(storage_error(exc)) from None
 
 
 def private_directory(path):
@@ -52,19 +72,21 @@ def private_directory(path):
     token, size, sid, descriptor = W.HANDLE(), W.DWORD(), W.LPWSTR(), C.c_void_p()
     try:
         if not adv.OpenProcessToken(k.GetCurrentProcess(),8,C.byref(token)):
-            raise OSError('token_unavailable')
+            raise RuntimeError('bridge_storage_security_failed')
         adv.GetTokenInformation(token,1,None,0,C.byref(size))
         buffer = C.create_string_buffer(size.value)
         if not adv.GetTokenInformation(token,1,buffer,size,C.byref(size)):
-            raise OSError('token_unavailable')
+            raise RuntimeError('bridge_storage_security_failed')
         if not adv.ConvertSidToStringSidW(C.cast(buffer,C.POINTER(C.c_void_p))[0],C.byref(sid)):
-            raise OSError('sid_unavailable')
+            raise RuntimeError('bridge_storage_security_failed')
         sddl = f'O:{sid.value}D:P(A;OICI;FA;;;{sid.value})(A;OICI;FA;;;SY)'
         if not adv.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl,1,C.byref(descriptor),None):
-            raise OSError('acl_unavailable')
+            raise RuntimeError('bridge_storage_security_failed')
         attributes = Attributes(C.sizeof(Attributes),descriptor,False)
         if not k.CreateDirectoryW(str(path),C.byref(attributes)):
-            raise FileExistsError('bridge_session_unavailable')
+            raise C.WinError(C.get_last_error())
+    except OSError as exc:
+        raise RuntimeError(storage_error(exc)) from None
     finally:
         if descriptor:k.LocalFree(descriptor)
         if sid:k.LocalFree(C.cast(sid,C.c_void_p))
@@ -72,21 +94,30 @@ def private_directory(path):
 
 
 def check_prior_modules(reader):
+    try:
+        _check_prior_modules(reader)
+    except Exception as exc:
+        if str(exc) == 'prior_bridge_active':
+            raise
+        raise RuntimeError('bridge_module_scan_failed') from None
+
+
+def _check_prior_modules(reader):
     catalog = MonoCatalog(reader)
     catalog.images()  # Validate pinned layout and native accessor signatures.
     node, seen = reader.pointer(catalog.base + 0x740f90), set()
     while node:
         if node in seen or len(seen) >= 512:
-            raise RuntimeError('prior_bridge_active')
+            raise RuntimeError('bridge_module_scan_failed')
         seen.add(node)
         image = reader.pointer(reader.pointer(node) + 0x60)
         name = reader.cstring(reader.pointer(image + 0x30)) or ''
         if name.startswith('BongoCatChat.MergeBridge'):
             cls = catalog.klass(image, 'Bridge', 'BongoCatChat.MergeBridge')
             offsets, tables = fields(reader,cls), catalog.vtables(cls)
-            if not tables:raise RuntimeError('prior_bridge_active')
+            if not tables:raise RuntimeError('bridge_module_scan_failed')
             for table in tables:
-                if not reader.exact(table + 0x30,1)[0] & 4:raise RuntimeError('prior_bridge_active')
+                if not reader.exact(table + 0x30,1)[0] & 4:raise RuntimeError('bridge_module_scan_failed')
                 data = reader.pointer(table + reader.i32(cls + 0x5c)*8 + 0x48)
                 installed = reader.exact(data + offsets['installed'],1) != b'\0'
                 stopped = reader.exact(data + offsets['stopped'],1) != b'\0'
@@ -162,6 +193,57 @@ def prepare_session(game, assets, session, compatibility=None):
         raise
 
 
+def open_channel(session):
+    try:
+        return BridgeChannel(session)
+    except OSError as exc:
+        raise RuntimeError(storage_error(exc)) from None
+    except (ValueError, KeyError, TypeError) as exc:
+        reason = 'bridge_binary_changed' if str(exc) == 'bridge_binary_changed' else 'bridge_session_invalid'
+        raise RuntimeError(reason) from None
+    except RuntimeError as exc:
+        if str(exc) == 'bridge_client_in_use':raise
+        reason = 'bridge_target_changed' if str(exc) in {'target_changed', 'game_missing_or_ambiguous'} else 'bridge_target_unverified'
+        raise RuntimeError(reason) from None
+
+
+def wait_snapshot(channel, timeout_error='bridge_response_pending'):
+    """Wait only for telemetry; never reload a module or resend an operation."""
+    deadline = time.monotonic() + 5
+    while True:
+        try:
+            channel.verify_target(channel.config)
+        except Exception as exc:
+            reason = 'bridge_target_changed' if str(exc) in {'target_changed', 'game_missing_or_ambiguous'} else 'bridge_target_unverified'
+            raise RuntimeError(reason) from None
+        try:
+            raw = channel.snapshot()
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            if isinstance(exc, FileNotFoundError) or str(exc) == 'observation_stale':
+                failure = timeout_error
+            elif isinstance(exc, PermissionError):
+                failure = 'bridge_storage_access_denied'
+            elif isinstance(exc, OSError):
+                failure = 'bridge_response_unreadable'
+            else:
+                failure = 'bridge_response_invalid'
+            # A shutdown snapshot is terminal even after its timestamp expires.
+            try:
+                last = read_json(channel.session/'snapshot.json')
+            except (OSError, ValueError):
+                last = {}
+            if (last.get('epoch') == channel.config['epoch'] and last.get('pid') == channel.config['pid']
+                    and last.get('protocol') == channel.config['protocol'] and last.get('reason') == 'closed'):
+                raise RuntimeError('bridge_session_closed') from None
+            if time.monotonic() >= deadline:
+                raise RuntimeError(failure) from None
+            time.sleep(.1)
+            continue
+        if raw.get('reason') == 'closed':
+            raise RuntimeError('bridge_session_closed')
+        return raw
+
+
 def connect():
     """Background connection after manual Connect or saved chest startup consent."""
     from .merge_connection import InteractiveAdapter
@@ -179,20 +261,44 @@ def connect():
         if not parent.exists():private_directory(parent)
         session = no_links(parent/f'{game.pid}-{ticks}')
         if session.exists():
-            config = read_json(session/'session.json')
-            if config.get('mode') != 'interactive' or config.get('source_sha256') != contract['source_sha256']:
-                raise RuntimeError('bridge_session_unavailable')
-            channel = BridgeChannel(session)
             try:
-                raw = channel.snapshot()
-                if raw['reason'] == 'closed':raise RuntimeError('bridge_session_unavailable')
+                config = read_json(session/'session.json')
+            except FileNotFoundError:
+                raise RuntimeError('bridge_session_invalid') from None
+            except OSError as exc:
+                raise RuntimeError(storage_error(exc)) from None
+            except (ValueError, KeyError, TypeError):
+                raise RuntimeError('bridge_session_invalid') from None
+            if not isinstance(config.get('mode'), str) or not isinstance(config.get('source_sha256'), str):
+                raise RuntimeError('bridge_session_invalid')
+            if config.get('mode') != 'interactive' or config.get('source_sha256') != contract['source_sha256']:
+                raise RuntimeError('bridge_session_incompatible')
+            channel = open_channel(session)
+            try:
+                try:
+                    attached = read_json(session/'attach-result.json')
+                except FileNotFoundError:
+                    attached = {}
+                except OSError as exc:
+                    raise RuntimeError(storage_error(exc)) from None
+                except ValueError:
+                    raise RuntimeError('bridge_session_invalid') from None
+                confirmed = (attached.get('status') == 1 and attached.get('stage') == 7
+                             and attached.get('managed_exception') is False)
+                raw = wait_snapshot(channel, 'bridge_response_pending' if confirmed else 'attach_not_confirmed_no_retry')
                 if raw.get('chest', {}).get('armed'):
-                    channel.request('chest_stop')  # Reconnect never adopts an earlier run's lease.
-                channel.request('snapshot')  # Read-only refresh; never begin/select/merge.
+                    try:
+                        channel.request('chest_stop')  # Reconnect never adopts an earlier run's lease.
+                    except Exception:
+                        raise RuntimeError('bridge_stop_unconfirmed') from None
+                try:
+                    channel.request('snapshot')  # Read-only refresh; never begin/select/merge.
+                except Exception:
+                    raise RuntimeError('bridge_reconnect_failed') from None
                 return InteractiveAdapter(channel=channel)
             except Exception:
                 channel.close()
-                raise RuntimeError('bridge_session_unavailable') from None
+                raise
         reader = Reader(game)
         try:
             check_prior_modules(reader)
@@ -216,16 +322,19 @@ def connect():
                       token=secrets.token_hex(32),test_budget=0,mode='interactive',helper_sha256=digest,
                       source_sha256=contract['source_sha256'],
                       assembly_mvids=compatibility['modules'])
-        (session/'session.json').write_text(json.dumps(config),encoding='utf-8')
+        write_session_json(session/'session.json', config)
         if hashlib.sha256((session/HELPER).read_bytes()).hexdigest() != digest:
             raise RuntimeError('bridge_binary_changed')
         if not game.alive() or start_ticks(k,handle) != ticks:raise RuntimeError('game_missing_or_ambiguous')
         if compatibility != validate_game_files(game.root, contract, assets):
             raise RuntimeError('automation_files_changed')
-        (session/'attach-attempt.json').write_text(json.dumps({'attempted_at':time.time()}),encoding='utf-8')
-        result = execute(handle,exports,session/HELPER)
+        write_session_json(session/'attach-attempt.json', {'attempted_at':time.time()})
+        try:
+            result = execute(handle,exports,session/HELPER)
+        except (OSError, RuntimeError):
+            raise RuntimeError('attach_not_confirmed_no_retry') from None
         public = dict(status=result['status'],stage=result['stage'],managed_exception=bool(result['exception']))
-        (session/'attach-result.json').write_text(json.dumps(public),encoding='utf-8')
+        write_session_json(session/'attach-result.json', public)
         if result['status'] != 1:
             try:
                 failure = read_json(session/'compatibility-error.json')
@@ -234,13 +343,11 @@ def connect():
             if failure == {'epoch': config['epoch'], 'reason': 'automation_files_changed'}:
                 raise RuntimeError('automation_files_changed')
             raise RuntimeError('attach_not_confirmed_no_retry')
-        channel = BridgeChannel(session)
-        deadline = time.monotonic()+5
-        while time.monotonic()<deadline:
-            try:
-                channel.snapshot()
-                return InteractiveAdapter(channel=channel)
-            except (OSError,ValueError,KeyError):time.sleep(.1)
-        channel.close()
-        raise RuntimeError('attach_not_confirmed_no_retry')
+        channel = open_channel(session)
+        try:
+            wait_snapshot(channel)
+            return InteractiveAdapter(channel=channel)
+        except Exception:
+            channel.close()
+            raise
     finally:k.CloseHandle(handle)
