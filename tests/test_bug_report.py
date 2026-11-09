@@ -62,6 +62,46 @@ def test_failure_history_is_bounded_and_does_not_expose_mutable_internal_state()
     assert connection.diagnostic_snapshot()['attempts'][0]['phase'] == 'bootstrap'
 
 
+def test_extended_initialization_diagnostics_remain_private_copied_and_bounded():
+    from bongo_chat.diagnostics import MANAGED_TYPES, MANAGED_REASONS, INITIALIZATION_STEPS
+    connection = failed_connection()
+    safe = dict(managed_exception_types=sorted(MANAGED_TYPES, key=len)[-3:],
+                initialization_step=max(INITIALIZATION_STEPS.values(), key=len),
+                managed_reason=max(MANAGED_REASONS.values(), key=len),
+                phase='bootstrap', source='new', attach_record='present', status=2, stage=7,
+                load_error=65535, winerror=65535, managed_exception=True,
+                error='bridge_initialization_failed')
+    connection.diagnostics = [dict(safe) for _ in range(3)]
+    snapshot = connection.diagnostic_snapshot()
+    snapshot['attempts'][0]['managed_exception_types'][0] = 'private-name'
+    assert connection.diagnostic_snapshot()['attempts'][0]['managed_exception_types'] == safe['managed_exception_types']
+    for language in ('ko', 'en'):
+        preview = ReportPreview()
+        report = preview.prepare('chest', {'game_build': '999999999999'}, connection.diagnostic_snapshot(), language)
+        assert len(preview.get(report['id'])['url']) <= 7500
+        assert 'managed_exception_types' in report['body'] and 'initialization_step' in report['body']
+        assert 'private-name' not in report['body']
+    assert clean_details(dict(managed_exception_types=['C:/private/path'], managed_reason='private-message',
+                              initialization_step='secret-token')) == {}
+    assert clean_details(dict(managed_exception_types=['System.IO.IOException'] * 4)) == {}
+
+
+@pytest.mark.parametrize('language', ['ko', 'en'])
+def test_initialization_failure_has_actionable_report_guidance(qt_chat, language):
+    app, controller, page = qt_chat
+    connection = failed_connection()
+    connection.error = 'bridge_initialization_failed'
+    controller.merge_connection = connection
+    controller.dispatch({'action': 'setting', 'key': 'language', 'value': language})
+    js(app, page, "document.querySelector('#chest-open').click()")
+    phrase = '초기화 중 오류' if language == 'ko' else 'initialization failed'
+    wait_until(app, lambda: phrase in js(app, page, "document.querySelector('#chest-dialog').textContent"))
+    text = js(app, page, "document.querySelector('#chest-dialog').textContent")
+    assert ('버그 제보' if language == 'ko' else 'Report a bug') in text
+    assert ('반복할 필요는 없습니다' if language == 'ko' else 'do not need to repeat restarts') in text
+    assert not page.console_errors
+
+
 @pytest.mark.parametrize('area', [None, [], 'https://attacker.invalid', 'private-user'])
 def test_invalid_report_area_is_rejected(area):
     with pytest.raises(ValueError):

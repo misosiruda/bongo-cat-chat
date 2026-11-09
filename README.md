@@ -1,5 +1,7 @@
 # Bongo Cat Chat
 
+**dev29**은 초기화 예외를 응답 지연과 구분하고, 허용된 예외 종류·실패 단계를 버그 제보에 포함한다. #56 사용자 PC의 원인은 아직 조사 중이다. 새 진단을 받으려면 업데이트 후 게임과 앱을 한 번 완전히 종료하고 다시 연결한다. [설치·업데이트 안내](docs/releases/0.1.0.dev29.md).
+
 **dev28**은 설정과 상자·합성 화면에 **버그 제보**를 추가한다. 앱이 연결 오류 진단을 모아 보여 주고, 사용자가 **GitHub에서 제보하기**를 누르면 제목·본문이 채워진 작성 화면에서 로그인·등록한다. 계정이 없으면 **진단 복사**로 전달할 수 있다. 대화·계정/로비 ID·파일 경로·연결 토큰은 제외한다. [dev28 설치·업데이트 안내](docs/releases/0.1.0.dev28.md) · [수집 범위와 사용법](docs/auto-chest.md#사용자-조치와-개발에서-해결할-항목) · [개인정보 안내](docs/privacy-policy.md). 공개 여부는 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 확인한다.
 
 **dev27**은 상자·합성 연결 실패를 원인별로 안내한다. 기존 연결의 늦은 응답을 잠시 다시 확인하고, 저장 경로·권한·공간·모듈 검사·기록/응답 오류를 구분한다. 사용자 조치와 개발 확인을 나누며, 게임 재실행은 필요한 경우에 한 번만 안내한다. [설치·업데이트·연결 오류 안내](docs/releases/0.1.0.dev27.md) · [검증 범위](docs/product-validation.md).
@@ -18,7 +20,7 @@
 
 2026-10-30 로컬 개발판은 사이드바 **아이템 자동 합성 → 게임에 연결**에서 바로 사용할 수 있다. 게임 탭을 열지 않고 앱에서 두 합성 그룹·가능 횟수·**최대값으로 설정**을 사용한다. 연결만으로 합성하지 않으며 사용자의 시작 후 매회 1회씩 원본 함수와 결과 확인을 반복한다. 실제 Qt 패널에서 연결·조회·재연결을 확인했고 이번 후속 작업의 추가 아이템 소비는 0회다. 10월 29일의 승인된 실제 시험 2회와 구분한다. [사용법·검증·빌드 제한](docs/item-auto-merge.md)을 참고한다. dev20은 노트북에서 확인한 Auto Chest 파일 조합의 연결 수정과 구체적인 오류 안내를 포함하며 게시 상태는 최신 릴리스에서 확인한다.
 
-**설치:** [dev28 Windows 설치 파일 다운로드](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev28/BongoCatChat-0.1.0.dev28-windows-x64-Setup.exe) · [다운로드·설치·첫 실행 안내 (한국어 / English)](docs/releases/0.1.0.dev28.md). 처음 설치한다면 Setup.exe 하나만 받으면 된다. Steam 로그인·게임 실행·게임 내 로비 참여 후 시작 메뉴에서 Bongo Cat Chat을 실행한다. 공개 최신 버전은 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 확인한다.
+**설치:** [dev29 Windows 설치 파일 다운로드](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev29/BongoCatChat-0.1.0.dev29-windows-x64-Setup.exe) · [다운로드·설치·첫 실행 안내 (한국어 / English)](docs/releases/0.1.0.dev29.md). 처음 설치한다면 Setup.exe 하나만 받으면 된다. Steam 로그인·게임 실행·게임 내 로비 참여 후 시작 메뉴에서 Bongo Cat Chat을 실행한다. 공개 최신 버전은 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 확인한다.
 
 2026-10-28 후속 소스는 **게임의 고양이 숨김과 채팅 차단을 분리**한다. 게임에서 숨긴 상대도 채팅에 표시하고, 참여자 목록 또는 **설정 → 채팅 차단**에서 Steam ID 기준으로 차단·해제한다. 같은 PC의 로그인 계정별로 저장해 로비 이동·재실행 후에도 유지한다. [사용 방법·저장 정책](docs/chat-blocking.md)을 참고한다. 아래 과거 버전의 숨김 동기화 설명은 당시 이력이며 현재 소스 정책은 D-031이 우선한다. 공개 설치본 배포와 실제 로비 인수는 별도다.
 

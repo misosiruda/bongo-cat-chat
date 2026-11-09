@@ -12,8 +12,25 @@ CONNECTION_ERRORS = frozenset({
     'bridge_module_scan_failed', 'bridge_session_incompatible', 'bridge_session_closed',
     'bridge_session_invalid', 'bridge_response_unreadable', 'bridge_response_invalid',
     'bridge_reconnect_failed', 'bridge_stop_unconfirmed', 'bridge_target_changed',
-    'bridge_target_unverified', 'bridge_connection_failed',
+    'bridge_target_unverified', 'bridge_connection_failed', 'bridge_initialization_failed',
 })
+MANAGED_TYPES = frozenset({'other', 'System.InvalidOperationException', 'System.TypeInitializationException',
+    'System.TypeLoadException', 'System.MissingMethodException', 'System.MissingFieldException',
+    'System.NullReferenceException', 'System.ArgumentException', 'System.ArgumentNullException',
+    'System.NotSupportedException', 'System.BadImageFormatException', 'System.IO.FileNotFoundException',
+    'System.IO.DirectoryNotFoundException', 'System.IO.FileLoadException', 'System.IO.IOException',
+    'System.UnauthorizedAccessException', 'System.Security.SecurityException',
+    'System.Reflection.TargetInvocationException', 'Newtonsoft.Json.JsonReaderException',
+    'System.InvalidCastException', 'System.OverflowException', 'System.OutOfMemoryException'})
+INITIALIZATION_STEPS = {f'bridge_init_{i}': name for i, name in enumerate((
+    'read_session', 'validate_session', 'verify_assemblies', 'read_ledger',
+    'bind_game_fields', 'bind_main_loop', 'register_main_loop'), 1)}
+INITIALIZATION_STEPS['bridge_init_0'] = 'invoke_install'
+MANAGED_REASONS = {name: name for name in ('process_unverified', 'process_mismatch', 'invalid_session',
+    'automation_files_changed', 'ledger_mismatch', 'ledger_invalid', 'missing_duplicates', 'oversized_request')}
+MANAGED_REASONS.update({'missing_field:' + name: 'missing_' + name.lstrip('_') for name in (
+    '_exchangeSlots', '_isExchanging', '_possibleExchanges', '_currentCategoryTabIndex', '_exchanges',
+    '_mResultHandles', 's_OrderBlocks', 'order', 'callback')})
 PHASES = frozenset({'find_game', 'validate_assets', 'open_process', 'session_path',
     'read_session', 'open_channel', 'read_attach_result', 'wait_response', 'stop_previous',
     'refresh_response', 'inspect_modules', 'validate_game', 'prepare_module', 'write_session',
@@ -38,6 +55,13 @@ def clean_details(value):
             result[key] = item
     if type(value.get('managed_exception')) is bool:
         result['managed_exception'] = value['managed_exception']
+    for key, allowed in (('initialization_step', INITIALIZATION_STEPS.values()),
+                         ('managed_reason', MANAGED_REASONS.values())):
+        if isinstance(value.get(key), str) and value[key] in allowed:
+            result[key] = value[key]
+    chain = value.get('managed_exception_types')
+    if isinstance(chain, list) and 0 < len(chain) <= 3 and all(isinstance(v, str) and v in MANAGED_TYPES for v in chain):
+        result['managed_exception_types'] = list(chain)
     return result
 
 

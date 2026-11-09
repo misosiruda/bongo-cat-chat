@@ -14,9 +14,13 @@ namespace UnityEngine {
     public class Application { }
     class BeforeRenderHelper {
         internal struct OrderBlock { internal int order; internal Events.UnityAction callback; }
-        static List<OrderBlock> s_OrderBlocks = new List<OrderBlock>();
+        static System.Collections.IList s_OrderBlocks = new List<OrderBlock>();
         internal static int Count { get { return s_OrderBlocks.Count; } }
-        internal static void Render() { foreach (var block in s_OrderBlocks.ToArray()) block.callback(); }
+        internal static void Render() { foreach (var block in s_OrderBlocks.Cast<OrderBlock>().ToArray()) block.callback(); }
+        internal static void RejectRegistration(bool reject) { s_OrderBlocks = reject ? (System.Collections.IList)new RejectedList() : new List<OrderBlock>(); }
+        sealed class RejectedList : System.Collections.ArrayList {
+            public override int Add(object value) { throw new InvalidOperationException("synthetic_registration_failure"); }
+        }
     }
     class UnitySynchronizationContext : System.Threading.SynchronizationContext {
         readonly Queue<Action> queue = new Queue<Action>();
@@ -168,6 +172,14 @@ class Fixture {
         var c=new BongoCat.SteamItemRuntime { Id=1,IsCosmetic=true };c.RuntimeData.quantity=41;
         var e=new BongoCat.SteamItemRuntime { Id=2,IsEmote=true };e.RuntimeData.quantity=21;
         BongoCat.CatInventory.Instance.Items.Add(c);BongoCat.CatInventory.Instance.Items.Add(e);
+        UnityEngine.BeforeRenderHelper.RejectRegistration(true);
+        bool initializationFailed = false;
+        try { Bridge.Install(); }
+        catch (InvalidOperationException failure) {
+            initializationFailed = failure.Message == "bridge_init_7" && failure.InnerException != null;
+        }
+        Check(initializationFailed && !(bool)typeof(Bridge).GetField("installed", flags).GetValue(null));
+        UnityEngine.BeforeRenderHelper.RejectRegistration(false);
         Bridge.Install(); Bridge.Install();
         CheckSharedPublication();
         CheckMainLoopWithoutRendering();

@@ -6,7 +6,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
-from bootstrap import EXPORTS, ERROR_EXPORT, execute, kernel, start_ticks
+from bootstrap import EXPORTS, ERROR_EXPORT, DIAGNOSTIC_EXPORTS, execute, kernel, start_ticks
 
 root = Path(r'C:\Program Files (x86)\Steam\steamapps\common\BongoCat')
 mono = C.CDLL(str(root / 'MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll'))
@@ -33,7 +33,7 @@ if '--install-fixture' in sys.argv or '--bootstrap-fixture' in sys.argv:
     (folder/'session.json').write_text(json.dumps(dict(protocol=1,pid=os.getpid(),process_start_ticks=ticks,epoch='a'*32,token='b'*64,test_budget=0,mode='interactive' if '--interactive' in sys.argv else 'test')))
 if '--bootstrap-fixture' in sys.argv:
     k=kernel(); h=k.OpenProcess(0x043a,False,os.getpid())
-    exports={name:C.cast(getattr(mono,name),C.c_void_p).value for name in (*EXPORTS,ERROR_EXPORT)}
+    exports={name:C.cast(getattr(mono,name),C.c_void_p).value for name in (*EXPORTS,ERROR_EXPORT,*DIAGNOSTIC_EXPORTS)}
     try: result=execute(h,exports,path)
     finally:k.CloseHandle(h)
     print(json.dumps(dict(status=result['status'],stage=result['stage'],managed_exception=bool(result['exception']),load_error=result['load_error'])),flush=True)
