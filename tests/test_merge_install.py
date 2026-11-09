@@ -251,6 +251,7 @@ def test_module_scan_does_not_confuse_unreadable_metadata_with_a_loaded_bridge(m
 @pytest.mark.parametrize('outcome,expected', [
     ('ready', None), ('late', 'bridge_response_pending'),
     ('managed_failure', 'bridge_initialization_failed'), ('native_failure', 'attach_not_confirmed_no_retry'),
+    ('type_failure', 'bridge_dependency_load_failed'),
     ('native_os_failure', 'attach_not_confirmed_no_retry'), ('load_failure', 'attach_not_confirmed_no_retry'),
 ])
 def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_path, monkeypatch, outcome, expected):
@@ -290,10 +291,11 @@ def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_pat
             raise error
         if outcome == 'load_failure':
             return dict(status=0, stage=3, exception=0, load_error=2, load_message='C:/private/user')
-        return dict(status=2 if outcome == 'managed_failure' else 1, stage=7,
-                    exception=1 if outcome == 'managed_failure' else 0,
-                    **(dict(managed_exception_types=['System.InvalidOperationException', 'System.IO.IOException'],
-                            initialization_step='read_session', managed_reason='invalid_session') if outcome == 'managed_failure' else {}))
+        failed = outcome in {'managed_failure', 'type_failure'}
+        return dict(status=2 if failed else 1, stage=7, exception=1 if failed else 0,
+                    **(dict(managed_exception_types=['System.InvalidOperationException',
+                                'System.TypeLoadException' if outcome == 'type_failure' else 'System.IO.IOException'],
+                            initialization_step='read_session') if failed else {}))
     monkeypatch.setattr(merge_install, 'execute', attach)
     def make_channel(path):
         def snapshot():
@@ -318,10 +320,11 @@ def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_pat
             assert diagnostic['native_error'] == 'bootstrap_outcome_unknown_no_retry'
         elif outcome == 'native_os_failure':
             assert diagnostic['native_error'] == 'native_os_error' and diagnostic['winerror'] == 5
-        elif outcome == 'managed_failure':
+        elif outcome in {'managed_failure', 'type_failure'}:
             assert diagnostic['status'] == 2 and diagnostic['stage'] == 7 and diagnostic['managed_exception'] is True
             assert diagnostic['initialization_step'] == 'read_session'
-            assert diagnostic['managed_exception_types'] == ['System.InvalidOperationException', 'System.IO.IOException']
+            assert diagnostic['managed_exception_types'] == ['System.InvalidOperationException',
+                'System.TypeLoadException' if outcome == 'type_failure' else 'System.IO.IOException']
         elif outcome == 'load_failure':
             assert diagnostic['status'] == 0 and diagnostic['stage'] == 3 and diagnostic['load_error'] == 2
         session = tmp_path/'.bongo-cat-chat'/'merge-bridge'/'123-456'
@@ -331,7 +334,7 @@ def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_pat
             merge_install.connect()
         assert reused.value.connection_diagnostics['source'] == 'existing'
         assert reused.value.connection_diagnostics['attach_record'] == ('missing' if outcome in {'native_failure', 'native_os_failure'} else 'present')
-        if outcome == 'managed_failure':
+        if outcome in {'managed_failure', 'type_failure'}:
             assert reused.value.connection_diagnostics['initialization_step'] == diagnostic['initialization_step']
             assert reused.value.connection_diagnostics['managed_exception_types'] == diagnostic['managed_exception_types']
         assert {p.name:p.read_bytes() for p in session.iterdir()} == before
@@ -383,6 +386,51 @@ def test_native_and_dependency_change_is_refused(assets):
     game,folder,_=assets
     (game.root/'MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll').write_bytes(b'unknown native runtime')
     with pytest.raises(RuntimeError,match='unsupported_game_files'):validate_assets(game,folder)
+
+
+@pytest.mark.parametrize('fault,expected', [
+    ('missing', 'bridge_dependency_missing'),
+    ('changed', 'bridge_dependency_incompatible'),
+    ('unreadable', 'bridge_dependency_unreadable'),
+])
+def test_json_dependency_is_checked_before_process_access_and_can_be_repaired(assets, monkeypatch, tmp_path, fault, expected):
+    game, folder, contract = assets
+    dependency = game.root/'BongoCat_Data/Managed/System.Numerics.dll'
+    original = dependency.read_bytes()
+    ledger = tmp_path/'profile/.bongo-cat-chat/merge-bridge/existing/ledger.json'
+    ledger.parent.mkdir(parents=True)
+    ledger.write_bytes(b'preserve existing unresolved result')
+    monkeypatch.setenv('USERPROFILE', str(tmp_path/'profile'))
+    monkeypatch.setattr(merge_install, 'running_game', lambda:game)
+    monkeypatch.setattr(merge_install, 'asset_directory', lambda:folder)
+    def forbidden(*args):pytest.fail('dependency failure must precede process access, compilation and attachment')
+    for name in ('kernel', 'compile_helper', 'execute'):
+        monkeypatch.setattr(merge_install, name, forbidden)
+    if fault == 'missing':dependency.unlink()
+    elif fault == 'changed':dependency.write_bytes(b'unsupported or damaged dependency')
+    original_open = Path.open
+    def guarded_open(path, *args, **kwargs):
+        if path == dependency and fault == 'unreadable':raise PermissionError('C:/private-user')
+        return original_open(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'open', guarded_open)
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match='^'+expected+'$') as failure:
+            merge_install.connect()
+        assert failure.value.connection_diagnostics == {'phase':'validate_assets'}
+    assert ledger.read_bytes() == b'preserve existing unresolved result'
+    assert not list((tmp_path/'profile').rglob('attach-attempt.json'))
+    monkeypatch.setattr(Path, 'open', original_open)
+    dependency.write_bytes(original)  # Synthetic fixture only; product does not repair game files.
+    assert validate_assets(game, folder) == (folder, contract)
+
+
+def test_contract_cannot_omit_required_json_dependency(assets):
+    game, folder, contract = assets
+    contract['probe']['pinned_assemblies'].remove('System.Numerics.dll')
+    contract['profiles'][0]['files'].pop('BongoCat_Data/Managed/System.Numerics.dll')
+    (folder/'contract.json').write_text(json.dumps(contract))
+    with pytest.raises(RuntimeError, match='^bridge_assets_missing$'):
+        validate_assets(game, folder)
 
 
 def test_unknown_feature_is_rejected_before_opening_the_game(assets,monkeypatch):
@@ -438,11 +486,12 @@ def test_probe_failure_never_approves_compatibility(assets,monkeypatch,change):
     with pytest.raises(RuntimeError,match='automation_probe_failed'):validate_assets(game,folder)
 
 
-def test_changed_file_during_probe_is_refused_even_with_same_features(assets,monkeypatch):
+@pytest.mark.parametrize('name', ['Assembly-CSharp.dll', 'System.Numerics.dll'])
+def test_changed_file_during_probe_is_refused_even_with_same_features(assets,monkeypatch,name):
     game,folder,_=assets;probe=subprocess.run
     def changed(*args,**kwargs):
         value=probe(*args,**kwargs)
-        (game.root/'BongoCat_Data/Managed/Assembly-CSharp.dll').write_bytes(b'changed while probing')
+        (game.root/'BongoCat_Data/Managed'/name).write_bytes(b'changed while probing')
         return value
     monkeypatch.setattr(subprocess,'run',changed)
     with pytest.raises(RuntimeError,match='automation_files_changed'):validate_assets(game,folder)

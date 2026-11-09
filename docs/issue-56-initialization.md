@@ -4,6 +4,8 @@
 
 ## 확인된 범위
 
+2026-11-09 후속: dev29의 [#58](https://github.com/misosiruda/bongo-cat-chat/issues/58)에서 `read_session/TypeLoadException`으로 범위가 좁혀졌고, 사용자는 제보자의 게임 재설치 직후 연결 복구를 확인했다. 특정 파일이 실제로 누락됐다는 직접 증거와는 구분한다. dev30 사전 검사와 안내 보완은 [후속 기록](issue-58-dependencies.md)을 따른다. 아래 미확정 설명은 dev29 조사 당시의 기록이다.
+
 [#56](https://github.com/misosiruda/bongo-cat-chat/issues/56)은 새 연결에서 `status=2`, `stage=7`, `managed_exception=true`, `load_error=0`을 보고했다. 이는 Mono가 `Install` 호출 과정에서 관리 예외를 반환했다는 의미다. 이후 `source=existing` 시도는 기존 실패 기록과 응답을 확인했으며 모듈을 재로드한 기록이 아니다. 게임 화면의 단순 응답 지연으로 분류하지 않는다. 기존 Auto Chest 설치 이력이 있다는 후속 사용자 설명은 있지만, 그것이 원인이라는 증거는 없다.
 
 해당 PC의 예외 종류와 세부 단계는 dev28 기록에 없으므로 복원할 수 없다. 현재 PC의 검증된 게임 메타데이터·Mono를 별도 프로세스에서 사용한 초기화는 통과했고, 한글·공백·이모지 경로에서도 실패를 재현하지 못했다. 이것은 제보자 PC의 원인 해결이나 실제 게임 인수가 아니다.

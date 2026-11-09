@@ -52,6 +52,7 @@
       "mscorlib.dll",
       "Newtonsoft.Json.dll",
       "System.dll",
+      "System.Numerics.dll",
       "Unity.Localization.dll",
       "Unity.TextMeshPro.dll",
       "UnityEngine.CoreModule.dll",
@@ -101,6 +102,9 @@
         ],
         "BongoCat_Data/Managed/System.dll": [
           "09f78ba1f3ee65e08c2a1179973b1bc10baa4bd702e5b42e699bcab3da378f84"
+        ],
+        "BongoCat_Data/Managed/System.Numerics.dll": [
+          "d59c65c3e029b0af41e4d2bec1f96830fc2db4da95c893a6506179e6179fa7c5"
         ],
         "BongoCat_Data/Managed/Unity.Localization.dll": [
           "3070f9defd393b8f3f9425a5f0ab9e7539ee3d39d62fd383700e3f773caafc65"

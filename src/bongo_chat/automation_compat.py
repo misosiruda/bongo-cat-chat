@@ -8,6 +8,7 @@ import subprocess
 FEATURES = {'merge', 'chest', 'inventory'}
 MANAGED = 'BongoCat_Data/Managed/'
 LEGACY = MANAGED + 'BongoAutoChest.dll'
+NUMERICS = MANAGED + 'System.Numerics.dll'
 NATIVE = {'BongoCat.exe', 'MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll',
           'BongoCat_Data/Plugins/x86_64/steam_api64.dll'}
 
@@ -31,6 +32,8 @@ def checked_contract(contract):
         pins = spec['pinned_assemblies']
         require(isinstance(pins, list) and 1 <= len(pins) <= 32)
         require(len(set(pins)) == len(pins))
+        # JObject's value reader needs BigInteger even for our small JSON numbers.
+        require('System.Numerics.dll' in pins)
         require(spec['optional_pinned_assemblies'] == ['BongoAutoChest.dll'])
         require(not set(pins) & set(spec['assemblies'] + spec['optional_pinned_assemblies']))
         require(all(isinstance(n, str) and re.fullmatch(r'[A-Za-z0-9_.-]+\.dll', n) for n in pins))
@@ -56,14 +59,14 @@ def file_hashes(root, names):
             with (root / name).open('rb') as stream:
                 data = stream.read(64 * 1024 * 1024 + 1)
             if len(data) > 64 * 1024 * 1024:
-                raise RuntimeError('unsupported_game_files')
+                raise RuntimeError('bridge_dependency_incompatible' if name == NUMERICS else 'unsupported_game_files')
             result[name] = hashlib.sha256(data).hexdigest()
         except FileNotFoundError:
             if name != LEGACY:
-                raise RuntimeError('merge_game_files_missing') from None
+                raise RuntimeError('bridge_dependency_missing' if name == NUMERICS else 'merge_game_files_missing') from None
             result[name] = None
         except OSError:
-            raise RuntimeError('merge_game_files_unreadable') from None
+            raise RuntimeError('bridge_dependency_unreadable' if name == NUMERICS else 'merge_game_files_unreadable') from None
     return result
 
 
@@ -75,6 +78,9 @@ def validate_game_files(root, contract, assets=None):
     before = file_hashes(root, names)
     candidates = [p for p in profiles if all(before[n] in values for n, values in p['files'].items())]
     if not candidates:
+        if any(all(before[n] in values for n, values in p['files'].items() if n != NUMERICS)
+               for p in profiles):
+            raise RuntimeError('bridge_dependency_incompatible')
         raise RuntimeError('unsupported_game_files')
     try:
         if json.loads((assets / 'feature-spec.json').read_text(encoding='utf-8-sig')) != spec:

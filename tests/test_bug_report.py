@@ -102,6 +102,47 @@ def test_initialization_failure_has_actionable_report_guidance(qt_chat, language
     assert not page.console_errors
 
 
+@pytest.mark.parametrize('language', ['ko', 'en'])
+def test_dependency_repairs_are_distinct_and_translated_in_both_automation_panels(qt_chat, language):
+    app, controller, page = qt_chat
+    connection = failed_connection()
+    controller.merge_connection = connection
+    controller.dispatch({'action': 'setting', 'key': 'language', 'value': language})
+    cases = [
+        ('bridge_dependency_missing', 'System.Numerics.dll이 없어', 'System.Numerics.dll is missing'),
+        ('bridge_dependency_unreadable', 'System.Numerics.dll을 읽지 못해', 'System.Numerics.dll could not be read'),
+        ('bridge_dependency_incompatible', '지원하는 파일과 다릅니다', 'differs from the supported file'),
+        ('bridge_dependency_load_failed', '구성 요소를 불러오지 못했습니다', 'component required for the game connection could not be loaded'),
+    ]
+    for panel in ('chest', 'merge'):
+        js(app, page, f"document.querySelector('#{panel}-open').click()")
+        for error, ko, en in cases:
+            connection.error = error
+            phrase = ko if language == 'ko' else en
+            wait_until(app, lambda: phrase in js(app, page, f"document.querySelector('#{panel}-dialog').textContent"))
+            text = js(app, page, f"document.querySelector('#{panel}-dialog').textContent")
+            assert error in text
+            assert js(app, page, f"document.querySelector('#{panel}-start').disabled")
+            if error != 'bridge_dependency_unreadable':
+                assert ('게임 파일 무결성 확인' if language == 'ko' else 'Verify integrity of game files') in text
+            if error == 'bridge_dependency_load_failed':
+                assert 'System.Numerics.dll' not in text
+                assert ('게임 재설치' if language == 'ko' else 'reinstalling the game') in text
+            report = collect(panel, {}, dict(state='error', error=error, attempts=[]))
+            assert report['automation']['error'] == error
+        js(app, page, f"document.querySelector('#{panel}-dialog').close()")
+    assert not page.console_errors
+
+
+@pytest.mark.parametrize('kind', ['System.TypeLoadException', 'System.MissingMethodException',
+    'System.MissingFieldException', 'System.IO.FileLoadException', 'System.BadImageFormatException'])
+def test_only_known_type_load_failures_get_dependency_guidance(kind):
+    from bongo_chat.diagnostics import initialization_error
+    assert initialization_error({'managed_exception_types':['System.InvalidOperationException',kind]}) == 'bridge_dependency_load_failed'
+    for unknown in ('System.IO.FileNotFoundException', 'System.IO.IOException', 'private-type'):
+        assert initialization_error({'managed_exception_types':[unknown]}) == 'bridge_initialization_failed'
+
+
 @pytest.mark.parametrize('area', [None, [], 'https://attacker.invalid', 'private-user'])
 def test_invalid_report_area_is_rejected(area):
     with pytest.raises(ValueError):
