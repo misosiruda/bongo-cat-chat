@@ -8,7 +8,7 @@ import sqlite3
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEventLoop, QLockFile, QTimer
+from PySide6.QtCore import QEvent, QEventLoop, QLockFile, QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtWebEngineCore import QWebEngineScript
 
@@ -133,7 +133,16 @@ def qt_chat(tmp_path):
         yield app, controller, page
         assert not page.console_errors, page.console_errors
     finally:
-        heartbeat.stop(); view.close(); controller.close(); view.deleteLater(); app.processEvents()
+        heartbeat.stop()
+        view.close()
+        # Stop WebChannel callbacks before releasing the registered controller.
+        # processEvents alone does not drain deferred widget deletion between
+        # fixtures, leaving old channels alive when Python collects controllers.
+        page.webChannel().deregisterObject(controller)
+        controller.close()
+        view.deleteLater()
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()
 
 
 @pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"], ids=["lf", "crlf", "cr"])

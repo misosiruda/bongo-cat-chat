@@ -91,6 +91,7 @@
   let openingProfile = false, participantsSignature = '';
   let participantMenuTarget = null;
   let nicknameTarget = null, nicknamePending = false;
+  let reportId = null, reportGeneration = 0, reportBusy = false;
   let blockPending = false, blockedSignature = '';
   let mergeRevision = -1, mergeBusy = false, mergeState = null;
   let mergeInputGroup = '';
@@ -480,6 +481,11 @@
   }
   function updateRestartNotice(update) {
     const banner = $('update-notice');
+    if (update.state === 'ready' && $('bug-report-dialog').open) {
+      restartPlan = null;
+      const text = t('버그 제보를 마치면 업데이트 재시작을 안내합니다.');
+      banner.textContent = text; banner.hidden = false; $('update-status').textContent = text; return;
+    }
     if (update.state === 'ready' && update.chest_deferred) {
       restartPlan = null;
       const text = t('자동 개봉을 중지하고 결과 확인이 끝나면 업데이트를 적용합니다.');
@@ -510,7 +516,7 @@
     $('update-status').textContent = text;
   }
   async function maybeRestart() {
-    if (!restartPlan || restarting || refreshing || composing || sending || switching || $('nickname-dialog').open || nicknamePending || model?.storage_error || mergeState?.active || mergeState?.unresolved || chestState?.armed || chestState?.pending || chestState?.unknown) return;
+    if (!restartPlan || restarting || refreshing || composing || sending || switching || $('bug-report-dialog').open || $('nickname-dialog').open || nicknamePending || model?.storage_error || mergeState?.active || mergeState?.unresolved || chestState?.armed || chestState?.pending || chestState?.unknown) return;
     if (Date.now() < Math.max(restartPlan.deadline,lastEdit+5000,restartPlan.retryAt)) return;
     restarting = true; document.body.inert = true; updateSend(); clearTimeout(draftTimer);
     updateRestartNotice(model.update);
@@ -1033,8 +1039,52 @@
       if (selected===room && account===context.account) await goLatest();
     } catch(e) {showError(e);} finally {sending=false;updateSend();$('message-input').focus();}
   }
+  function reportButtons() {
+    for (const id of ['bug-report-copy','bug-report-open']) $(id).disabled = !reportId || reportBusy;
+  }
+  async function openReport(area) {
+    if ($('bug-report-dialog').open) return;
+    const generation = ++reportGeneration;
+    reportId = null; reportBusy = false; reportButtons();
+    $('bug-report-preview').textContent = '';
+    $('bug-report-status').textContent = t('진단을 준비하고 있어요.');
+    $('bug-report-dialog').showModal();
+    try {
+      const result = await rpc('bug_report_prepare', {area});
+      if (generation !== reportGeneration || !$('bug-report-dialog').open) return;
+      reportId = result.id;
+      $('bug-report-preview').textContent = result.body;
+      $('bug-report-status').textContent = t('진단이 준비됐어요. GitHub로 이동하거나 복사할 수 있어요.');
+    } catch (error) {
+      if (generation === reportGeneration) $('bug-report-status').textContent = t('진단을 준비하지 못했어요. 창을 닫고 다시 시도해 주세요.');
+    } finally { if (generation === reportGeneration) reportButtons(); }
+  }
+  async function reportAction(action) {
+    if (!reportId || reportBusy) return;
+    const generation = reportGeneration;
+    reportBusy = true; reportButtons();
+    try {
+      await rpc(action, {id:reportId});
+      if (generation !== reportGeneration) return;
+      $('bug-report-status').textContent = action === 'bug_report_copy'
+        ? t('진단을 복사했어요. 개발자에게 붙여넣어 전달해 주세요.')
+        : t('GitHub 작성 화면을 열었어요. 로그인 후 등록을 눌러야 제보가 접수돼요.');
+    } catch (error) {
+      if (generation === reportGeneration) $('bug-report-status').textContent = action === 'bug_report_copy'
+        ? t('진단을 복사하지 못했어요. 다시 시도해 주세요.')
+        : t('브라우저를 열지 못했어요. 진단 복사를 이용하거나 다시 시도해 주세요.');
+    } finally { if (generation === reportGeneration) {reportBusy = false; reportButtons();} }
+  }
   function connect(value) {
     bridge=value;
+    document.querySelectorAll('[data-report]').forEach(button => button.addEventListener('click', () => openReport(button.dataset.report)));
+    $('bug-report-open').addEventListener('click', () => reportAction('bug_report_open'));
+    $('bug-report-copy').addEventListener('click', () => reportAction('bug_report_copy'));
+    $('bug-report-dialog').addEventListener('close', () => {
+      reportGeneration++; reportId = null; reportBusy = false; reportButtons();
+      $('bug-report-preview').textContent = '';
+      rpc('bug_report_close').catch(() => {});
+    });
     $('chest-open').addEventListener('click',()=>{ $('chest-dialog').showModal(); document.querySelector('.chest-content').scrollTop=0; });
     for (const [id,action] of [['chest-connect','chest_connect'],['chest-save','chest_save'],['chest-start','chest_start'],['chest-stop','chest_stop'],['chest-sidebar-stop','chest_stop']])
       $(id).addEventListener('click',()=>chestAction(action));

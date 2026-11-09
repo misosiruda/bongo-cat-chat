@@ -27,6 +27,7 @@ from .windows_notifications import Attention, WindowsToast, set_app_id
 from .localization import ENGLISH, LANGUAGES, resolve_language, translate
 from .auto_merge import AutoMerge, UnavailableGameUI
 from .auto_chest import AutoChest
+from .bug_report import ReportPreview
 
 UI = Path(__file__).with_name("ui").resolve()
 LEGAL = Path(__file__).with_name('legal')
@@ -124,6 +125,7 @@ class Controller(QObject):
             raise ValueError('update_diagnostic_requires_offline_installation')
         self.updates = UpdateManager(install_root, __version__, offline and not update_smoke, allowed=update_checks_allowed())
         self.legal_dialogs = []
+        self.bug_report = ReportPreview()
         self.worker = None
         self.closed = False
         self.restarting = False
@@ -228,6 +230,31 @@ class Controller(QObject):
     def dispatch(self, args):
         action = args["action"]
         account = self.service.state.get("account", "")
+        if action == 'bug_report_prepare':
+            if self.closed or self.restarting:
+                return {'error': 'report_unavailable'}
+            connection = self.merge_connection.diagnostic_snapshot() if self.merge_connection else None
+            chat = dict(self.service.state, connected=self.service.connected())
+            return self.bug_report.prepare(args.get('area', 'app'), chat, connection,
+                                           self.language, storage_error=self.service.storage_error)
+        if action == 'bug_report_close':
+            self.bug_report.clear()
+            return {'ok': True}
+        if action in {'bug_report_open', 'bug_report_copy'}:
+            if self.closed or self.restarting:
+                return {'error': 'report_unavailable'}
+            try:
+                report = self.bug_report.get(args.get('id'))
+            except ValueError:
+                return {'error': 'report_expired'}
+            try:
+                if action == 'bug_report_copy':
+                    QApplication.clipboard().setText(report['body'])
+                elif not QDesktopServices.openUrl(QUrl(report['url'])):
+                    return {'error': 'report_browser_failed'}
+            except Exception:
+                return {'error': 'report_copy_failed' if action == 'bug_report_copy' else 'report_browser_failed'}
+            return {'ok': True}  # Opening the draft is not confirmation of issue creation.
         if action == "view":
             lobby = args.get("lobby") if args.get("account", account) == account else None
             query = args.get("query", "")
@@ -419,6 +446,7 @@ class Controller(QObject):
 
     def can_restart(self):
         return (self.restart_supported and not self.closed and self.updates.enabled
+                and self.bug_report.current is None
                 and not self.merger.blocks_restart
                 and not self.chests.blocks_restart
                 and self.updates.snapshot()['state'] == 'ready')
@@ -427,6 +455,7 @@ class Controller(QObject):
         if self.closed:
             return
         self.closed = True
+        self.bug_report.clear()
         self.chests.close()
         self.merger.close()
         self.notifications.close()

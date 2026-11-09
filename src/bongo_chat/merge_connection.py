@@ -4,6 +4,7 @@ import time
 
 from .auto_merge import InputRefused, Observation
 from .merge_bridge import BridgeAdapter
+from .diagnostics import clean_details, connection_error
 
 
 class InteractiveAdapter(BridgeAdapter):
@@ -23,6 +24,12 @@ class MergeConnection:
         self.lock = threading.Lock()
         self.closed = False
         self.thread = None
+        self.diagnostics = []
+
+    def diagnostic_snapshot(self):
+        with self.lock:
+            return dict(state=self.state, error=self.error,
+                        attempts=[dict(item) for item in self.diagnostics])
 
     def connection_snapshot(self):
         with self.lock:
@@ -55,21 +62,12 @@ class MergeConnection:
                     self.adapter, self.state = adapter, 'connected'
         except Exception as exc:
             # Never return filesystem paths, account details or raw native errors.
-            safe = {'game_missing_or_ambiguous', 'unsupported_game_build', 'bridge_assets_missing',
-                    'bridge_client_in_use', 'prior_bridge_active', 'attach_not_confirmed_no_retry',
-                    'process_access_failed', 'bridge_session_unavailable', 'bridge_binary_changed',
-                    'merge_compiler_missing', 'merge_prepare_failed', 'unsupported_game_files',
-                    'merge_game_files_missing', 'merge_game_files_unreadable', 'automation_probe_failed',
-                    'automation_files_changed', 'unsupported_automation_features', 'bridge_response_pending',
-                    'bridge_path_unsupported', 'bridge_storage_access_denied', 'bridge_storage_full',
-                    'bridge_storage_conflict', 'bridge_storage_failed', 'bridge_storage_security_failed',
-                    'bridge_module_scan_failed', 'bridge_session_incompatible', 'bridge_session_closed',
-                    'bridge_session_invalid', 'bridge_response_unreadable', 'bridge_response_invalid',
-                    'bridge_reconnect_failed', 'bridge_stop_unconfirmed', 'bridge_target_changed',
-                    'bridge_target_unverified'}
             with self.lock:
                 self.state = 'error'
-                self.error = str(exc) if str(exc) in safe else 'bridge_connection_failed'
+                self.error = connection_error(str(exc))
+                self.diagnostics.append(dict(clean_details(getattr(exc, 'connection_diagnostics', None)),
+                                             error=self.error))
+                self.diagnostics = self.diagnostics[-3:]
 
     def observe(self):
         with self.lock:

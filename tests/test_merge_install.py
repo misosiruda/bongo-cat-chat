@@ -250,6 +250,7 @@ def test_module_scan_does_not_confuse_unreadable_metadata_with_a_loaded_bridge(m
 @pytest.mark.parametrize('outcome,expected', [
     ('ready', None), ('late', 'bridge_response_pending'),
     ('managed_failure', 'attach_not_confirmed_no_retry'), ('native_failure', 'attach_not_confirmed_no_retry'),
+    ('native_os_failure', 'attach_not_confirmed_no_retry'), ('load_failure', 'attach_not_confirmed_no_retry'),
 ])
 def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_path, monkeypatch, outcome, expected):
     """Execute the product flow with synthetic exports and a fake bootstrap only."""
@@ -282,6 +283,12 @@ def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_pat
     def attach(*args):
         calls.append('attach')
         if outcome == 'native_failure':raise RuntimeError('bootstrap_outcome_unknown_no_retry')
+        if outcome == 'native_os_failure':
+            error = PermissionError('C:/private/user and secret-token')
+            error.winerror = 5
+            raise error
+        if outcome == 'load_failure':
+            return dict(status=0, stage=3, exception=0, load_error=2, load_message='C:/private/user')
         return dict(status=2 if outcome == 'managed_failure' else 1, stage=7,
                     exception=1 if outcome == 'managed_failure' else 0)
     monkeypatch.setattr(merge_install, 'execute', attach)
@@ -299,13 +306,26 @@ def test_initial_attach_classification_never_reloads_an_uncertain_module(tmp_pat
     monkeypatch.setattr(merge_install, 'time', SimpleNamespace(monotonic=lambda:elapsed[0], time=lambda:1234.0,
         sleep=lambda n:elapsed.__setitem__(0, elapsed[0]+n)))
     if expected:
-        with pytest.raises(RuntimeError, match='^'+expected+'$'):
+        with pytest.raises(RuntimeError, match='^'+expected+'$') as failed:
             merge_install.connect()
+        diagnostic = failed.value.connection_diagnostics
+        assert diagnostic['source'] == 'new'
+        assert not any(word in json.dumps(diagnostic) for word in ('private', 'secret', 'load_message'))
+        if outcome == 'native_failure':
+            assert diagnostic['native_error'] == 'bootstrap_outcome_unknown_no_retry'
+        elif outcome == 'native_os_failure':
+            assert diagnostic['native_error'] == 'native_os_error' and diagnostic['winerror'] == 5
+        elif outcome == 'managed_failure':
+            assert diagnostic['status'] == 2 and diagnostic['stage'] == 7 and diagnostic['managed_exception'] is True
+        elif outcome == 'load_failure':
+            assert diagnostic['status'] == 0 and diagnostic['stage'] == 3 and diagnostic['load_error'] == 2
         session = tmp_path/'.bongo-cat-chat'/'merge-bridge'/'123-456'
         before = {p.name:p.read_bytes() for p in session.iterdir()}
         assert 'attach-attempt.json' in before
-        with pytest.raises(RuntimeError, match='^'+expected+'$'):
+        with pytest.raises(RuntimeError, match='^'+expected+'$') as reused:
             merge_install.connect()
+        assert reused.value.connection_diagnostics['source'] == 'existing'
+        assert reused.value.connection_diagnostics['attach_record'] == ('missing' if outcome in {'native_failure', 'native_os_failure'} else 'present')
         assert {p.name:p.read_bytes() for p in session.iterdir()} == before
     else:
         assert merge_install.connect() is channels[0]
