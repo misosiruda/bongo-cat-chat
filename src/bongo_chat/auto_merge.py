@@ -18,7 +18,7 @@ REASONS = frozenset({'adapter_unverified', 'offline', 'read_only', 'closed',
     'selection_timeout', 'result_timeout', 'result_unverified', 'input_failed',
     'game_failed', 'no_duplicates', 'limit_reached', 'user_stopped', 'app_closed',
     'checked_in_game', 'ready', 'manual_exchange_screen_open', 'group_changing',
-    'test_budget_exhausted', 'bridge_observation_failed', 'inventory_refreshing', 'connection_recovering'})
+    'test_budget_exhausted', 'bridge_observation_failed', 'inventory_refreshing', 'connection_recovering', 'chest_active'})
 RECOVERABLE = frozenset({'game_unavailable', 'observation_stale', 'bridge_observation_failed',
                          'inventory_refreshing', 'connection_recovering'})
 # ItemExchange.MatchesCurrentTab / SteamItemRuntime.IsCosmetic: UI tabs are
@@ -403,6 +403,7 @@ class AutoMerge:
             count = None
         return dict(state='recovering' if self.active and self.recovering_since is not None else self.state,
                     reason=self.reason, active=self.active,
+                    start_block_reason=self.preparation_reason(value) if value and fresh and not self.active else '',
                     can_change_group=not self.blocks_restart and not self.closed and hasattr(self.adapter,'set_group'),
                     available_exchanges=count,
                     exchange_group=group,

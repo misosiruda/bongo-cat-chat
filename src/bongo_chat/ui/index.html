@@ -135,6 +135,10 @@
       <p class="settings-note">게임은 실행 중이어야 합니다. 수동 합성 화면은 닫아 주세요. 중지는 새 요청을 막으며, 이미 요청한 합성은 취소하지 못합니다. 이 패널을 닫아도 실행은 유지됩니다.</p>
     </div>
     <div class="merge-footer">
+      <div class="merge-start-block" id="merge-start-block" role="status" aria-live="polite" aria-atomic="true" hidden>
+        <strong>상자 자동 개봉 상태 때문에 합성을 시작할 수 없어요.</strong>
+        <p>상자 자동 개봉 화면에서 중지한 뒤, 진행 중인 개봉 결과를 확인해 주세요. 일시 정지만으로는 합성을 시작할 수 없어요.</p>
+      </div>
       <button type="button" class="page-button" id="merge-acknowledge" hidden>게임에서 결과를 확인했습니다</button>
       <button type="button" class="merge-stop-button" id="merge-stop" disabled>중지</button>
       <button type="button" class="merge-start-button" id="merge-start" disabled>자동 합성 시작</button>
