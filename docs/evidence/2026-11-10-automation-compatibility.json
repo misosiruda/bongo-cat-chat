@@ -1,0 +1,68 @@
+{
+  "date": "2026-11-10",
+  "game_build": "26538670",
+  "baseline_revision": "db01c14",
+  "app_version": "0.1.0.dev31",
+  "before_error": "unsupported_automation_features",
+  "features": {
+    "chest": "0f14bbe25c62e8bb7ae68d2602c0ecda0aff8bcdba22cd5417f7ec8507062543",
+    "inventory": "836d34483235661dbfad08a6d2a67b57d71d97769d1bd166373e69b14339cf31",
+    "merge": "b787751a93fce3516885305b71c6c2477cc8b730bf23365c8894f4638e030438"
+  },
+  "assembly_sha256": "8f75df923b6f36f45633f27823ad8d9c63dfa5d42759635d9918857361af31a2",
+  "feature_changes": [
+    "chest"
+  ],
+  "unchanged_features": [
+    "merge",
+    "inventory"
+  ],
+  "review": {
+    "new_accessors": [
+      "BongoCat.Shop.get_ShowChestSetting",
+      "BongoCat.Shop.get_CanGetShownChest"
+    ],
+    "changed_accessor": "BongoCat.Shop.get_ShowChest",
+    "new_referenced_field": "BongoCat.SettingsManager.ShowCosmeticChest",
+    "removed_normalized_selected_records": 0,
+    "comparison_limit": "Prior IL and selected-key archive; not a full historical binary or metadata equivalence proof. Compiler-generated numeric names normalized only for analysis."
+  },
+  "static_compile_and_member_resolution": true,
+  "game_module_loaded": false,
+  "game_files_changed": false,
+  "installed_app_changed": false,
+  "consumption_requests": 0,
+  "verification": {
+    "automation_tests": {
+      "passed": 245,
+      "files": [
+        "test_merge_install.py",
+        "test_merge_bridge.py",
+        "test_merge_connection.py",
+        "test_auto_merge.py",
+        "test_auto_chest.py"
+      ]
+    },
+    "feature_and_packaging_tests": {
+      "passed": 60,
+      "files": [
+        "test_feature_probe.py",
+        "test_packaging.py",
+        "test_distribution.py"
+      ]
+    },
+    "initial_feature_setup_errors": 21,
+    "setup_error_resolution": "Compiler shell had loaded Mono.Cecil.dll; reran affected tests in a separate process after that shell exited. All 21 passed.",
+    "full_suite": "Not run locally: contract/profile and version changes covered by automation consumers, feature guards, packaging/distribution; required CI not triggered.",
+    "packaged_current_game_validation": true,
+    "frozen_offline_renderer": true,
+    "bundle_dependency_and_notice_audit": true,
+    "installer": {
+      "name": "BongoCatChat-0.1.0.dev31-windows-x64-Setup.exe",
+      "bytes": 218850351,
+      "sha256": "8fea128fc8bd1efa1584de6feacc9c350f311d0192d2c4480e03d29474821ed7",
+      "authenticode": "unsigned local development candidate",
+      "installed": false
+    }
+  }
+}
