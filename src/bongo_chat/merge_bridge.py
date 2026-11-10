@@ -256,8 +256,17 @@ def observation(raw, *, clock=time.monotonic, wall=time.time):
     receipt = raw['receipt']
     if receipt is not None:
         receipt = Receipt(receipt['attempt'],receipt['completed'],receipt['finished'],receipt['failed'])
+    # Older live bridges report ready with unknown selection/counts while the
+    # chest runtime owns automation. Surface that existing interlock explicitly;
+    # pausing (enabled=False) does not release an armed run or pending result.
+    chest = raw.get('chest')
+    chest_blocks = isinstance(chest, dict) and any(
+        chest.get(key) is True for key in ('armed', 'pending', 'unknown'))
+    ready, reason = raw['ready'], raw['reason']
+    if ready and chest_blocks:
+        ready, reason = False, 'chest_active'
     return Observation(clock()-age/1000,target=raw['epoch'],category=raw['group'],
-        ready=raw['ready'],reason=raw['reason'],favorites_allowed=raw['favorites_allowed'],
+        ready=ready,reason=reason,favorites_allowed=raw['favorites_allowed'],
         events_excluded=raw['events_excluded'],selected_units=raw['selected_units'],exchanges=raw['exchanges'],
         selection=raw['selection'],selection_attempt=raw['selection_attempt'],can_select=raw['can_select'],
         exchanging=raw['exchanging'],receipt=receipt,available_exchanges=raw['available_exchanges'],

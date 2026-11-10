@@ -20,6 +20,36 @@ def raw_snapshot():
         spent=0,test_budget=2,per_request_limit=1)
 
 
+@pytest.mark.parametrize('flag', ['armed', 'pending', 'unknown'])
+@pytest.mark.parametrize('enabled', [True, False])
+def test_chest_interlock_is_explained_before_merge_start(flag, enabled):
+    from types import SimpleNamespace
+    raw = raw_snapshot()
+    raw.update(available_exchanges=None, can_select=None,
+               chest=dict(armed=False, pending=False, unknown=False, enabled=enabled))
+    raw['chest'][flag] = True
+    def forbidden(*args):
+        pytest.fail('An interlocked observation must not send a command')
+    adapter = SimpleNamespace(observe=lambda: observation(raw), begin_run=forbidden)
+    runner = AutoMerge(adapter)
+    runner.tick()
+    assert runner.reason == 'chest_active'
+    assert not runner.start(10) and not runner.snapshot()['can_start']
+    assert runner.maximum() is None
+    raw['chest'][flag] = False
+    raw.update(available_exchanges=12, can_select=True)
+    runner.tick()
+    assert runner.reason == 'ready' and runner.maximum() == 12
+    assert not runner.active  # Releasing the chest lock never starts merging.
+
+
+def test_chest_interlock_does_not_replace_other_unready_reasons():
+    raw = raw_snapshot()
+    raw.update(ready=False, reason='inventory_refreshing', chest={'armed': True})
+    value = observation(raw)
+    assert not value.ready and value.reason == 'inventory_refreshing'
+
+
 @pytest.mark.parametrize('changed,expected', [
     ({'pid':99}, 'bridge_snapshot_mismatch'),
     ({'epoch':'different'}, 'bridge_snapshot_mismatch'),

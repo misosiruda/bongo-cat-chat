@@ -1,6 +1,6 @@
 # Bongo Cat Chat
 
-**dev31**는 게임 build 26538670에서 상자 표시 설정 변경으로 발생한 `unsupported_automation_features`를 수정한다. 검토한 기능 조합을 추가하고 기존 지원·의존성 검사·소비 보호를 유지한다. [변경 및 적용 안내](docs/releases/0.1.0.dev31.md). 공개 상태는 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 확인한다.
+**dev32**는 상자 자동 개봉 때문에 합성을 시작할 수 없을 때 시작 버튼 위에 이유와 중지·결과 확인 안내를 표시한다. 이전 합성 결과를 유지하며 일시 정지만으로는 합성을 시작할 수 없음을 안내한다. [설치·업데이트 안내](docs/releases/0.1.0.dev32.md).
 
 **dev30**은 기본 게임 의존성 `System.Numerics.dll`을 연결 전에 검사하고 누락·읽기 실패·지원 파일 불일치·타입 로드 실패를 구분한다. #58 제보자는 게임 재설치 후 연결 복구를 확인했다. [설치·복구 안내](docs/releases/0.1.0.dev30.md) · [재현과 검증 범위](docs/issue-58-dependencies.md).
 
@@ -24,7 +24,7 @@
 
 2026-10-30 로컬 개발판은 사이드바 **아이템 자동 합성 → 게임에 연결**에서 바로 사용할 수 있다. 게임 탭을 열지 않고 앱에서 두 합성 그룹·가능 횟수·**최대값으로 설정**을 사용한다. 연결만으로 합성하지 않으며 사용자의 시작 후 매회 1회씩 원본 함수와 결과 확인을 반복한다. 실제 Qt 패널에서 연결·조회·재연결을 확인했고 이번 후속 작업의 추가 아이템 소비는 0회다. 10월 29일의 승인된 실제 시험 2회와 구분한다. [사용법·검증·빌드 제한](docs/item-auto-merge.md)을 참고한다. dev20은 노트북에서 확인한 Auto Chest 파일 조합의 연결 수정과 구체적인 오류 안내를 포함하며 게시 상태는 최신 릴리스에서 확인한다.
 
-**설치:** [dev31 Windows 설치 파일 다운로드](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev31/BongoCatChat-0.1.0.dev31-windows-x64-Setup.exe) · [다운로드·설치·첫 실행 안내 (한국어 / English)](docs/releases/0.1.0.dev31.md). 처음 설치한다면 Setup.exe 하나만 받으면 된다. Steam 로그인·게임 실행·게임 내 로비 참여 후 시작 메뉴에서 Bongo Cat Chat을 실행한다. 공개 최신 버전은 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 확인한다.
+**설치:** [dev32 Windows 설치 파일 다운로드](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev32/BongoCatChat-0.1.0.dev32-windows-x64-Setup.exe) · [다운로드·설치·첫 실행 안내 (한국어 / English)](docs/releases/0.1.0.dev32.md). 처음 설치한다면 Setup.exe 하나만 받으면 된다. Steam 로그인·게임 실행·게임 내 로비 참여 후 시작 메뉴에서 Bongo Cat Chat을 실행한다. 공개 최신 버전은 [최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 확인한다.
 
 2026-10-28 후속 소스는 **게임의 고양이 숨김과 채팅 차단을 분리**한다. 게임에서 숨긴 상대도 채팅에 표시하고, 참여자 목록 또는 **설정 → 채팅 차단**에서 Steam ID 기준으로 차단·해제한다. 같은 PC의 로그인 계정별로 저장해 로비 이동·재실행 후에도 유지한다. [사용 방법·저장 정책](docs/chat-blocking.md)을 참고한다. 아래 과거 버전의 숨김 동기화 설명은 당시 이력이며 현재 소스 정책은 D-031이 우선한다. 공개 설치본 배포와 실제 로비 인수는 별도다.
 

@@ -33,6 +33,51 @@ def test_offline_and_readonly_have_no_input_path(tmp_path):
             controller.close(); app.processEvents()
 
 
+def test_chest_interlock_panel_explains_stop_instead_of_selection_failure(qt_chat):
+    app, controller, page = qt_chat
+    game = FakeGameUI(time.monotonic)
+    game.value = replace(game.value, ready=False, reason='chest_active',
+                         can_select=None, available_exchanges=None)
+    controller.merger = AutoMerge(game)
+    js(app, page, "document.querySelector('#merge-open').click()")
+    wait_until(app, lambda: js(app, page, "!document.querySelector('#merge-start-block').hidden"))
+    assert js(app, page, "!document.querySelector('#merge-start-block').hidden")
+    assert '합성을 시작할 수 없어요' in js(app, page, "document.querySelector('#merge-start-block').textContent")
+    assert js(app, page, "document.querySelector('#merge-start').disabled && document.querySelector('#merge-maximum').disabled")
+    assert not request(controller, 'merge_start', limit=10)['ok']
+    assert not game.calls
+
+
+def test_completed_merge_keeps_result_and_explains_current_chest_block(qt_chat):
+    app, controller, page = qt_chat
+    page.parent().resize(400, 500)
+    game = FakeGameUI(time.monotonic)
+    game.value = replace(game.value, ready=False, reason='chest_active',
+                         can_select=None, available_exchanges=None)
+    controller.merger = runner = AutoMerge(game)
+    runner.state, runner.reason = 'completed', 'limit_reached'
+    runner.completed = runner.limit = 10
+    js(app, page, "document.querySelector('#merge-open').click()")
+    wait_until(app, lambda: '상자 자동 개봉 중지' in js(app, page, "document.querySelector('#merge-available').textContent"))
+    assert js(app, page, "document.querySelector('#merge-state').textContent") == '합성 종료'
+    assert js(app, page, "document.querySelector('#merge-completed').textContent") == '10'
+    assert runner.snapshot()['start_block_reason'] == 'chest_active'
+    assert runner.reason == 'limit_reached' and not runner.active and not game.calls
+    assert js(app, page, "!document.querySelector('#merge-start-block').hidden")
+    # The explanation stays with the disabled action, outside scrolling content.
+    assert js(app, page, "(() => {const b=document.querySelector('#merge-start-block').getBoundingClientRect(),s=document.querySelector('#merge-start').getBoundingClientRect();return b.width>0 && b.top>=0 && b.bottom<=s.top && s.bottom<=innerHeight && document.querySelector('#merge-dialog').scrollWidth<=document.querySelector('#merge-dialog').clientWidth;})()")
+    request(controller, 'setting', key='language', value='en')
+    wait_until(app, lambda: 'preventing merging' in js(app, page, "document.querySelector('#merge-start-block').textContent"))
+    assert 'Pausing alone' in js(app, page, "document.querySelector('#merge-start-block').textContent")
+    request(controller, 'setting', key='language', value='ko')
+    game.value = replace(game.value, ready=True, reason='ready', can_select=True, available_exchanges=12)
+    wait_until(app, lambda: js(app, page, "document.querySelector('#merge-available').textContent") == '12회')
+    assert js(app, page, "document.querySelector('#merge-start-block').hidden")
+    assert js(app, page, "!document.querySelector('#merge-start').hasAttribute('aria-describedby')")
+    assert runner.reason == 'limit_reached' and runner.completed == 10
+    assert not runner.active and not game.calls
+
+
 def test_update_restart_is_blocked_until_pending_result_is_resolved(qt_chat):
     app, controller, page = qt_chat
     now = [100.0]

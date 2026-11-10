@@ -737,6 +737,7 @@
       existing_selection:t('선택된 재료 또는 진행 중인 합성이 있습니다. 게임에서 확인해 주세요.'),
       observation_stale:t('게임 상태 확인이 지연되어 중단했습니다.'),selection_unverified:t('중복 자동 선택 결과를 확인하지 못했습니다.'),
       selection_timeout:t('중복 자동 선택 결과를 기다리다 중단했습니다.'),
+      chest_active:t('상자 자동 개봉이 실행 중이거나 결과 확인을 기다리고 있어요. 상자 화면에서 중지하고 결과를 확인한 뒤 다시 시도해 주세요. 일시 정지만으로는 합성을 시작할 수 없어요.'),
       result_timeout:t('합성 응답 시간이 초과되었습니다. 재시도하지 않았으며 게임에서 결과를 확인해야 합니다.'),
       result_unverified:t('합성 결과를 확정할 수 없습니다. 게임에서 결과를 확인해 주세요.'),
       input_failed:t('게임 함수 호출을 확인하지 못해 중단했습니다.'),game_failed:t('게임에서 합성 실패를 확인했습니다. 성공이 확인된 횟수만 표시합니다.'),
@@ -756,6 +757,9 @@
     const summary = t('{state} · 완료 {count}회', {state:title,count:value.completed || 0});
     $('merge-state').textContent = title;
     $('merge-reason').textContent = reasons[value.reason] || reasons.screen_unavailable;
+    $('merge-start-block').hidden = value.start_block_reason !== 'chest_active';
+    if (value.start_block_reason === 'chest_active') $('merge-start').setAttribute('aria-describedby','merge-start-block');
+    else $('merge-start').removeAttribute('aria-describedby');
     if (value.connection) {
       const connection = value.connection;
       $('merge-connection').hidden = false;
@@ -805,7 +809,9 @@
     const known = Number.isSafeInteger(available) && available >= 0;
     const limit = $('merge-limit').valueAsNumber;
     const valid = Number.isSafeInteger(limit) && limit > 0;
-    $('merge-available').textContent = known ? t('{count}회', {count:available}) : t('확인 필요');
+    $('merge-available').textContent = mergeState?.start_block_reason === 'chest_active'
+      ? t('상자 자동 개봉 중지·결과 확인 후 조회 가능')
+      : known ? t('{count}회', {count:available}) : t('확인 필요');
     $('merge-maximum').disabled = mergeBusy || !mergeState?.can_start || !known || available === 0;
     $('merge-start').disabled = mergeBusy || chestState?.armed || chestState?.pending || chestState?.unknown || !mergeState?.can_start || !valid || available === 0;
     $('merge-planned').textContent = !valid ? t('합성 횟수는 1 이상의 정수로 입력해 주세요.')

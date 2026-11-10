@@ -33,10 +33,19 @@ def test_inventory_refresh_keeps_heartbeats_and_recovers_without_another_start(b
     assert not adapter.fault and adapter.chest_snapshot()['armed']
     server.state.update(ready=True, reason='ready')
     server.state['chest']['reason'] = 'running'
-    until(lambda: adapter.observe().ready and adapter.chest_snapshot()['reason'] == 'running')
+    # Recovery keeps chest automation running; the merge observation remains
+    # interlocked until that chest run is explicitly stopped.
+    until(lambda: adapter.observe().reason == 'chest_active'
+          and adapter.chest_snapshot()['reason'] == 'running')
+    assert not adapter.observe().ready and not adapter.fault
+    assert adapter.chest_owns_lease and adapter.chest_snapshot()['armed']
     assert [r['op'] for r in server.requests].count('chest_start') == 1
     heartbeats = [r for r in server.requests if r['op'] == 'chest_heartbeat']
     assert all(r['chest_run_attempt'] == server.state['chest']['run_attempt'] for r in heartbeats)
+    adapter.chest_stop()
+    until(lambda: not adapter.busy and not adapter.chest_snapshot()['armed'] and adapter.observe().ready)
+    assert not adapter.chest_owns_lease
+    assert [r['op'] for r in server.requests].count('chest_start') == 1
 
 
 def test_snapshot_outage_then_recovery_keeps_owned_chest_run(bridge, monkeypatch):
