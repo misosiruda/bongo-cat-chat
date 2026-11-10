@@ -388,6 +388,37 @@ def test_native_and_dependency_change_is_refused(assets):
     with pytest.raises(RuntimeError,match='unsupported_game_files'):validate_assets(game,folder)
 
 
+@pytest.mark.parametrize('profile_index', [0, 1])
+def test_reviewed_automation_profiles_keep_exact_feature_and_dependency_binding(assets, monkeypatch, profile_index):
+    game, folder, contract = assets
+    # Exercise both supported feature sets through the product validator with
+    # synthetic files; no installed game or process is needed.
+    profile = contract['profiles'][profile_index]
+    profile['files'] = json.loads(json.dumps(contract['profiles'][0]['files']))
+    (folder/'contract.json').write_text(json.dumps(contract))
+    probe = subprocess.run
+    features = dict(profile['features'])
+    def observed(*args, **kwargs):
+        value = probe(*args, **kwargs)
+        result = json.loads(value.stdout)
+        result['features'] = features
+        value.stdout = json.dumps(result).encode()
+        return value
+    monkeypatch.setattr(subprocess, 'run', observed)
+    assert validate_assets(game, folder) == (folder, contract)
+    for feature in ('chest', 'merge', 'inventory'):
+        original = features[feature]
+        features[feature] = '0'*64
+        with pytest.raises(RuntimeError, match='^unsupported_automation_features$'):
+            validate_assets(game, folder)
+        features[feature] = original
+    # An approved fingerprint cannot borrow another profile's dependency pins.
+    profile['files']['BongoCat.exe'] = ['0'*64]
+    (folder/'contract.json').write_text(json.dumps(contract))
+    with pytest.raises(RuntimeError, match='^unsupported_(automation_features|game_files)$'):
+        validate_assets(game, folder)
+
+
 @pytest.mark.parametrize('fault,expected', [
     ('missing', 'bridge_dependency_missing'),
     ('changed', 'bridge_dependency_incompatible'),
