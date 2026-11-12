@@ -11,7 +11,7 @@ import time
 DEFAULTS = dict(own=True, others=False, min_delay=3.0, max_delay=8.0)
 BOOL_FIELDS = ('supported', 'armed', 'enabled', 'pending', 'unknown', 'legacy_detected', 'legacy_taken_over', 'own', 'others')
 COUNT_FIELDS = ('attempted', 'own_confirmed', 'failed', 'remote_requested')
-REASONS = frozenset({'ready', 'running', 'paused', 'waiting_result', 'starting', 'user_stopped',
+REASONS = frozenset({'ready', 'running', 'paused', 'waiting_result', 'result_delayed', 'starting', 'user_stopped',
                      'app_disconnected', 'result_unverified', 'chest_fault', 'unsupported_chest',
                      'disconnected', 'game_unavailable', 'input_failed', 'connection_recovering', 'inventory_refreshing'})
 

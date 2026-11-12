@@ -108,12 +108,51 @@ static class ChestFixture {
         Legacy.Enabled = true; Step();
         Check(!(bool)ChestRuntime.Snapshot()["armed"] && (bool)ChestRuntime.Snapshot()["unknown"],"legacy reactivation stops dispatcher");
         Set("unknown",false); Legacy.Enabled = false;
-        ChestRuntime.Start(folder,Config(),"timeout");
+        ChestRuntime.Start(folder,Config(),"delayed-result");
         Shop.NormalShop.ChestIsReady = true; Step(); Step();
-        Check((bool)ChestRuntime.Snapshot()["pending"],"timeout case dispatched");
+        Check((bool)ChestRuntime.Snapshot()["pending"],"delayed request dispatched");
+        int requests = item.Exchanger.Requests, failures = (int)ChestRuntime.Snapshot()["failed"];
+        var lateFailure = item.Exchanger.Callback;
+        Step(31); Step(90);
+        var waiting = ChestRuntime.Snapshot();
+        Check((bool)waiting["armed"] && (bool)waiting["pending"] && !(bool)waiting["unknown"]
+            && (string)waiting["reason"] == "result_delayed","slow result keeps the same run waiting");
+        Check(ChestRuntime.BlocksMerge && item.Exchanger.Requests == requests,"no other request while waiting");
+        Reject(delegate { ChestRuntime.Start(folder,Config(),"retry"); },"cannot start a second run while waiting");
+        item.Exchanger.Complete(-1);
+        Check((int)ChestRuntime.Snapshot()["failed"] == failures + 1 && !(bool)ChestRuntime.Snapshot()["pending"],
+            "late failure is recorded and resolves the pending request");
+        Step(); Shop.NormalShop.ChestIsReady = true; Step(); Step();
+        Check(item.Exchanger.Requests == requests + 1 && ChestRuntime.RunAttempt == "delayed-result",
+            "next ready chest opens without a new start after late failure");
+        lateFailure(-1);
+        Check((bool)ChestRuntime.Snapshot()["pending"] && (int)ChestRuntime.Snapshot()["failed"] == failures + 1,
+            "duplicate old callback cannot resolve a new request");
         Step(31);
-        Check((bool)ChestRuntime.Snapshot()["unknown"] && !(bool)ChestRuntime.Snapshot()["armed"],"timeout is unresolved and disarmed");
-        Reject(delegate { ChestRuntime.Start(folder,Config(),"retry"); },"unknown result cannot restart");
+        int successes = (int)ChestRuntime.Snapshot()["own_confirmed"];
+        item.Exchanger.Complete(123);
+        Step(); Shop.NormalShop.ChestIsReady = true; Step(); Step();
+        Check((int)ChestRuntime.Snapshot()["own_confirmed"] == successes + 1 && item.Exchanger.Requests == requests + 2,
+            "next ready chest opens without a new start after late success");
+        Step(31);
+        ChestRuntime.Stop("user_stopped"); Step(90);
+        Check((string)ChestRuntime.Snapshot()["reason"] == "user_stopped" && ChestRuntime.BlocksMerge,
+            "user stop while waiting preserves the pending receipt");
+        item.Exchanger.Complete(123);
+        Step(); Shop.NormalShop.ChestIsReady = true; Step(); Step();
+        Check(!ChestRuntime.BlocksMerge && item.Exchanger.Requests == requests + 2,
+            "late receipt after user stop never rearms the run");
+
+        ChestRuntime.Start(folder,Config(),"receipt-write-failure");
+        Shop.NormalShop.ChestIsReady = false; Step(); Shop.NormalShop.ChestIsReady = true; Step(); Step();
+        Step(31);
+        using (File.Open(Path.Combine(folder,"chest-ledger.json"),FileMode.Open,FileAccess.Read,FileShare.Read))
+            item.Exchanger.Complete(123);
+        Step();
+        var fault = ChestRuntime.Snapshot();
+        Check((bool)fault["unknown"] && !(bool)fault["armed"] && (string)fault["reason"] == "result_unverified",
+            "a late callback whose receipt cannot be saved still stops the run");
+        Reject(delegate { ChestRuntime.Start(folder,Config(),"retry"); },"receipt write failure cannot start a new run");
         Console.WriteLine("Chest fixture: " + checks + " checks passed; synthetic requests only.");
     }
     static class Legacy {

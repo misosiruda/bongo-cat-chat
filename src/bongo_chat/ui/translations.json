@@ -370,6 +370,8 @@
   "자동 개봉 실행 중": "Opening chests",
   "자동 개봉 일시 정지": "Chest opening paused",
   "개봉 결과 대기 중": "Waiting for chest result",
+  "개봉 응답 지연": "Chest response delayed",
+  "게임의 개봉 응답을 기다리고 있습니다. 결과가 도착하면 다음 상자를 자동으로 엽니다.": "Waiting for the game to report the result. The next chest will open automatically when it is ready.",
   "자동 개봉 시작 중": "Starting chest opening",
   "개봉 결과 확인 필요": "Chest result needs checking",
   "자동 개봉 중단": "Chest opening halted",

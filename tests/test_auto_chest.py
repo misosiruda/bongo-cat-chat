@@ -93,6 +93,13 @@ def test_real_renderer_save_connect_takeover_start_stop_and_language(qt_chat,tmp
         assert controller.chests.blocks_restart
         assert json.loads(controller.request('{"action":"merge_start","limit":1}'))=={'ok':False,'auto_merge':controller.merger.snapshot()}
         assert json.loads(controller.request('{"action":"restart_update"}'))=={'ok':False,'reason':'auto_chest'}
+        server.state['chest'].update(pending=True, reason='result_delayed')
+        wait_until(app,lambda:js(app,page,"document.querySelector('#chest-state').textContent")=='개봉 응답 지연')
+        assert '다음 상자를 자동으로' in js(app,page,"document.querySelector('#chest-reason').textContent")
+        assert js(app,page,"document.querySelector('#chest-start').disabled && !document.querySelector('#chest-stop').disabled")
+        server.state['chest'].update(pending=False, failed=1, reason='running')
+        wait_until(app,lambda:js(app,page,"document.querySelector('#chest-state').textContent")=='자동 개봉 실행 중')
+        assert sum(request['op'] == 'chest_start' for request in server.requests) == 1
         # Closing the panel does not stop; the sidebar retains an accessible stop.
         js(app,page,"document.querySelector('#chest-dialog').close()")
         wait_until(app,lambda:js(app,page,"!document.querySelector('#chest-sidebar-stop').hidden"))

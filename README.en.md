@@ -1,5 +1,7 @@
 # Bongo Cat Chat
 
+**dev33** keeps waiting when the game takes more than 30 seconds to answer an opening request for your own chest. After success or failure, the next eligible chest opens automatically. [Installation and update guide](docs/releases/0.1.0.dev33.md#english).
+
 **dev32** explains when chest automation prevents merging, directly above the Start button. Previous merge results remain visible; pausing alone does not release the block. [Installation and update guide](docs/releases/0.1.0.dev32.md#english).
 
 **dev30** checks the required game dependency `System.Numerics.dll` before connecting and distinguishes missing, unreadable, incompatible and runtime type-load failures. The user confirmed recovery after reinstalling the game for #58. [Installation and repair guide](docs/releases/0.1.0.dev30.md#english) · [Evidence and limits](docs/issue-58-dependencies.md).
@@ -24,7 +26,7 @@ The November 2 `0.1.0.dev21` source restores chat and Auto merge connections for
 
 The October 30 local development build supports **Auto merge items → Connect to game** directly in the sidebar. Choose either exchange group, inspect its available count, and use **Set to maximum** without opening a game tab. Connecting never starts a merge. An explicit Start authorizes the chosen limit, with one exchange and a confirmed result at a time. The real Qt panel was checked against the running game for connection, counts and reconnection; this follow-up consumed zero additional items. The two previously authorized live exchanges remain separate evidence. See the [usage, validation and build restrictions (Korean)](docs/item-auto-merge.md). dev20 includes the inspected laptop Auto Chest file combination and specific connection errors; check the latest release for publication status.
 
-**Install:** [Download the dev32 Windows installer](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev32/BongoCatChat-0.1.0.dev32-windows-x64-Setup.exe) · [Download, installation and first-run instructions (English / 한국어)](docs/releases/0.1.0.dev32.md#english). For a first installation, download only Setup.exe. Sign in to Steam, launch the game and join a lobby, then open Bongo Cat Chat from the Start menu. Check the [latest release](https://github.com/misosiruda/bongo-cat-chat/releases/latest) for newer versions.
+**Install:** [Download the dev33 Windows installer](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev33/BongoCatChat-0.1.0.dev33-windows-x64-Setup.exe) · [Download, installation and first-run instructions (English / 한국어)](docs/releases/0.1.0.dev33.md#english). For a first installation, download only Setup.exe. Sign in to Steam, launch the game and join a lobby, then open Bongo Cat Chat from the Start menu. Check the [latest release](https://github.com/misosiruda/bongo-cat-chat/releases/latest) for newer versions.
 
 The dev17 release separates **in-game cat visibility from chat blocking**. Chat from hidden cats remains visible. Block or unblock by Steam ID in the participant list or **Settings → Chat blocking**. Blocks persist across lobbies and restarts for the current Steam account on this device. New messages from blocked users are not saved; existing history is hidden until unblocked. Live-lobby acceptance remains to be completed. Earlier game-visibility descriptions below are historical.
 
