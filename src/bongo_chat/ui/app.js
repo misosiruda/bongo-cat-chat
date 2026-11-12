@@ -859,6 +859,7 @@
     const active = value.armed || value.pending || value.unknown;
     const labels = {
       running:t('자동 개봉 실행 중'), paused:t('자동 개봉 일시 정지'), waiting_result:t('개봉 결과 대기 중'),
+      result_delayed:t('개봉 응답 지연'),
       starting:t('자동 개봉 시작 중'), result_unverified:t('개봉 결과 확인 필요'), chest_fault:t('자동 개봉 중단'),
       ready:t('시작 전'), user_stopped:t('자동 개봉 중지됨'), game_unavailable:t('자동 개봉 중지됨'), app_disconnected:t('앱 연결 끊김으로 중지됨'),
       inventory_refreshing:t('인벤토리 갱신 대기 중'), connection_recovering:t('연결 복구 대기 중')
@@ -870,6 +871,7 @@
       : !value.fresh ? t('게임 연결 확인 필요') : labels[value.reason] || t('게임 연결 확인 필요');
     const reasons = {
       unsupported_chest:t('현재 게임 파일은 상자 자동 개봉을 지원하지 않습니다. 앱 업데이트가 필요합니다.'),
+      result_delayed:t('게임의 개봉 응답을 기다리고 있습니다. 결과가 도착하면 다음 상자를 자동으로 엽니다.'),
       result_unverified:t('이미 요청한 개봉 결과를 확인하지 못했습니다. 게임에서 결과를 확인하고 게임과 앱을 한 번 완전히 종료한 뒤 다시 연결해 주세요. 반복되면 개발자에게 앱 버전과 오류 코드를 알려 주세요.') + ' ' + t('오류 코드: {code}', {code:'result_unverified'}),
       chest_fault:t('개봉 처리를 확인할 수 없어 중단했습니다. 게임에서 결과를 확인해 주세요.'),
       app_disconnected:t('앱과 연결이 끊겨 새 개봉 요청을 중단했습니다.'),

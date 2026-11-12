@@ -752,12 +752,10 @@ namespace BongoCatChat.MergeBridge
         }
         internal static void Tick(bool gameReady = true)
         {
-            if (!armed && !pending) return;
+            if (!armed) return;
             double now = Now();
             try
             {
-                if (pending && now - requestedAt > 30) { unknown = true; Stop("result_unverified"); reason = "result_unverified"; }
-                if (!armed) return;
                 if (now >= lease) { reason = "connection_recovering"; return; }
                 if (!gameReady) { reason = "inventory_refreshing"; return; }
                 RequireLegacyStopped(false);
@@ -765,8 +763,14 @@ namespace BongoCatChat.MergeBridge
                 if (pressed && !hotkeyDown) { enabled = !enabled; nextAction = now + Delay(); }
                 hotkeyDown = pressed;
                 if (!enabled) { reason = "paused"; return; }
-                reason = pending ? "waiting_result" : "running";
-                if (now < nextObserve || pending || unknown) return;
+                if (pending)
+                {
+                    // Only the callback for this request can settle it, even after a long delay.
+                    reason = now - requestedAt > 30 ? "result_delayed" : "waiting_result";
+                    return;
+                }
+                reason = "running";
+                if (now < nextObserve || unknown) return;
                 nextObserve = now + .5;
                 var candidates = new List<Candidate>();
                 Own(Shop.NormalShop, "own:normal", candidates, now); Own(Shop.EmoteShop, "own:emote", candidates, now);
