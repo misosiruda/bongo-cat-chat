@@ -1,132 +1,30 @@
-# Bongo Cat Chat
+# <img src="src/bongo_chat/ui/app-icon.png" width="36" alt=""> Bongo Cat Chat
 
-**dev33** keeps waiting when the game takes more than 30 seconds to answer an opening request for your own chest. After success or failure, the next eligible chest opens automatically. [Installation and update guide](docs/releases/0.1.0.dev33.md#english).
+[한국어](README.md) · English
 
-**dev32** explains when chest automation prevents merging, directly above the Start button. Previous merge results remain visible; pausing alone does not release the block. [Installation and update guide](docs/releases/0.1.0.dev32.md#english).
+**Bongo Cat Chat** is a Windows messenger for the Steam game Bongo Cat. Read and send lobby messages in a separate window while your friends keep chatting in the game as usual. The app keeps the messages it receives on your PC for 30 days, so you can search for something you missed.
 
-**dev30** checks the required game dependency `System.Numerics.dll` before connecting and distinguishes missing, unreadable, incompatible and runtime type-load failures. The user confirmed recovery after reinstalling the game for #58. [Installation and repair guide](docs/releases/0.1.0.dev30.md#english) · [Evidence and limits](docs/issue-58-dependencies.md).
+[![Download for Windows](docs/screenshots/download-en.svg)](https://github.com/misosiruda/bongo-cat-chat/releases/latest)
 
-**dev29** distinguishes initialization exceptions from delayed responses and includes allowlisted exception types and failure stages in reports. The cause was unconfirmed during #56; the later #58 report was resolved by a game reinstall, as confirmed by the user. [Historic dev29 installation guide](docs/releases/0.1.0.dev29.md#english).
+- **Automatic chest opening** — Choose which chests to open and how long to wait before opening them. [Chest opening guide](docs/auto-chest.md#opening-chests)
+- **Automatic item merging** — Choose an item group and a limit to merge duplicates one exchange at a time. [Item merging guide](docs/item-auto-merge.md#merging-items)
 
-**dev28** adds **Report a bug** in Settings, chest opening and Auto merge. It previews connection diagnostics and opens a prefilled GitHub issue for the user to sign in and submit. **Copy diagnostics** is available without a GitHub account. Chat, account/lobby IDs, file paths and connection tokens are excluded. See [dev28 installation and updates](docs/releases/0.1.0.dev28.md#english), the [collection scope](docs/auto-chest.md#사용자-조치와-개발에서-해결할-항목) and [privacy notice](docs/privacy-policy.en.md). Check the [latest release](https://github.com/misosiruda/bongo-cat-chat/releases/latest) for publication status.
+## Chat windows
 
-**dev27** explains chest and merge connection failures by cause. It briefly rechecks delayed responses from an existing connection and distinguishes storage paths, permissions, disk space, module inspection and record/response errors. Messages separate user actions from developer investigation and request a one-time game restart only when needed. [Installation, updates and troubleshooting](docs/releases/0.1.0.dev27.md#english) · [Validation scope](docs/product-validation.md).
+The default window (1240 × 840) shows the lobby list beside the conversation and message box. All three sizes show the same sample conversation and fictional cat profiles in the app UI.
 
-**dev26** checks chest and merge compatibility by their functional contract and removes the duplicate chest hash restriction. Game build 26431657 passed metadata and compilation checks without consuming items. Unrelated DLL changes may pass; changed protection behavior, unverified dependencies and mismatched running modules remain blocked. [Scope and evidence](docs/automation-feature-compatibility.md) · [dev26 installation](docs/releases/0.1.0.dev26.md#english).
+![The default window showing the lobby list and three cats chatting](docs/screenshots/chat-en-default.png)
 
-The November 5 source changes add **disconnect prevention and automatic recovery for chest opening and item merging**. After connection, state updates no longer depend on rendering. Heartbeats no longer wait for RPC replies, and state publication tolerates concurrent readers. Inventory refreshes and temporary communication failures pause new actions while preserving the current run. Work continues after the same game and account are verified again. User stops and unknown consumption results never resume automatically. Installation and live endurance validation are still pending. See the [connection behavior](docs/auto-chest.md#2026-11-05-연결-자동-복구).
-
-In **dev24**, open the participant list, choose **⋯ → Set nickname** beside another player, and enter a name only you will see. Nicknames persist across lobbies and app restarts for your Steam account on this PC. Clear the field and save to restore the original name.
-
-`0.1.0.dev23` adds saved chest startup (off by default) and recovery from a latched transient observation error in the shared chest/Auto merge connection. Existing helpers still require confirmation. Restart the game yourself once after updating to load the new module. See the [dev23 guide](docs/releases/0.1.0.dev23.md#english).
-
-The `0.1.0.dev22` development source integrates **Automatic chest opening**: your normal/emote chests, optional other players' chests (off by default), a 1–300 second delay range, Ctrl+Alt+F9 pause/resume, and app controls. Switching from an existing Auto Chest helper requires explicit confirmation and stops its dispatcher only for the current game lifetime. Installed game files are unchanged. Real openings and point spending have not been validated. Check the latest release for publication status. See [usage and validation boundaries](docs/auto-chest.md).
-
-The November 2 `0.1.0.dev21` source restores chat and Auto merge connections for game build **26364842**, with an inspected feature profile, complete file sets and the required DOTween reference. [Install and update](docs/releases/0.1.0.dev21.md#english) · [Validation scope (Korean)](docs/game-update-2026-11-02.md). Check the latest release for publication status.
-
-The October 30 local development build supports **Auto merge items → Connect to game** directly in the sidebar. Choose either exchange group, inspect its available count, and use **Set to maximum** without opening a game tab. Connecting never starts a merge. An explicit Start authorizes the chosen limit, with one exchange and a confirmed result at a time. The real Qt panel was checked against the running game for connection, counts and reconnection; this follow-up consumed zero additional items. The two previously authorized live exchanges remain separate evidence. See the [usage, validation and build restrictions (Korean)](docs/item-auto-merge.md). dev20 includes the inspected laptop Auto Chest file combination and specific connection errors; check the latest release for publication status.
-
-**Install:** [Download the dev33 Windows installer](https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev33/BongoCatChat-0.1.0.dev33-windows-x64-Setup.exe) · [Download, installation and first-run instructions (English / 한국어)](docs/releases/0.1.0.dev33.md#english). For a first installation, download only Setup.exe. Sign in to Steam, launch the game and join a lobby, then open Bongo Cat Chat from the Start menu. Check the [latest release](https://github.com/misosiruda/bongo-cat-chat/releases/latest) for newer versions.
-
-The dev17 release separates **in-game cat visibility from chat blocking**. Chat from hidden cats remains visible. Block or unblock by Steam ID in the participant list or **Settings → Chat blocking**. Blocks persist across lobbies and restarts for the current Steam account on this device. New messages from blocked users are not saved; existing history is hidden until unblocked. Live-lobby acceptance remains to be completed. Earlier game-visibility descriptions below are historical.
-
-[English](README.en.md) · [한국어](README.md)
-
-A third-party Windows messenger for **Bongo Cat's existing lobby chat**. Read and write lobby messages in a separate window, and search the messages the app has received and saved on your PC. Other players do not need this app to chat with you.
-
-**This is an experimental development build, not an official or developer-approved Bongo Cat integration.** Testing has primarily been on one PC. Clean game installations, other PCs and extended sessions still need acceptance testing. See [what has been verified](#verification-and-limitations) before trying it.
-
-## Features
-
-- Send and receive text through the game's existing Steam lobby chat.
-- View your outgoing messages in the messenger, with separate sending, accepted, failed and unknown states.
-- Keep received messages and drafts locally for 30 days, with conversation search and manual deletion.
-- Show the current lobby's player names and static cat profiles using locally installed game resources.
-- The October 28 source adds centered join/leave notices for observed lobby membership changes, with local 30-day retention. Initial connection and reconnection do not announce everyone. Notices follow app chat-block settings and do not send chat or trigger message alerts. See [behavior, database compatibility and validation](docs/lobby-presence.md) before using this source with existing data; release and live-game acceptance are separate.
-- Respect the account-local chat block list. Messages from blocked players are withheld; hiding a cat in the game does not block chat.
-- Open a verified participant's Steam profile. Friend requests are handled by you in Steam.
-- Show temporary cat, meow and game-emote reactions, with an on/off preference. Reactions do not become chat history or message notifications.
-- Choose light, dark or system appearance, and collapse the sidebar.
-- Independently enable taskbar flashes and Windows notifications for new messages while the app is inactive. Notifications contain no player names or message text.
-- Allow or disable GitHub update checks and downloads. Supported installed versions prepare verified updates and restart after a notice, once typing and sending finish and drafts are saved.
-
-The `0.1.0.dev16` source includes **English and Korean UI**. In **Settings → Language**, choose **English**, **한국어**, or **System default**. System default selects Korean for a Korean Windows display language and English otherwise. Changes apply immediately and persist on this device. Message text, drafts, player names and lobby names are not translated. See the [dev16 release notes](docs/releases/0.1.0.dev16.md).
-
-**Source changes do not update an installed app by themselves.** The latest published installer may not yet contain the bilingual UI or every feature described here. Check the release notes for the build you download.
-
-## Install and start
-
-1. Open [the latest published release](https://github.com/misosiruda/bongo-cat-chat/releases/latest).
-2. Download `BongoCatChat-<version>-windows-x64-Setup.exe`. The source-code archives are not installers; `bongo-cat-chat-windows-x64.zip` is the update payload.
-3. Close any running Bongo Cat Chat window, then run the installer. It installs for the current Windows user without requiring Python, Git or administrator privileges.
-4. Start Steam and Bongo Cat, join a lobby in the game, then launch **Bongo Cat Chat** from the Start menu.
-5. Wait for the connection status to confirm the lobby. Use **Settings → Language** if your installed build includes language selection.
-
-The app targets **64-bit Windows 10 or later**. Some published installers use Korean: **다음** means **Next**, **설치** means **Install**, and **마침** means **Finish**. The development installers documented in this repository do not yet have Windows publisher code signing; update-signature verification is a separate mechanism and does not establish Windows publisher trust.
-
-## Using the messenger
-
-| Action | Control |
+| Narrow window · 720 × 640 | Minimum window · 400 × 500 |
 | --- | --- |
-| Send a message | Enter or the Send button |
-| Insert a line break | Shift + Enter |
-| Search the selected conversation | Ctrl + K |
-| Return to recent messages | Latest messages / Scroll to bottom |
-| Open a player's Steam profile | Their name or cat, or the participant list, when available |
-| Change language or appearance | Settings |
-| Delete saved history | Settings → selected lobby or current account history; confirm deletion |
+| [![A narrow window with the sidebar tucked away to make room for chat](docs/screenshots/chat-en-narrow.png)](docs/screenshots/chat-en-narrow.png) | [![Recent messages and the message box at the smallest window size](docs/screenshots/chat-en-minimum.png)](docs/screenshots/chat-en-minimum.png) |
 
-Development builds limit outgoing messages to **50 UTF-16 code units**. This is a conservative app limit, not a verified official game limit. “Sent · Accepted by Steam” means the API accepted the message; it is not a read receipt. Messages with uncertain delivery are not automatically resent.
+## Getting started
 
-Your own messages appear in this app. The app does not add a speech bubble above your own character in the game or resend messages to create one.
+1. On Windows 10 or 11 (x64), open **Assets** on the [latest release](https://github.com/misosiruda/bongo-cat-chat/releases/latest). Download and run the installer whose name ends in `windows-x64-Setup.exe`.
+2. Sign in to Steam, open **Bongo Cat**, and join a lobby in the game.
+3. Open **Bongo Cat Chat** from the Start menu and check the lobby name. Press **Enter** to send a message or **Shift + Enter** to start a new line.
 
-## Local data and network access
+[Installation and updates](docs/releases/0.1.0.dev33.md#english) · [Release notes](https://github.com/misosiruda/bongo-cat-chat/releases) · [Report a problem](https://github.com/misosiruda/bongo-cat-chat/issues)
 
-Messages, drafts, display names, account/lobby identifiers and preferences are kept locally. The database is normally `%LOCALAPPDATA%/BongoCatChat/history.sqlite3`, in **unencrypted SQLite**. Anyone with access to that file may be able to read it.
-
-Messages and drafts expire after 30 days, with cleanup while the app is running. Uninstalling preserves local data. Use the app's deletion controls before uninstalling if you want to remove history. The app cannot recover messages sent before it connected, while it was closed, or while a player's messages were withheld.
-
-User-authored chat travels through Steam lobby chat. Optional update checks contact GitHub without uploading chat contents, the local database or game identifiers. This project has no developer-operated chat collection, cloud synchronization or telemetry service. See the [English privacy policy](docs/privacy-policy.en.md) for details and update controls.
-
-## How it connects
-
-The app runs as a separate Python/PySide6 process. It uses the locally installed game's Steam API DLL for lobby chat and reads supported game structures, process memory and installed resources to verify the lobby and cat appearance.
-
-The product does not modify game files, inject DLLs, patch the game or write to game memory. Game updates can still break compatibility. If the required structures cannot be verified, the app pauses the relevant integration rather than assuming it is safe to proceed. It does not automatically join, leave or move game lobbies.
-
-## Verification and limitations
-
-| Area | Evidence and remaining limits |
-| --- | --- |
-| Steam connection and lobby messages | Real receive/send paths have been exercised on one PC. The user confirmed delivery to lobby participants; remote screens were not automatically verified. |
-| Clean game installations | Not yet accepted. The original test PC had an existing Auto Chest Opener patch; that tool is not an app prerequisite. |
-| UI, storage and filtering | Automated tests use synthetic data and an offline Qt renderer. These do not prove live-game behavior. |
-| English and Korean UI | Source implementation; language, layout and persistence checks are recorded in [localization notes](docs/localization.md). Public release and installed-copy acceptance are separate. |
-| Profiles and reactions | Supported static skins/hats and available local resources are used. Not all game appearances or effects are guaranteed. |
-| Notifications | Windows notification preferences and Do Not Disturb can affect delivery. API submission does not prove a visible banner or that it was read. |
-| Lobby changes, reconnects and long sessions | Additional live-game and other-PC acceptance remains. |
-
-Detailed historical evidence is in the [product validation record (Korean)](docs/product-validation.md), [game compatibility notes (Korean)](docs/game-update-compatibility.md) and [decision log (Korean)](docs/decisions.md). Their dates and test conditions matter; an older successful check does not certify a newer game build.
-
-## Run from source
-
-Use Python 3.13 on Windows. From the repository root:
-
-```powershell
-python -m venv .venv
-.venv/Scripts/python.exe -m pip install -r requirements-lock.txt
-.venv/Scripts/python.exe -m pip install --no-deps --no-build-isolation -e .
-.venv/Scripts/python.exe -m bongo_chat --offline --data-dir ./artifacts/english-offline
-```
-
-Offline mode opens the real UI without initializing Steam or connecting to the game. Use a separate data directory for experiments. Live connection requires the additional compatibility preparation described in [Windows development instructions (Korean)](docs/windows-app.md).
-
-```powershell
-.venv/Scripts/python.exe -m pytest tests/test_localization.py -q
-```
-
-## Feedback and licensing
-
-Feedback is welcome through [GitHub Issues](https://github.com/misosiruda/bongo-cat-chat/issues). Include the app version, Windows version, what you expected and what happened. Do not post other players' messages, Steam IDs, lobby IDs, join codes, private logs or game binaries.
-
-The project's own source and documentation use the [MIT License](LICENSE). Third-party components, game names and artwork remain subject to their respective rights. MIT licensing does not imply approval from the game developers or settle all distribution conditions. See [third-party notices and corresponding sources](docs/licensing/SOURCES.md).
+Bongo Cat Chat is an unofficial app by an independent developer. [Privacy policy](docs/privacy-policy.en.md) · [License](LICENSE)

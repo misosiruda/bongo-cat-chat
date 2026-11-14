@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="194" height="40" viewBox="0 0 194 40" role="img" aria-label="Windows용 다운로드">
+  <rect width="194" height="40" rx="8" fill="#59448c"/>
+  <path d="M21 10v13m-5-5 5 5 5-5m-12 6v5h14v-5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="40" y="25.5" font-family="Segoe UI, Malgun Gothic, sans-serif" font-size="15" font-weight="600" fill="#fff">Windows용 다운로드</text>
+</svg>

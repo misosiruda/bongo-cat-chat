@@ -16,6 +16,14 @@ dev26부터 상자·합성·인벤토리 공통 기능 계약으로 연결 호�
 
 내 일반/감정표현 상자를 우선한다. 발견 후 대기와 개봉 간 대기는 같은 무작위 범위를 사용하며 겹쳐 진행한다. 원본 도우미의 대기 모델과 같다. 준비 상태 하나당 요청은 한 번이며 실제 not-ready 관측 후 새 ready 구간에서만 다시 요청한다. 다른 사람 상자는 현재 로비·다른 계정·현재 참가자·게임 숨김·활성 버튼·보이는 상자를 재검사한다. 준비 상태가 불명확하면 요청하지 않는다.
 
+## Opening chests
+
+1. Open **Automatic chest opening** in the sidebar. Choose which chests to open and set the minimum and maximum delay, then select **Save settings**. Opening other players’ chests spends your points.
+2. Select **Connect to game**. If you already use an Auto Chest helper, the app asks you to switch for this game session. Select **Start opening chests** when you’re ready.
+3. Press **Ctrl+Alt+F9** to pause or resume, or choose **Stop** to end the run. The app waits for the current opening to finish. If it shows **Chest result needs checking**, check the result in the game.
+
+To start automatically on future launches, enable **Start opening chests when the app launches** and save your settings.
+
 ## 실행·결과 처리
 
 `Controller → AutoChest → MergeConnection → BridgeAdapter → 고정 파일 IPC → Unity 메인 스레드 ChestRuntime` 경로다. 저장된 설정에는 실행 상태인 enabled/armed 플래그가 없으며 별도의 `start_on_launch` 동의만 저장한다. 기존 4개 설정은 자동 시작 OFF로 읽는다. 옵션과 상자·대기 설정은 하나의 SQLite 값으로 함께 저장하고 저장 실패 시 이전 설정을 유지한다. 자동 시작은 앱 수명당 한 번만 시도하며 연결 실패·오래된/미확인 상태·동시 합성·수동 재연결·중지·종료 시 취소한다. 오프라인·읽기 전용 실행에서는 자동 연결하지 않는다. 기존 도우미가 있으면 이번 게임의 확인과 수동 시작을 기다린다. 중지는 자동 시작 대기도 취소하지만 다음 앱 실행을 위한 저장 설정은 유지한다. 시작 시 설정 전체를 검증하고 적용한다. 실행 중 설정 변경은 거부한다. 재연결은 이전 실행의 lease를 인계하지 않으며 기존 armed 상태에는 stop만 보낸다.
