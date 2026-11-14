@@ -137,7 +137,7 @@ def check_docs(root: Path, plan: dict) -> list[str]:
     tracked = {path for path in git(root, 'ls-files', '-z').decode().split('\0') if path}
     # Include newly created local files when explicitly checking an uncommitted plan.
     tracked.update(path for path in plan['changed'] if (root / path).is_file())
-    documents = sorted(path for path in tracked if path.endswith('.md') and
+    documents = sorted(path for path in tracked if PurePosixPath(path).suffix.lower() == '.md' and
                        (path in ROOT_DOCS or path.startswith('docs/')))
     changed = set(plan['changed'])
     errors = []
@@ -164,7 +164,7 @@ def check_docs(root: Path, plan: dict) -> list[str]:
             if relevant and not (target in tracked or any(p.startswith(target + '/') for p in tracked)):
                 errors.append(f'{source}: missing local target {url}')
     for path in sorted(changed):
-        if path.startswith('docs/') and path.endswith('.svg') and (root / path).is_file():
+        if path.startswith('docs/') and PurePosixPath(path).suffix.lower() == '.svg' and (root / path).is_file():
             try:
                 ET.parse(root / path)
             except ET.ParseError as error:

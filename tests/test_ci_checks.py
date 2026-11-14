@@ -155,6 +155,15 @@ class ChangeChecks(unittest.TestCase):
         self.write('docs/image (1).svg', '<svg/>\n')
         self.assertEqual(self.errors(self.push_plan()), [])
 
+    def test_uppercase_document_extensions_are_not_skipped(self):
+        self.write('docs/GUIDE.MD', '[missing](missing.md)\n')
+        self.write('docs/IMAGE.SVG', '<svg>')
+        plan = self.push_plan()
+        self.assertFalse(plan['windows'])
+        errors = '\n'.join(self.errors(plan))
+        self.assertIn('docs/GUIDE.MD: missing local target', errors)
+        self.assertIn('docs/IMAGE.SVG: invalid SVG', errors)
+
     def test_invalid_svg_conflicts_and_invalid_utf8_fail(self):
         self.write('docs/image.svg', '<svg>')
         self.write('README.md', '# Example  \n<<<<<<< current\n')
