@@ -56,7 +56,14 @@
       "url": "https://download.qt.io/online/qtsdkrepository/all_os/extensions/qtwebengine/6120/61400/src_doc_examples/extensions.qtwebengine.6120.61400.src/6.12.0-0-202609281005qtwebengine-everywhere-src-6.140.0.tar.xz",
       "file": "6.12.0-0-202609281005qtwebengine-everywhere-src-6.140.0.tar.xz",
       "sha256": "141e9b230e5ec9ee65a7357ca4b87d702e4badc515289eeade1047a788bb96e7",
-      "bytes": 584649116
+      "bytes": 584649116,
+      "fallback_zip": {
+        "url": "https://github.com/misosiruda/bongo-cat-chat/releases/download/v0.1.0.dev33/BongoCatChat-0.1.0.dev33-corresponding-sources.zip",
+        "file": "BongoCatChat-0.1.0.dev33-corresponding-sources.zip",
+        "sha256": "a30a44d452c470371006b75cd4807aa959c9ca6c65b8c66acc8bd80792e9e638",
+        "bytes": 698626804,
+        "member": "6.12.0-0-202609281005qtwebengine-everywhere-src-6.140.0.tar.xz"
+      }
     }
   ],
   "notices": {

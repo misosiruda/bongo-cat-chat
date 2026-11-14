@@ -12,7 +12,9 @@ import json
 from pathlib import Path, PurePosixPath
 import re
 import tarfile
+import tempfile
 import urllib.request
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'packaging/licenses/sources.lock.json'
@@ -21,6 +23,37 @@ LOCK = ROOT / 'packaging/licenses/sources.lock.json'
 def digest(path):
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def write_verified(stream, temporary, row):
+    with temporary.open('wb') as output:
+        while block := stream.read(1024 * 1024):
+            output.write(block)
+            if output.tell() > row['bytes']:
+                raise ValueError('Archive exceeds locked size')
+    if temporary.stat().st_size != row['bytes'] or digest(temporary) != row['sha256']:
+        raise ValueError('Archive checksum mismatch: ' + row['file'])
+
+
+def fetch_zip_member(row, cache, temporary):
+    bundle = row['fallback_zip']
+    print('Restoring locked source from published bundle: ' + row['file'], flush=True)
+    # Verify the entire published ZIP, then stream only the named member. Never
+    # extract a ZIP tree, trust its embedded manifest, or relax the source hash.
+    with tempfile.TemporaryDirectory(prefix='.source-fallback-', dir=cache) as directory:
+        archive = fetch({key: bundle[key] for key in ('url', 'file', 'sha256', 'bytes')}, Path(directory))
+        with zipfile.ZipFile(archive) as source:
+            try:
+                member = source.getinfo(bundle['member'])
+            except KeyError as error:
+                raise ValueError('Source member missing from fallback ZIP') from error
+            if member.file_size != row['bytes']:
+                raise ValueError('Source member size differs from lock')
+            with source.open(member) as stream:
+                write_verified(stream, temporary, row)
+    path = cache / row['file']
+    temporary.replace(path)
+    return path
 
 
 def fetch(row, cache):
@@ -36,17 +69,14 @@ def fetch(row, cache):
         urls.insert(0, row['url'].replace('https://download.qt.io/', 'https://qt.mirror.constant.com/'))
     for url in urls:
         try:
-            with urllib.request.urlopen(url, timeout=60) as response, temporary.open('wb') as stream:
-                while block := response.read(1024 * 1024):
-                    stream.write(block)
-                    if stream.tell() > row['bytes']:
-                        raise ValueError('Archive exceeds locked size')
-            if temporary.stat().st_size != row['bytes'] or digest(temporary) != row['sha256']:
-                raise ValueError('Archive checksum mismatch: ' + row['file'])
+            with urllib.request.urlopen(url, timeout=60) as response:
+                write_verified(response, temporary, row)
             temporary.replace(path)
             return path
         except (OSError, ValueError):
             if url == urls[-1]:
+                if row.get('fallback_zip'):
+                    return fetch_zip_member(row, cache, temporary)
                 raise
         finally:
             temporary.unlink(missing_ok=True)
