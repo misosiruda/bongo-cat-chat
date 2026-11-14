@@ -21,6 +21,18 @@ qtpositioning, qtwebchannel (6.12.0), pyside-setup (6.12.0), and qtwebengine
 (6.140.0). The WebEngine archive is from Qt's official online SDK repository.
 The archive hashes were checked against the official download.qt.io metadata.
 
+If the Qt mirror and original SDK URL are unavailable, the WebEngine entry's
+`fallback_zip` restores the exact archive from the already published dev33
+corresponding-source ZIP. Both the ZIP and the selected member must match their
+locked sizes and SHA-256 hashes. The original WebEngine source hash, runtime
+versions and generated notices remain unchanged; the ZIP's embedded manifest
+is not used as a trust source. The temporary ZIP is removed after verification.
+Keep this pinned release asset available for reproducible builds.
+
+The Qt archive named 6.140.0 checked on 2026-11-14 is not a byte-identical replacement: its
+Chromium source version is 140.0.7339.264, while this application's locked source
+and runtime use 140.0.7339.225. Do not substitute it by changing only the hash.
+
 The repository build tool downloads and verifies this source set:
 
 ```powershell

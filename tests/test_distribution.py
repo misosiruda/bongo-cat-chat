@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import urllib.error
+import zipfile
 
 import pytest
 
@@ -134,6 +136,79 @@ def test_source_download_rejects_both_bad_endpoints(tmp_path, monkeypatch):
     assert len(calls) == 2
     assert not (tmp_path / row['file']).exists()
     assert not list(tmp_path.glob('*.partial'))
+
+
+def source_zip_fixture(payload=b'verified fixture source', member='fixture.tar.xz'):
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, 'w') as archive:
+        archive.writestr(member, payload)
+        archive.writestr('../must-not-be-extracted.txt', 'not a source archive')
+    zipped = stream.getvalue()
+    row = {'file': 'fixture.tar.xz', 'url': 'https://download.qt.io/fixture.tar.xz',
+           'bytes': len(payload), 'sha256': hashlib.sha256(payload).hexdigest(),
+           'fallback_zip': {'url': 'https://example.com/pinned-sources.zip',
+                            'file': 'sources.zip', 'bytes': len(zipped),
+                            'sha256': hashlib.sha256(zipped).hexdigest(),
+                            'member': 'fixture.tar.xz'}}
+    return row, zipped
+
+
+def test_source_download_restores_exact_member_after_upstream_404(tmp_path, monkeypatch):
+    module = tool('prepare_source_notices')
+    row, zipped = source_zip_fixture()
+    calls = []
+    def download(url, **kwargs):
+        calls.append(url)
+        if url != row['fallback_zip']['url']:
+            raise urllib.error.HTTPError(url, 404, 'Not Found', {}, None)
+        return io.BytesIO(zipped)
+    monkeypatch.setattr(module.urllib.request, 'urlopen', download)
+    path = module.fetch(row, tmp_path)
+    assert calls == ['https://qt.mirror.constant.com/fixture.tar.xz',
+                     row['url'], row['fallback_zip']['url']]
+    assert path.read_bytes() == b'verified fixture source'
+    assert list(tmp_path.iterdir()) == [path]
+    assert not (tmp_path.parent / 'must-not-be-extracted.txt').exists()
+    # Subsequent builds use the verified member without downloading either source.
+    module.fetch(row, tmp_path)
+    assert len(calls) == 3
+
+
+def test_source_download_avoids_fallback_when_upstream_succeeds(tmp_path, monkeypatch):
+    module = tool('prepare_source_notices')
+    row, _ = source_zip_fixture()
+    calls = []
+    def download(url, **kwargs):
+        calls.append(url)
+        return io.BytesIO(b'verified fixture source')
+    monkeypatch.setattr(module.urllib.request, 'urlopen', download)
+    assert module.fetch(row, tmp_path).is_file()
+    assert calls == ['https://qt.mirror.constant.com/fixture.tar.xz']
+
+
+@pytest.mark.parametrize('failure', ['bundle_hash', 'bundle_truncated', 'bundle_oversize',
+                                    'member_hash', 'member_size', 'member_missing', 'offline'])
+def test_source_fallback_rejects_corruption_and_cleans_temporary_files(tmp_path, monkeypatch, failure):
+    module = tool('prepare_source_notices')
+    row, zipped = source_zip_fixture(member='different.tar.xz' if failure == 'member_missing' else 'fixture.tar.xz')
+    if failure == 'bundle_hash':
+        row['fallback_zip']['sha256'] = '0' * 64
+    elif failure == 'bundle_truncated':
+        zipped = zipped[:-1]
+    elif failure == 'bundle_oversize':
+        zipped += b'x'
+    elif failure == 'member_hash':
+        row['sha256'] = '0' * 64
+    elif failure == 'member_size':
+        row['bytes'] += 1
+    def download(url, **kwargs):
+        if url != row['fallback_zip']['url'] or failure == 'offline':
+            raise OSError('unavailable')
+        return io.BytesIO(zipped)
+    monkeypatch.setattr(module.urllib.request, 'urlopen', download)
+    with pytest.raises((OSError, ValueError)):
+        module.fetch(row, tmp_path)
+    assert not list(tmp_path.iterdir())
 
 
 @pytest.mark.parametrize('change', [None, 'old_schema', 'missing_files', 'missing_variant', 'source', 'payload'])
