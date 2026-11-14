@@ -23,6 +23,14 @@ dev26부터 상자·합성·인벤토리 공통 기능 계약으로 연결 호�
 - 미확인 결과는 성공으로 세거나 자동 재시도하지 않는다. 자동 업데이트 재시작도 보류한다. 사용자의 결과 확인은 미확인 건을 성공으로 바꾸지 않는다.
 - 앱을 다시 열어도 자동 연결·자동 시작·자동 재개하지 않는다. 수동 게임 재실행 후에는 연결 버튼으로 새 게임 수명에 연결한다. 게임 파일이 다르거나 기존 모듈 상태가 불명확하면 안내 후 거부한다.
 
+## Merging items
+
+1. Close the game’s manual merge screen. In the app sidebar, open **Auto merge items** and select **Connect to game**.
+2. Choose an item group and enter the number of exchanges you want, or choose **Set to maximum**. You can check the available count before spending any items.
+3. Select **Start auto merge**. Each exchange uses ten duplicate items, keeps one of each type, and follows the game’s favorite and event-item settings. The app waits for each result before starting the next exchange.
+
+Choose **Stop** to prevent another exchange. An exchange the game has already accepted can still finish. If the app asks you to check a result, check your inventory in the game.
+
 ## 연결과 보호
 
 2026-11-10 후속 수정: 상자 자동 개봉이 시작된 상태(일시 정지 포함), 상자 결과 대기 또는 결과 미확인 상태에서는 합성을 차단한다. 기존 연결 모듈이 이때 `ready=true`, 가능 횟수·선택 가능 여부를 미확인으로 보고하면 앱에서 상자 상태를 확인해 정확한 차단 사유를 표시한다. 이전에는 이를 “중복 자동 선택 결과를 확인하지 못했습니다”로 잘못 안내했다. 상자 화면에서 **중지**하고 진행 중인 결과를 확인한 뒤 합성을 시작한다. 일시 정지는 상자 실행 권한을 유지하므로 차단을 해제하지 않는다. 앱이 상자를 임의로 중지하거나 합성을 자동 시작하지 않으며, 실행 중 모듈 교체 없이 기존 snapshot의 상태를 해석한다. 실제 소비 검증과 설치본 반영은 별도다.
