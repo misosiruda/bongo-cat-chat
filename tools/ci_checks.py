@@ -140,6 +140,9 @@ def check_docs(root: Path, plan: dict) -> list[str]:
     documents = sorted(path for path in tracked if PurePosixPath(path).suffix.lower() == '.md' and
                        (path in ROOT_DOCS or path.startswith('docs/')))
     changed = set(plan['changed'])
+    affected_targets = changed | {
+        str(parent) for path in changed for parent in PurePosixPath(path).parents
+    }
     errors = []
     for source in documents:
         try:
@@ -147,7 +150,8 @@ def check_docs(root: Path, plan: dict) -> list[str]:
         except (OSError, UnicodeError) as error:
             errors.append(f'{source}: {error}')
             continue
-        if re.search(r'^(?:<{7}|={7}|>{7})(?: |$)', text, re.M):
+        # A standalone ======= is also a valid Markdown setext heading.
+        if re.search(r'^(?:<{7}|>{7})(?: |$)', text, re.M):
             errors.append(f'{source}: unresolved merge conflict marker')
         for url in local_links(text):
             try:
@@ -160,7 +164,7 @@ def check_docs(root: Path, plan: dict) -> list[str]:
             # Validate changed documents, and inbound references to changed or
             # deleted assets/docs. Historical unrelated local references are not
             # required to exist on a fresh checkout.
-            relevant = plan['base'] is None or source in changed or target in changed
+            relevant = plan['base'] is None or source in changed or target in affected_targets
             if relevant and not (target in tracked or any(p.startswith(target + '/') for p in tracked)):
                 errors.append(f'{source}: missing local target {url}')
     for path in sorted(changed):

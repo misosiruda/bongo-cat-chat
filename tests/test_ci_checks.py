@@ -135,6 +135,19 @@ class ChangeChecks(unittest.TestCase):
         (self.root / 'docs/image.svg').unlink()
         self.assertIn('missing local target', self.errors(self.push_plan(base))[0])
 
+    def test_last_file_deleted_from_linked_directory_is_detected(self):
+        self.write('docs/gallery/image.svg', '<svg/>\n')
+        self.write('README.md', '[gallery](docs/gallery/)\n')
+        base = self.commit()
+        (self.root / 'docs/gallery/image.svg').unlink()
+        errors = self.errors(self.push_plan(base))
+        self.assertEqual(len(errors), 1)
+        self.assertIn('missing local target docs/gallery/', errors[0])
+
+    def test_setext_heading_is_valid_markdown(self):
+        self.write('README.md', 'Example title\n=======\n\nA guide.\n')
+        self.assertEqual(self.errors(self.push_plan()), [])
+
     def test_external_links_code_examples_and_anchors_do_not_use_network(self):
         self.write('README.md', '''# Example
 [web](https://example.invalid/no-network) [heading](#example)
