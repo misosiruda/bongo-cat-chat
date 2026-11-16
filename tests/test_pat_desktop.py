@@ -138,12 +138,15 @@ def test_banners_preserve_scroll_anchor_draft_and_count_at_minimum_width(qt_chat
     wait_until(app, lambda: row_count(app, page) == 0)
     assert abs(js(app, page, "anchor.getBoundingClientRect().top-document.querySelector('#message-scroll').getBoundingClientRect().top-anchorOffset")) < 2
     page.parent().resize(400, 500)
+    # QWidget resize and Chromium viewport updates cross a process boundary.
+    wait_until(app, lambda: js(app, page, 'innerWidth === 400 && innerHeight === 500'))
     service.state['profiles']['fixture-peer']['name'] = '아주 긴 고양이 이름' * 10
     for target in ('fixture-peer','fixture-third','fixture-fourth'): incoming(service, target)
     wait_until(app, lambda: row_count(app, page) == 3)
     assert js(app, page, "[...document.querySelectorAll('.pat-count')].every(el=>el.getBoundingClientRect().right<=innerWidth)")
-    assert js(app, page, "document.querySelector('.composer-region').getBoundingClientRect().bottom<=innerHeight")
-    assert js(app, page, "document.querySelector('#message-scroll').clientHeight > 40")
+    layout = json.loads(js(app, page, "JSON.stringify({bottom:document.querySelector('.composer-region').getBoundingClientRect().bottom, height:innerHeight, width:innerWidth, scrollHeight:document.querySelector('#message-scroll').clientHeight})"))
+    assert layout['bottom'] <= layout['height'], layout
+    assert layout['scrollHeight'] > 40, layout
 
 
 @pytest.mark.parametrize('value', [None, 0, 1, 'false', [], {}])

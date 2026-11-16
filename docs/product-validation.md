@@ -1,5 +1,13 @@
 # Windows 개발판 검증 기록
 
+## 2026-11-16 · dev34 배포 전 Qt 검증 보완
+
+PR #67 병합 커밋 `520a3c1`은 로컬 전체 1218개와 하위 검사 19개, PR 및 main의 전체 Windows CI·패키징을 통과했다. 그러나 배포 후보 [43803553089](https://github.com/misosiruda/bongo-cat-chat-release/actions/runs/43803553089)는 첫 시도에서 최소 창 입력창 위치 검사 1개가 실패했고, 실패 작업을 한 번 재실행한 두 번째 시도는 테스트 도중 결과 XML 없이 종료됐다. 이 두 실패의 직접 원인을 로그만으로 확정하지 않으며 해당 후보는 공개하지 않았다.
+
+오프라인 Qt의 `destroyed` 신호를 관찰해 기존 테스트 정리가 **profile → page** 순서임을 확인했다. 이는 [Qt의 사용자 지정 프로필 수명 조건](https://doc.qt.io/qtwebengine/qwebenginepage.html#QWebEnginePage-1)에 맞지 않는다. 테스트 공용 정리 함수를 만들어 WebChannel을 분리하고 **page → profile** 순서로 실제 삭제를 처리하며, 순서를 회귀 검사한다. 최소 크기 검사는 Qt 창 크기 요청 후 Chromium viewport가 실제 400 × 500이 됐는지 기다린다. 입력창 경계·스크롤 높이 조건은 유지하고 실패 시 실제 크기를 출력한다. 제품 코드·GPU 설정·CI 워크플로·검사 선택/생략 조건은 변경하지 않는다.
+
+보완 후 `pytest -q tests/test_desktop.py tests/test_pat_desktop.py tests/test_merge_connection.py tests/test_bug_report.py --junitxml=artifacts/issue66-review/qt-lifecycle.xml`은 **122 passed / 111.04초**, 실패·생략 0개였다. 실제 Qt 창·WebChannel·페이지/프로필 해제·복복/스크롤·상자/합성 연결 안내를 포함한다. 공용 fixture의 나머지 소비자와 전체 검사는 이 수정의 PR/main/배포 후보 Windows CI에서 확인한다. 이전 소스의 전체 통과를 이번 수정의 전체 결과로 재사용하지 않는다.
+
 ## 2026-11-16 · 이슈 #66 검수와 dev34 배포 준비
 
 구현 커밋 `0d4323f`를 이슈 요구사항과 다시 대조했다. 작업자가 복복을 `put_nowait`로 보내더라도 공용 큐를 먼저 채운 뒤에는 다음 채팅/연결 상태 전달이 실패할 수 있었다. 실제 Controller와 같은 2048개 제한 큐에 소비자 없이 연속 복복을 넣은 회귀 검사에서 수정 전 **1 failed, 5 passed**를 확인했다. 복복 전달을 큐의 절반 미만에서만 허용해 일반 채팅·상태·결과용 여유를 남기도록 수정했다. 과부하 때 복복 일부가 누락될 수 있음을 사용 안내에도 명시했다.
