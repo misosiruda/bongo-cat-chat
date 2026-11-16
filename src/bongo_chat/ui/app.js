@@ -118,7 +118,7 @@
     if (!patsVisible()) {clearPats(); return;}
     const now = performance.now();
     const changesHeight = [...patRows.values()].some(row => row.until <= now)
-      || !!patHidden.length !== patHidden.some(until => until > now);
+      || $('pat-overflow').hidden === patHidden.some(until => until > now);
     const update = () => {
       for (const [key, row] of patRows) {
         const remaining = row.until - now;

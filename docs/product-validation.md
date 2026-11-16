@@ -8,6 +8,10 @@
 
 dev34 최종 소스에서 위 5개 파일과 `test_pat_desktop.py`, `test_reaction_desktop.py`, `test_environment.py`, `test_localization.py`, `test_updates.py`, `test_release_requests.py`, `test_distribution.py`를 함께 실행해 **266 passed / 36.07초**를 확인했다. Qt offscreen/disable-gpu 조건과 `artifacts/issue66-review/affected.xml`에 결과를 남겼다. 수신 큐·실제 Qt·반응·호환성·번역·버전·업데이트/배포 소비자까지 검사했으며 기존 실행과 겹치므로 합산하지 않는다. 원격 전체 검사·패키징을 생략하는 근거로 쓰지 않는다.
 
+추가 UI 검수에서 `+N쌍` 요약이 처음 나타나면 맨 아래에 붙어 있던 대화가 22px 떨어지는 문제를 Qt 회귀 검사로 재현했다. 이전 숨김 배열 대신 현재 요약 DOM의 실제 표시 상태와 다음 표시 상태를 비교해, 요약 등장/제거의 높이 변경도 스크롤 보존 범위에 포함했다. 중간 메시지 앵커뿐 아니라 맨 아래 상태 유지도 회귀 검사에 추가했다.
+
+수정 후 `test_pat_desktop.py`, `test_scroll_desktop.py`, `test_reaction_desktop.py`는 **29 passed / 38.20초**였고 헤드리스 Edge 4종 화면 검사도 모두 통과했다. 결과는 `artifacts/issue66-review/scroll-final.xml`과 `screenshots/`에 있다. PR 최초 Ready 자동 Code Review의 같은 지적도 이 수정으로 처리했다. Security 추가 실행이나 별도 수동 CI는 요청하지 않았다.
+
 ## 2026-11-16 · 이슈 #66 로비 복복 슬림 배너
 
 비교 기준은 `11c0c827ecb9ae52ff1abb842ff3175b649707e1`이다. 기존 작업 폴더의 무인 복구 관련 미커밋 변경을 보존하기 위해 별도 `codex/issue66-pat-alerts` 브랜치/작업 폴더에서 구현했다. [이슈 #66](https://github.com/misosiruda/bongo-cat-chat/issues/66)의 최대 3행 슬림 배너, 방향별 연속 횟수, 1초 무입력 뒤 1초 페이드, 페이드 중 ×1 재시작, 활성 초과 쌍 요약, 독립 설정을 반영했다. [사용·수신·개인정보와 검증 한계](pat-alerts.md)를 함께 기록했다.

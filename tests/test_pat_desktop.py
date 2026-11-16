@@ -152,3 +152,17 @@ def test_pat_setting_native_validation(qt_chat, value):
     result = json.loads(controller.request(json.dumps(dict(action='setting', key='pats_enabled', value=value))))
     assert result == {'error':'request_failed'}
     assert controller.service.pats_enabled
+
+
+def test_overflow_summary_preserves_bottom_pin(qt_chat):
+    app, controller, page = qt_chat
+    service = connect(app, controller, page)
+    seed_history(service, [f'하단 유지 검증 {i}' for i in range(45)])
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") > 40)
+    js(app, page, "document.querySelector('#message-scroll').scrollTop=document.querySelector('#message-scroll').scrollHeight")
+    for target in ('fixture-peer','fixture-third','fixture-fourth','fixture-fifth'): incoming(service, target)
+    wait_until(app, lambda: js(app, page, "!document.querySelector('#pat-overflow').hidden"))
+    gap = js(app, page, "(() => {const el=document.querySelector('#message-scroll');return el.scrollHeight-el.scrollTop-el.clientHeight})()")
+    assert gap <= 1
+    wait_until(app, lambda: row_count(app, page) == 0)
+    assert js(app, page, "(() => {const el=document.querySelector('#message-scroll');return el.scrollHeight-el.scrollTop-el.clientHeight})()") <= 1
