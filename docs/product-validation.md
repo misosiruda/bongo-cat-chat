@@ -1,5 +1,13 @@
 # Windows 개발판 검증 기록
 
+## 2026-11-16 · 이슈 #66 검수와 dev34 배포 준비
+
+구현 커밋 `0d4323f`를 이슈 요구사항과 다시 대조했다. 작업자가 복복을 `put_nowait`로 보내더라도 공용 큐를 먼저 채운 뒤에는 다음 채팅/연결 상태 전달이 실패할 수 있었다. 실제 Controller와 같은 2048개 제한 큐에 소비자 없이 연속 복복을 넣은 회귀 검사에서 수정 전 **1 failed, 5 passed**를 확인했다. 복복 전달을 큐의 절반 미만에서만 허용해 일반 채팅·상태·결과용 여유를 남기도록 수정했다. 과부하 때 복복 일부가 누락될 수 있음을 사용 안내에도 명시했다.
+
+수정 후 `python -m pytest -q tests/test_pat_worker.py tests/test_worker.py tests/test_pats.py tests/test_callback.py tests/test_reactions.py --tb=short`은 **115 passed / 1.93초**였다. 정상 수신 시 원래 수신 시각 유지와 일반 채팅 전달, 미지원 계약·복복 전달 실패·실제 제한 큐의 폭주를 확인했다. 버전을 `0.1.0.dev34`로 올리고 한국어·영어 설치/업데이트/복복 사용 안내를 준비했다. 원격 PR 및 병합 커밋의 필수 CI와 서명·게시 검증은 각 실행에서 별도로 확인한다.
+
+dev34 최종 소스에서 위 5개 파일과 `test_pat_desktop.py`, `test_reaction_desktop.py`, `test_environment.py`, `test_localization.py`, `test_updates.py`, `test_release_requests.py`, `test_distribution.py`를 함께 실행해 **266 passed / 36.07초**를 확인했다. Qt offscreen/disable-gpu 조건과 `artifacts/issue66-review/affected.xml`에 결과를 남겼다. 수신 큐·실제 Qt·반응·호환성·번역·버전·업데이트/배포 소비자까지 검사했으며 기존 실행과 겹치므로 합산하지 않는다. 원격 전체 검사·패키징을 생략하는 근거로 쓰지 않는다.
+
 ## 2026-11-16 · 이슈 #66 로비 복복 슬림 배너
 
 비교 기준은 `11c0c827ecb9ae52ff1abb842ff3175b649707e1`이다. 기존 작업 폴더의 무인 복구 관련 미커밋 변경을 보존하기 위해 별도 `codex/issue66-pat-alerts` 브랜치/작업 폴더에서 구현했다. [이슈 #66](https://github.com/misosiruda/bongo-cat-chat/issues/66)의 최대 3행 슬림 배너, 방향별 연속 횟수, 1초 무입력 뒤 1초 페이드, 페이드 중 ×1 재시작, 활성 초과 쌍 요약, 독립 설정을 반영했다. [사용·수신·개인정보와 검증 한계](pat-alerts.md)를 함께 기록했다.

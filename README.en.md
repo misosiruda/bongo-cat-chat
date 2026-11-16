@@ -7,6 +7,7 @@
 [![Download for Windows](docs/screenshots/download-en.svg)](https://github.com/misosiruda/bongo-cat-chat/releases/latest)
 
 - **Automatic chest opening** — Choose which chests to open and how long to wait before opening them. [Chest opening guide](docs/auto-chest.md#opening-chests)
+- **Pat alerts** — See who is patting whom in your lobby, with consecutive counts in slim banners above the chat. [Display rules](docs/pat-alerts.md)
 - **Automatic item merging** — Choose an item group and a limit to merge duplicates one exchange at a time. [Item merging guide](docs/item-auto-merge.md#merging-items)
 
 ## Chat windows

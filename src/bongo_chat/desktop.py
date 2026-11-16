@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QDialog, QVBoxLayout, Q
 
 from .service import ChatService, NOTIFICATION_KEYS
 from .store import Store
-from .worker import run_worker, unavailable
+from .worker import run_worker, unavailable, EVENT_QUEUE_CAPACITY
 from . import __version__
 from .exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY
 from .updates import UpdateManager
@@ -143,7 +143,7 @@ class Controller(QObject):
                                       and os.environ.get(RESTART_CAPABILITY) == '1')
         self.context = mp.get_context("spawn")
         self.commands = self.context.Queue(maxsize=64)
-        self.events = self.context.Queue(maxsize=2048)
+        self.events = self.context.Queue(maxsize=EVENT_QUEUE_CAPACITY)
         self.stop = self.context.Event()
         self.last_prune = time.monotonic()
         self.known_accounts = set()

@@ -8,6 +8,8 @@ from .memory import MemoryDiscovery
 from .steam import APP_ID, Steam
 from .reactions import ReactionAssets
 
+EVENT_QUEUE_CAPACITY = 2048
+
 
 def unavailable(notice):
     return {"type": "state", "state": "unavailable", "notice": notice, "account": "", "lobby": "",
@@ -177,10 +179,14 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
                     elif message["type"] == "pat":
                         if not live.pats_supported:
                             continue
-                        # Transient flavor must not stop chat if IPC is full.
+                        # This worker is the only producer. Keep half the bounded
+                        # queue available for chat/state/results before a pat
+                        # burst fills it; put_nowait alone only protects pats.
                         try:
+                            if events.qsize() >= EVENT_QUEUE_CAPACITY // 2:
+                                continue
                             events.put_nowait(message)
-                        except queue.Full:
+                        except (queue.Full, NotImplementedError, OSError):
                             pass
                     else:
                         emit(message)  # Preserve the callback's original observed timestamp.
