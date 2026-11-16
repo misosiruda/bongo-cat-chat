@@ -26,6 +26,6 @@
 2. Steam에 로그인하고 **Bongo Cat**을 켠 뒤 게임 안에서 로비에 참여해요.
 3. 시작 메뉴에서 **Bongo Cat Chat**을 열고 로비 이름을 확인해요. **Enter**로 보내고 **Shift + Enter**로 줄을 바꿔요.
 
-[설치·업데이트 안내](docs/installation.md) · [릴리스 노트](https://github.com/misosiruda/bongo-cat-chat/releases) · [문제 제보](https://github.com/misosiruda/bongo-cat-chat/issues)
+[1.0.0 전환 안내 초안](docs/releases/1.0.0.md) · [설치·업데이트 안내](docs/installation.md) · [릴리스 노트](https://github.com/misosiruda/bongo-cat-chat/releases) · [문제 제보](https://github.com/misosiruda/bongo-cat-chat/issues)
 
 Bongo Cat Chat은 독립 개발자가 만든 비공식 앱이에요. [개인정보 안내](docs/privacy-policy.md) · [라이선스](LICENSE)

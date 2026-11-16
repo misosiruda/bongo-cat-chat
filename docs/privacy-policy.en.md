@@ -2,15 +2,15 @@
 
 [English](privacy-policy.en.md) · [한국어](privacy-policy.md)
 
-Updated October 30, 2026 to describe the current source, including local language preferences. Bongo Cat Chat is an unofficial companion maintained by an independent developer. Questions can be raised in [project issues](https://github.com/misosiruda/bongo-cat-chat/issues). Do not post chat contents, account identifiers or lobby identifiers in public issues.
+Updated November 16, 2026 for the 1.0.0 candidate. Check the latest release for publication status. Bongo Cat Chat is an unofficial companion maintained by an independent developer. Questions can be raised in [project issues](https://github.com/misosiruda/bongo-cat-chat/issues). Do not post chat contents, account identifiers or lobby identifiers in public issues.
 
 ## Local history and game integration
 
-The November 16, 2026 pat-alert source uses the current lobby event's sender and target account IDs, display names/private nicknames, and streak counts only in memory. They are not stored in chat history or search, sent to Windows notifications, or included in diagnostics. Connection loss clears them. Only the **Show pat alerts** preference is saved in local settings (ON by default). Pats involving a blocked sender or target are excluded. See the [behavior and validation scope](pat-alerts.md) (Korean). This describes development source, not a released installation.
+Pat alerts use the current lobby event's sender and target account IDs, display names/private nicknames, and streak counts only in memory. They are not stored in chat history or search, sent to Windows notifications, or included in diagnostics. Connection loss clears them. Only the **Show pat alerts** preference is saved in local settings (ON by default). Pats involving a blocked sender or target are excluded. See the [behavior and validation scope](pat-alerts.md) (Korean).
 
 Private nicknames are stored in the same local SQLite file under your Steam ID and the other player's Steam ID. Only your account on this PC uses them. They are never sent to Steam or other players. Nicknames persist through history deletion and the 30-day cleanup. To delete one, open **Set nickname** for that participant, clear the field, and save.
 
-The October 28, 2026 source also stores observed lobby join/leave events, including the display name at observation, player Steam ID, lobby ID and observation time, in the same local database for 30 days. The account-local app block list and history deletion apply. Notices are not sent as lobby chat or Windows notifications. Activity before connection or during connection gaps is not reconstructed. Published-build availability is separate.
+The October 28, 2026 source also stores observed lobby join/leave events, including the display name at observation, player Steam ID, lobby ID and observation time, in the same local database for 30 days. The account-local app block list and history deletion apply. Notices are not sent as lobby chat or Windows notifications. Activity before connection or during connection gaps is not reconstructed.
 
 The app stores received chat, messages you compose and send, drafts, display names, Steam account IDs, lobby IDs and app preferences on this PC. The default database is `%LOCALAPPDATA%/BongoCatChat/history.sqlite3`. It is an unencrypted SQLite file. There is no separate encryption or cloud backup, and anyone who can access the file may be able to read it.
 
@@ -26,9 +26,9 @@ Pressing **Connect to game** prepares our own module against verified local game
 
 The app stores the process lifetime, connection token, request IDs, group/counts/protection options, selection fingerprints, results, consumption ledger and own module in `%USERPROFILE%/.bongo-cat-chat/merge-bridge/`. Raw item IDs and chat contents are not written to these IPC files. Access is limited to the current Windows user and SYSTEM; no developer server receives the data. Records used to prevent automatic retries remain after the game exits or the app is uninstalled. You may manually remove this folder after closing both the app and game. This is separate from deleting chat history.
 
-## Optional automatic chest opening (local development source)
+## Optional automatic chest opening
 
-Chest types and delay preferences are stored in the same local database for this device. Running state is not persisted; opening requires an explicit Start. Own and other players' chests use the game's existing point and Steam handling. Confirming a switch from the existing helper stops its dispatcher in memory for this game lifetime without modifying installed game, configuration or backup files.
+Chest types, delays and **Start chest opening when app launches** are stored in the same local database for this device. Automatic startup defaults to OFF. Saving it as ON allows one connection/start attempt after the game is ready on the next app launch; saving does not start it immediately. Otherwise, an explicit Start is required. An active run is not handed to a new app session. User stop, game/account changes and unverified results retain their protections. Temporary connection failures within the same game/account pause the existing run until readiness is verified again. Own and other players' chests use the game's existing point and Steam handling. Confirming a switch from the existing helper stops its dispatcher in memory for this game lifetime without modifying installed game, configuration or backup files.
 
 The session folder also stores chest run/request identifiers, aggregate counts and result states in `chest-ledger.json`. Chest UI/IPC adds no remote Steam IDs, lobby IDs or raw item IDs. Identifiers needed to check current lobby membership, hidden cats and readiness remain in game memory. Losing the app connection stops new requests; it cannot cancel a request already accepted by the game or retries performed by the original game.
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 def main():
     multiprocessing.freeze_support()
-    parser = argparse.ArgumentParser(description="Bongo Cat Chat Windows development app")
+    parser = argparse.ArgumentParser(description="Bongo Cat Chat Windows app")
     parser.add_argument("--offline", action="store_true", help="Do not initialize Steam or read the game")
     parser.add_argument("--read-only", action="store_true", help="Connect but reject all outgoing messages")
     parser.add_argument("--data-dir", type=Path, default=Path(os.environ.get("LOCALAPPDATA", ".")) / "BongoCatChat")
@@ -38,8 +38,11 @@ def main():
         import sys
         if marker['active'] != __version__ or no_links(sys.executable) != expected or args.data_dir.resolve().is_relative_to(install_root):
             parser.error('invalid installation or data directory')
-    return run(args.data_dir.resolve(), args.offline, args.read_only, args.smoke_report, args.connection_report, install_root,
-               update_smoke_dir=args.update_smoke_dir, merge_bridge_session=args.merge_bridge_session)
+    from . import __version__
+    from .install_metadata import run_with_install_metadata
+    return run_with_install_metadata(install_root, __version__, lambda: run(
+        args.data_dir.resolve(), args.offline, args.read_only, args.smoke_report, args.connection_report, install_root,
+        update_smoke_dir=args.update_smoke_dir, merge_bridge_session=args.merge_bridge_session))
 
 
 if __name__ == "__main__":

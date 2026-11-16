@@ -15,6 +15,7 @@ import zipfile
 import psutil
 
 from .exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY, UPDATE_DIAGNOSTIC_FAILED
+from .install_metadata import sync_installed_version
 from .updates import (ARCHIVE, MARKER, UpdateError, atomic_bytes, atomic_json, child,
                       config, extract_archive, installation, load_json, no_links,
                       remove_owned, staged_manifest, version)
@@ -153,6 +154,7 @@ def clean_cache(root):
 
 def run_app(root, data, offline=False, read_only=False, smoke_report=None, connection_report=None, update_smoke_dir=None, restart_supported=True):
     marker = installation(root)
+    sync_installed_version(root)
     command = [str(child(root, 'versions', marker['active'], APP)), '--install-root', str(root), '--data-dir', str(data)]
     if offline:
         command.append('--offline')
@@ -188,6 +190,7 @@ def run_app(root, data, offline=False, read_only=False, smoke_report=None, conne
                 remove_owned(child(root, '.updates'), child(root, '.updates', 'pending'))
         except (OSError, ValueError):
             pass
+    sync_installed_version(root)
     return code
 
 

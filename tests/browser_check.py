@@ -172,7 +172,7 @@ def main():
         page.on('console',lambda message:errors.append(message.text) if message.type=='error' else None)
         page.expose_function('fixtureRequest',request);page.goto(url)
         page.locator('.message-bubble').first.wait_for()
-        assert '개발판' in page.title() and page.url==url
+        assert page.title() == 'Bongo Cat Chat' and page.url==url
         assert page.locator('.message-bubble').count()==48
         page.locator('#message-input').fill('작성 중인 한글')
         page.wait_for_timeout(250)
@@ -188,7 +188,7 @@ def main():
         page.keyboard.press('Control+k');page.locator('#message-search').fill('한글 입력');page.wait_for_timeout(800)
         assert page.locator('.message-bubble').count()==12
         assert page.locator('mark').count()==12
-        page.locator('#settings-button').click();page.locator('[value=system]').check();page.locator('[aria-label="설정 닫기"]').click()
+        page.locator('#settings-button').click();page.locator('input[name=appearance][value=system]').check();page.locator('[aria-label="설정 닫기"]').click()
         page.emulate_media(color_scheme='light')
         expect(page.locator('html')).to_have_attribute('data-theme','light')
         page.emulate_media(color_scheme='dark')

@@ -2,7 +2,7 @@
 
 일반 이용자는 설치 파일 하나로 설치한다. Python, Git, 명령어 입력이나 관리자 권한은 필요하지 않다. Windows 10/11 64비트(x64), Steam 및 Bongo Cat을 준비한다.
 
-[최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받는다. `Source code` ZIP과 `bongo-cat-chat-windows-x64.zip`은 일반 설치 파일이 아니다. 후자는 앱 업데이트용이다. [dev34 설치·첫 실행 안내](releases/0.1.0.dev34.md)에 설치 파일 직접 링크와 한국어·영어 단계별 안내가 있다.
+[최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받는다. `Source code` ZIP과 `bongo-cat-chat-windows-x64.zip`은 일반 설치 파일이 아니다. 후자는 앱 업데이트용이다. [1.0.0 설치·첫 실행 안내 초안](releases/1.0.0.md)에 설치 파일 직접 링크와 한국어·영어 단계별 안내가 있다.
 
 ## 설치와 시작
 
@@ -44,4 +44,4 @@ Windows **설정 → 앱 → 설치된 앱 → Bongo Cat Chat → 제거**를 �
 
 제거해도 대화 기록과 설정은 남는다. 대화 기록까지 지우려면 제거 전에 앱 설정에서 선택한 로비 또는 현재 계정의 기록을 삭제한다. 대화·초안·입퇴장 안내의 기본 보관 기간은 30일이며 앱 실행 중 정리한다. 차단 목록은 기록 삭제나 30일 정리로 지워지지 않고 직접 해제해야 한다. 앱을 꺼 둔 동안의 채팅을 복원하지 않는다.
 
-개발자의 빌드·검사 절차는 [Windows 개발판](windows-app.md), 실제 시험 범위는 [설치 검증 기록](installer-validation.md)에 구분한다.
+개발자의 빌드·검사 절차는 [Windows 앱](windows-app.md), 실제 시험 범위는 [설치 검증 기록](installer-validation.md)에 구분한다.

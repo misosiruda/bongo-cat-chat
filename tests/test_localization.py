@@ -82,8 +82,8 @@ def test_switch_preserves_user_text_search_draft_scroll_and_reload(qt_chat):
     assert js(app,page,"document.querySelector('#message-scroll').scrollTop")==before
     assert js(app,page,"document.querySelector('#language-status').textContent")=='Language preference saved.'
     assert js(app,page,"document.activeElement.id")=='language-select'
-    assert 'Development build' in page.title()
-    assert 'Development build' in page.parent().windowTitle()
+    assert page.title() == 'Bongo Cat Chat'
+    assert page.parent().windowTitle() == 'Bongo Cat Chat'
     choose_language(app,page,'ko')
     assert js(app,page,"document.querySelector('#settings-title').textContent")=='설정'
     choose_language(app,page,'en')

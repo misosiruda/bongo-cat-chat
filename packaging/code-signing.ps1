@@ -8,10 +8,10 @@ function Get-CodeSigningSettings {
     param([string]$SigningConfig, [switch]$AllowUnsigned)
     if ($AllowUnsigned) {
         if ($SigningConfig) { throw 'Choose SigningConfig or AllowUnsigned, not both' }
-        Write-Warning 'UNSIGNED DEVELOPMENT BUILD: Windows publisher warnings remain.'
+        Write-Warning 'UNSIGNED WINDOWS BUILD: Windows publisher warnings remain.'
         return $null
     }
-    if (-not $SigningConfig) { throw 'Windows signing is required. Supply -SigningConfig, or explicitly use -AllowUnsigned for local development.' }
+    if (-not $SigningConfig) { throw 'Windows signing is required. Supply -SigningConfig, or explicitly use -AllowUnsigned for an unsigned Windows build.' }
     $configPath = (Resolve-Path -LiteralPath $SigningConfig -ErrorAction Stop).Path
     $settings = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $allowed = @('schema', 'signToolPath', 'certificateThumbprint', 'certificateStoreLocation', 'timestampUrl')

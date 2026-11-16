@@ -58,7 +58,7 @@ class Fixture:
         self.page.goto(url)
         expect(self.page.locator('#room-title')).to_have_text('가상 스크롤 검증')
         expect(self.page.locator('.message')).to_have_count(min(100,count))
-        assert self.page.title()=='Bongo Cat Chat · 개발판' and self.page.url==url
+        assert self.page.title()=='Bongo Cat Chat' and self.page.url==url
     def add(self, text=None):
         self.index+=1
         self.service.receive(dict(id=f'fixture-{self.index}',sender='fixture-peer',
