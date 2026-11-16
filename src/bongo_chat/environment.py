@@ -12,6 +12,7 @@ import time
 import psutil
 
 SUPPORT_PATH = Path(__file__).with_name("feature-contract.json")
+PAT_SUPPORT_PATH = Path(__file__).with_name("pat-contract.json")
 BUILD_FILES = (
     "BongoCat_Data/Managed/Assembly-CSharp.dll",
     "BongoCat_Data/Plugins/x86_64/steam_api64.dll",
@@ -86,14 +87,14 @@ class Compatibility:
         raise RuntimeError("game_files_changed")
 
 
-def probe_features(root, stop=None):
+def probe_features(root, stop=None, *, spec_path=None, expected=None):
     helper = (Path(__file__).with_name("compatibility") if getattr(sys, "frozen", False)
               else Path(__file__).resolve().parents[2] / "artifacts/compatibility") / "FeatureProbe.exe"
     if not helper.is_file():
         raise RuntimeError("compatibility_tool_missing")
     # Invoke only the shipped metadata reader, with arguments (never shell text).
     # It does not execute the game, load it through reflection, or write to it.
-    process = subprocess.Popen([str(helper), str(root / "BongoCat_Data/Managed"), str(SUPPORT_PATH)],
+    process = subprocess.Popen([str(helper), str(root / "BongoCat_Data/Managed"), str(spec_path or SUPPORT_PATH)],
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
     started = time.monotonic()
@@ -111,7 +112,7 @@ def probe_features(root, stop=None):
         if process.returncode != 0 or len(output) > 4096:
             raise ValueError("feature_probe_failed")
         features = json.loads(output)
-        if (not isinstance(features, dict) or set(features) != {"privacy", "lobby", "chat", "profiles", "reactions"}
+        if (not isinstance(features, dict) or set(features) != (expected or {"privacy", "lobby", "chat", "profiles", "reactions"})
                 or not all(isinstance(v, str) and re.fullmatch(r"[0-9a-f]{64}", v) for v in features.values())):
             raise ValueError("feature_probe_failed")
         return features
@@ -119,6 +120,20 @@ def probe_features(root, stop=None):
         if process.poll() is None:
             process.kill()  # Our helper only, never the game/Steam.
         process.communicate()
+
+
+def verify_pat_compatibility(root, stop=None):
+    """Unknown pat semantics disable only pats, preserving existing chat support."""
+    try:
+        spec = json.loads(PAT_SUPPORT_PATH.read_text(encoding='utf-8'))
+        supported = spec['supported']
+        if (spec['schema'] != 1 or set(spec['features']) != {'pats'}
+                or not isinstance(supported, list) or not 0 < len(supported) <= 64
+                or not all(isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value) for value in supported)):
+            return False
+        return probe_features(root, stop, spec_path=PAT_SUPPORT_PATH, expected={'pats'})['pats'] in supported
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError):
+        return False
 
 
 @dataclass(frozen=True)

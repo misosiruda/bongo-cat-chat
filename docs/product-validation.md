@@ -1,5 +1,17 @@
 # Windows 개발판 검증 기록
 
+## 2026-11-16 · 이슈 #66 로비 복복 슬림 배너
+
+비교 기준은 `11c0c827ecb9ae52ff1abb842ff3175b649707e1`이다. 기존 작업 폴더의 무인 복구 관련 미커밋 변경을 보존하기 위해 별도 `codex/issue66-pat-alerts` 브랜치/작업 폴더에서 구현했다. [이슈 #66](https://github.com/misosiruda/bongo-cat-chat/issues/66)의 최대 3행 슬림 배너, 방향별 연속 횟수, 1초 무입력 뒤 1초 페이드, 페이드 중 ×1 재시작, 활성 초과 쌍 요약, 독립 설정을 반영했다. [사용·수신·개인정보와 검증 한계](pat-alerts.md)를 함께 기록했다.
+
+- **전체 회귀:** 공통 수신·Controller·화면·설정 경로가 바뀌어 `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`, NSIS 3.13의 `BONGO_TEST_NSIS_PATH` 조건에서 `python -m pytest -q --tb=short --junitxml=artifacts/pat-alerts/pytest.xml`을 실행했다. **1208 passed, 19 subtests passed / 344.45초**, 실패·생략 0개였다. 모의 게임/자동화, 기존 채팅·반응·입퇴장·알림, 호환성, 설치·업데이트 소비자 검사를 포함한다.
+- **최종 집중 검사:** 전체 실행 이후 복복 표시 지원 가드·빈 화면 처리와 숨겨진 쌍의 승격/재시작·작업자 혼잡 회귀를 보완했다. `python -m pytest -q tests/test_pats.py tests/test_pat_worker.py tests/test_pat_desktop.py tests/test_reaction_desktop.py tests/test_environment.py tests/test_localization.py --tb=short --junitxml=artifacts/pat-alerts/final-focused.xml`은 **115 passed / 29.98초**, 실패·생략 0개였다. 변경이 복복 표시 가드와 검사 보강에 한정돼 전체 suite를 다시 실행하지 않았다. 전체 실행과 겹치므로 합산하지 않는다. Qt SharedImageManager 진단은 있었으나 테스트 실패는 없었고 제품 GPU 설정은 변경하지 않았다.
+- **실제 UI 코드 화면:** `python tests/browser_pat_check.py`로 헤드리스 Edge의 1240 × 840 및 400 × 500, 밝은/어두운 테마 4종 모두 통과했다. 3행 제한·초과 3쌍 요약·만료·이름 말줄임/숫자 영역·가로 넘침·읽던 메시지 상대 위치·입력 초안을 확인했다. 합성 이벤트와 임시 DB를 사용했고 실제 로비에는 접속하지 않았다. 스크린샷 4장은 `artifacts/pat-alerts/slim-*.png`에 있다.
+- **게임 메타데이터의 읽기 전용 확인:** 이번 작업 폴더의 `FeatureProbe.exe`로 설치된 게임의 `pat-contract.json` 지문을 계산했다. 지원 지문 `16aa68171ffd543a615a333e94692f36d7c266048951a1d8ada14c5f13fd8835`와 일치하고 `verify_pat_compatibility=True`를 확인했다. 결과는 `artifacts/pat-alerts/compatibility.json`이다. 게임 실행 코드 호출이나 게임 파일 변경은 없다. 미지원/누락/잘못된 복복 계약은 기존 채팅 허용을 유지하면서 복복만 끄는 합성 검사도 통과했다.
+- **정적 검사:** Python `compileall`, `node --check src/bongo_chat/ui/app.js`, `git diff --check`를 통과했다. 패키지 데이터와 PyInstaller 입력에 새 계약 파일을 포함하고 기존 배포 묶음 검사에도 소스 일치 항목을 추가했다.
+
+구현 전 사용자가 확인한 7회 클릭/7건 수신과 239건 수신 관찰은 이슈의 기존 실게임 증거다. 이번 제품 구현의 다른 참가자 → 나/제3자 간 실제 입력 인수, 서로 다른 PC·순정 설치, 장시간 실행으로 확대하지 않는다. 실제 게임 조작·송신·아이템 소비, 실행 중 앱/게임 재시작·설치 교체, 설치 파일 빌드·공개 릴리스·원격 CI는 수행하지 않았다.
+
 ## 2026-11-13 · dev33 상자 개봉 응답 지연
 
 dev32에서 내 상자 실패 응답이 기록된 뒤에도 자동 개봉이 중단된 사례를 조사했다. 모의 게임에서 응답을 31초 보류하자 dev32의 실행이 종료됐다. dev33은 기존 요청을 유지하고 응답 처리 후 다음 상자를 자동으로 연다.

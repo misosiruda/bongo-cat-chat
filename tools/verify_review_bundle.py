@@ -93,7 +93,7 @@ def main():
     # A developer's editable install must never supply stale UI/config assets.
     verify_merge_assets(app / '_internal/bongo_chat/merge-assets')
     for relative in ('ui/index.html', 'ui/app.js', 'ui/messenger.css', 'ui/translations.json', 'ui/app-icon.png',
-                     'ui/app-icon.ico', 'ui/favicon.ico', 'update-config.json', 'feature-contract.json'):
+                     'ui/app-icon.ico', 'ui/favicon.ico', 'update-config.json', 'feature-contract.json', 'pat-contract.json'):
         if (app / '_internal/bongo_chat' / relative).read_bytes() != (ROOT / 'src/bongo_chat' / relative).read_bytes():
             raise ValueError('Packaged resource differs from this checkout: ' + relative)
     expected = ['LICENSE.txt', 'PRIVACY.md', 'PRIVACY.en.md', 'THIRD-PARTY-NOTICES.txt', 'CHROMIUM-LICENSES.html', 'SOURCES.md', 'sources.lock.json']

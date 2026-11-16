@@ -78,6 +78,10 @@
           <button type="button" class="icon-button" id="refresh-button" aria-label="연결 상태 새로고침"><svg aria-hidden="true"><use href="#i-refresh"/></svg></button>
         </div>
       </header>
+      <section class="pat-zone" id="pat-zone" aria-label="로비 복복 알림" hidden>
+        <div id="pat-list" role="list"></div>
+        <p class="pat-overflow" id="pat-overflow" hidden></p>
+      </section>
       <div class="merge-run-bar" id="merge-run-bar" hidden>
         <button type="button" id="merge-run-details" aria-label="자동 합성 진행 상황 보기"><span id="merge-run-status"></span></button>
         <button type="button" class="merge-stop-button" id="merge-run-stop">중지</button>
@@ -204,6 +208,12 @@
         <label><input type="checkbox" id="reactions-enabled" aria-describedby="reaction-help"> 이모티콘·야옹 효과 표시</label>
         <p class="settings-note" id="reaction-help">고양이와 함께 올라오는 이모티콘·야옹 효과를 표시합니다. 끄면 표시 중인 효과도 사라지고, 다시 켠 뒤 새로 받은 반응부터 표시합니다.</p>
         <p class="settings-note" id="reaction-save-status" role="status"></p>
+      </fieldset>
+      <fieldset class="reaction-panel"><legend>로비 복복 알림</legend>
+        <label><input type="checkbox" id="pats-enabled" aria-describedby="pat-help"> 복복 알림 표시</label>
+        <p class="settings-note" id="pat-help">같은 로비에서 누가 누구를 복복하는지 최대 3줄로 표시해요. 1초 동안 새 입력이 없으면 1초 동안 사라지며, 기록에는 저장하지 않아요.</p>
+        <p class="settings-note" id="pat-save-status" role="status"></p>
+        <p class="settings-note" id="pat-support-status" hidden>현재 게임 버전의 복복 알림을 확인하지 못했어요. 앱 업데이트 후 다시 확인해 주세요.</p>
       </fieldset>
       <fieldset class="notification-panel"><legend>새 메시지 알림</legend>
         <p class="settings-note" id="notification-help">다른 앱을 사용하거나 창을 최소화했을 때 새 상대 메시지를 알려 드려요.</p>

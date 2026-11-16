@@ -82,6 +82,34 @@ def test_real_contract_has_complete_feature_profiles():
     assert all(set(profile) == set(FEATURES) for profile in catalog['profiles'])
 
 
+@pytest.mark.parametrize('observed', ['a' * 64, 'b' * 64, None])
+def test_optional_pat_contract_does_not_disable_supported_chat(game_files, monkeypatch, observed):
+    root, _, _ = game_files
+    spec = root / 'pat-fixture.json'
+    spec.write_text(json.dumps(dict(schema=1, features={'pats': {}}, supported=['a' * 64])))
+    monkeypatch.setattr(env, 'PAT_SUPPORT_PATH', spec)
+    def probe(root, stop=None, **kwargs):
+        if kwargs:
+            assert kwargs == dict(spec_path=spec, expected={'pats'})
+            if observed is None: raise ValueError('missing channel')
+            return {'pats': observed}
+        return dict(FEATURES)
+    monkeypatch.setattr(env, 'probe_features', probe)
+    assert env.verify_pat_compatibility(root) is (observed == 'a' * 64)
+    assert env.verify_build(root) == '200'
+
+
+@pytest.mark.parametrize('spec', [{}, {'schema': 1, 'features': {'pats': {}}, 'supported': []},
+    {'schema': 1, 'features': {'pats': {}}, 'supported': ['bad']},
+    {'schema': 1, 'features': {'chat': {}}, 'supported': ['a' * 64]}])
+def test_unverified_pat_contract_fails_closed_without_probing(tmp_path, monkeypatch, spec):
+    path = tmp_path / 'pat-fixture.json'
+    path.write_text(json.dumps(spec))
+    monkeypatch.setattr(env, 'PAT_SUPPORT_PATH', path)
+    monkeypatch.setattr(env, 'probe_features', lambda *_args, **_kwargs: pytest.fail('must not probe'))
+    assert not env.verify_pat_compatibility(tmp_path)
+
+
 def test_game_discovery_reads_details_only_for_matching_name(tmp_path, monkeypatch):
     from contextlib import nullcontext
     calls = []

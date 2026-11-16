@@ -6,6 +6,8 @@ Updated October 30, 2026 to describe the current source, including local languag
 
 ## Local history and game integration
 
+The November 16, 2026 pat-alert source uses the current lobby event's sender and target account IDs, display names/private nicknames, and streak counts only in memory. They are not stored in chat history or search, sent to Windows notifications, or included in diagnostics. Connection loss clears them. Only the **Show pat alerts** preference is saved in local settings (ON by default). Pats involving a blocked sender or target are excluded. See the [behavior and validation scope](pat-alerts.md) (Korean). This describes development source, not a released installation.
+
 Private nicknames are stored in the same local SQLite file under your Steam ID and the other player's Steam ID. Only your account on this PC uses them. They are never sent to Steam or other players. Nicknames persist through history deletion and the 30-day cleanup. To delete one, open **Set nickname** for that participant, clear the field, and save.
 
 The October 28, 2026 source also stores observed lobby join/leave events, including the display name at observation, player Steam ID, lobby ID and observation time, in the same local database for 30 days. The account-local app block list and history deletion apply. Notices are not sent as lobby chat or Windows notifications. Activity before connection or during connection gaps is not reconstructed. Published-build availability is separate.

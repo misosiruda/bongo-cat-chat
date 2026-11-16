@@ -169,6 +169,9 @@ class Steam:
                     self.rejected += 1
                     continue
                 if event is not None:
+                    if event['type'] == 'pat' and (event['target'] not in members or event['target'] == str(sender.value)):
+                        self.rejected += 1
+                        continue
                     result.append(dict(event, id=str(uuid4()), context=dict(context),
                                        sender=str(sender.value), received=time.time(), observed=time.monotonic()))
             finally:

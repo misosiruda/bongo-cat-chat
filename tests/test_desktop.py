@@ -114,7 +114,9 @@ def qt_chat(tmp_path):
           return new ctor(transport, channel => {
             const bridge=channel.objects.bridge, request=bridge.request.bind(bridge);
             bridge.request=(raw, done)=>request(raw, result=>{
-              if (window.holdNextView && JSON.parse(raw).action==='view') {
+              if (window.holdNextPatView && JSON.parse(raw).action==='pat_view') {
+                window.holdNextPatView=false; window.releasePatView=()=>{window.releasePatView=null;done(result);};
+              } else if (window.holdNextView && JSON.parse(raw).action==='view') {
                 window.holdNextView=false; window.releaseView=()=>{window.releaseView=null;done(result);};
               } else done(result);
             });

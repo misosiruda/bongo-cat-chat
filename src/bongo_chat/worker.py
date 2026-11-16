@@ -3,7 +3,7 @@ import queue
 import time
 from uuid import uuid4
 
-from .environment import UnsupportedGameBuild, running_game, verify_compatibility
+from .environment import UnsupportedGameBuild, running_game, verify_compatibility, verify_pat_compatibility
 from .memory import MemoryDiscovery
 from .steam import APP_ID, Steam
 from .reactions import ReactionAssets
@@ -85,6 +85,7 @@ class LiveConnection:
             notice = "read_only" if self.read_only else ""
         state = {"type": "state", "account": account, "lobby": lobby if valid else "",
                  "generation": self.generation, "connected": valid, "lobby_verified": verified,
+                 "pats_supported": getattr(self, 'pats_supported', False),
                  "members": sorted(members) if verified else [],
                  "observed": time.monotonic(),
                  # Profiles refresh once a second, membership every tick.
@@ -141,6 +142,8 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
             steam.start()
             compatibility.check()
             live = LiveConnection(game, None, steam, read_only, compatibility=compatibility)
+            live.pats_supported = verify_pat_compatibility(game.root, stop)
+            compatibility.check()
             last_state, last_emit, receive_context = None, 0, None
             receive_senders, retry_discovery_at = set(), 0
             reactions = ReactionAssets()
@@ -171,6 +174,14 @@ def run_worker(commands, events, stop, read_only=False, render_avatars=True):
                                           accept=receive_context == context):
                     if message["type"] == "reaction":
                         reactions.add(message)
+                    elif message["type"] == "pat":
+                        if not live.pats_supported:
+                            continue
+                        # Transient flavor must not stop chat if IPC is full.
+                        try:
+                            events.put_nowait(message)
+                        except queue.Full:
+                            pass
                     else:
                         emit(message)  # Preserve the callback's original observed timestamp.
                 for reaction in reactions.ready(state, steam, avatars):
