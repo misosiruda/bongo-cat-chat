@@ -78,7 +78,7 @@
       }
       for (const [el,attr,source] of staticAttributes) if (el.isConnected) el.setAttribute(attr,t(source));
       signature=''; participantsSignature='';
-      for (const id of ['language-status','reaction-save-status','notification-save-status','block-status']) $(id).textContent='';
+      for (const id of ['language-status','reaction-save-status','pat-save-status','notification-save-status','block-status']) $(id).textContent='';
       $('toast').hidden=true;
     }
     languagePreference=data.language_preference || 'system';
@@ -92,6 +92,105 @@
   const notificationPending = new Set();
   const notificationControls = {notification_flash:'notification-flash',notification_toast:'notification-toast'};
   let reactionsEnabled = false, reactionSettingPending = false;
+  let patsEnabled = false, patSettingPending = false, patBusy = false, patFrame = 0, patContext = '';
+  const patRows = new Map(), expiredPats = new Set();
+  let patHidden = [];
+
+  function patLayout(change) {
+    const height = $('pat-zone').offsetHeight, position = capturePosition();
+    change();
+    if (height !== $('pat-zone').offsetHeight) restorePosition(position);
+  }
+  function clearPats() {
+    cancelAnimationFrame(patFrame); patFrame = 0;
+    if (!patRows.size && !patHidden.length && $('pat-zone').hidden) return;
+    patLayout(() => {
+      patRows.clear(); patHidden = []; $('pat-list').replaceChildren();
+      $('pat-overflow').hidden = true; $('pat-zone').hidden = true;
+    });
+  }
+  function patsVisible() {
+    return patsEnabled && !patSettingPending && !restarting && !switching && !document.hidden && !query
+      && model?.connected && model.lobby_verified && model.pats_supported !== false && model.lobby === model.context.lobby;
+  }
+  function tickPats() {
+    patFrame = 0;
+    if (!patsVisible()) {clearPats(); return;}
+    const now = performance.now();
+    const changesHeight = [...patRows.values()].some(row => row.until <= now)
+      || $('pat-overflow').hidden === patHidden.some(until => until > now);
+    const update = () => {
+      for (const [key, row] of patRows) {
+        const remaining = row.until - now;
+        if (remaining <= 0) {
+          expiredPats.add(row.id);
+          if (expiredPats.size > 256) expiredPats.delete(expiredPats.values().next().value);
+          row.el.remove(); patRows.delete(key);
+        } else {
+          // Absolute deadlines avoid stale animation callbacks deleting a revived row.
+          row.el.style.opacity = String(Math.min(1, remaining / 1000));
+          row.el.classList.toggle('is-fading', remaining <= 1000);
+        }
+      }
+      patHidden = patHidden.filter(until => until > now);
+      $('pat-overflow').hidden = !patHidden.length;
+      $('pat-overflow').textContent = t('+{count}쌍도 복복 중', {count:patHidden.length});
+      $('pat-zone').hidden = !patRows.size && !patHidden.length;
+    };
+    if (changesHeight) patLayout(update); else update();
+    if (patRows.size || patHidden.length) patFrame = requestAnimationFrame(tickPats);
+  }
+  function renderPats(data, requestedAt) {
+    const now = performance.now(), keep = new Set();
+    patLayout(() => {
+      for (const item of (data.rows || []).slice(0, 3)) {
+        const key = JSON.stringify([item.sender, item.target]), until = requestedAt + item.expires_in_ms;
+        if (until <= now || expiredPats.has(item.id)) continue;
+        keep.add(key);
+        let row = patRows.get(key);
+        if (!row) {
+          const el = node('div', 'pat-row'); el.setAttribute('role', 'listitem');
+          el.dataset.sender = item.sender; el.dataset.target = item.target;
+          const heart = node('span', 'pat-heart', '♥'); heart.setAttribute('aria-hidden', 'true');
+          const copy = node('span', 'pat-copy'), count = node('span', 'pat-count');
+          el.append(heart, copy, count); row = {el, copy, count}; patRows.set(key, row);
+        }
+        row.until = row.id === item.id ? Math.min(row.until, until) : until;
+        row.id = item.id;
+        const sender = item.sender_name || t('이름 확인 중'), target = item.target_name || t('이름 확인 중');
+        const sentence = t('{sender}가 {target}를 복복복 하고 있습니다.');
+        // Insert names as text nodes; names can contain HTML or translation tokens.
+        row.copy.replaceChildren(...sentence.split(/(\{sender\}|\{target\})/).map(part =>
+          part === '{sender}' || part === '{target}' ? node('strong', '', part === '{sender}' ? sender : target) : document.createTextNode(part)));
+        row.copy.title = row.copy.textContent;
+        row.count.textContent = `×${item.count}`;
+        row.el.setAttribute('aria-label', t('{sender} → {target}, 복복 {count}번', {sender,target,count:item.count}));
+      }
+      for (const [key, row] of patRows) if (!keep.has(key)) {row.el.remove(); patRows.delete(key);}
+      // Preserve each DOM node even when another slot is replaced or removed.
+      const ordered = (data.rows || []).map(item => patRows.get(JSON.stringify([item.sender,item.target]))).filter(Boolean);
+      ordered.forEach((row, index) => {
+        const current = $('pat-list').children[index];
+        if (current !== row.el) $('pat-list').insertBefore(row.el, current || null);
+      });
+      patHidden = (data.hidden_active_ms || []).map(ms => requestedAt + ms).filter(until => until > now);
+      $('pat-zone').hidden = !patRows.size && !patHidden.length;
+    });
+    cancelAnimationFrame(patFrame); tickPats();
+  }
+  async function refreshPats() {
+    if (!patsVisible()) {clearPats(); return;}
+    if (patBusy) return;
+    patBusy = true;
+    const version = requestVersion, context = profileContext(model.context), requestedAt = performance.now();
+    try {
+      const data = await rpc('pat_view', {lobby:selected, context:model.context});
+      if (version !== requestVersion || !patsVisible() || context !== profileContext(model.context)) return;
+      if (!data.connected || !data.enabled || profileContext(data.context) !== context) {clearPats(); return;}
+      renderPats(data, requestedAt);
+    } catch (_) {clearPats();}
+    finally {patBusy = false;}
+  }
   let restartPlan = null, restarting = false, lastEdit = 0;
   let openingProfile = false, participantsSignature = '';
   let participantMenuTarget = null;
@@ -630,6 +729,7 @@
   }
   function changeSearch(value) {
     clearReactions();
+    clearPats();
     if (value && !query) searchPosition=captureTimeline();
     if (!value) {const saved=searchPosition; query=''; resetTimeline(saved);}
     else {query=value; before=null; pendingPosition={top:0}; signature='';}
@@ -650,6 +750,7 @@
   }
   async function changeRoom(lobby) {
     clearReactions();
+    clearPats();
     if (switching || restarting) return;
     switching++; updateSend(); requestVersion++;
     positions.set(selected, query && searchPosition ? searchPosition : captureTimeline());
@@ -946,6 +1047,14 @@
       reactionsEnabled = data.reactions_enabled === true;
       $('reactions-enabled').checked = reactionsEnabled;
     }
+    if (!patSettingPending) {
+      patsEnabled = data.pats_enabled === true;
+      $('pats-enabled').checked = patsEnabled;
+    }
+    $('pat-support-status').hidden = !data.connected || data.pats_supported !== false;
+    const nextPatContext = profileContext(data.context);
+    if (patContext !== nextPatContext) {clearPats(); expiredPats.clear(); patContext = nextPatContext;}
+    if (!patsVisible()) clearPats();
     for (const [key,id] of Object.entries(notificationControls)) {
       if (!notificationPending.has(key)) {
         notificationSettings[key] = data.notifications?.[key] !== false;
@@ -1121,7 +1230,7 @@
       event.preventDefault();
       setBlocked($('block-steam-id').value, true, model?.context.account);
     });
-    document.addEventListener('visibilitychange', clearReactions);
+    document.addEventListener('visibilitychange', () => {clearReactions(); clearPats();});
     $('message-form').addEventListener('submit',send);
     $('message-input').addEventListener('compositionstart',()=>{composing=true;lastEdit=Date.now();updateSend();});
     $('message-input').addEventListener('compositionend',()=>{composing=false;lastEdit=Date.now();updateSend();});
@@ -1221,6 +1330,23 @@
         if (hadFocus && document.activeElement===document.body && $('settings-dialog').open) control.focus();
       }
     });
+    $('pats-enabled').addEventListener('change',async()=>{
+      if (patSettingPending) return;
+      const control=$('pats-enabled'), value=control.checked, hadFocus=document.activeElement===control;
+      patSettingPending=true; requestVersion++; control.disabled=true; control.checked=patsEnabled; clearPats();
+      $('pat-save-status').textContent=t('복복 알림 설정을 저장하고 있어요.');
+      try {
+        await rpc('setting',{key:'pats_enabled',value});
+        patsEnabled=value;
+        if (model) model.pats_enabled=value;
+        $('pat-save-status').textContent=t('복복 알림 설정을 저장했어요.');
+      } catch (_) {
+        $('pat-save-status').textContent=t('복복 알림 설정을 저장하지 못해 이전 값으로 되돌렸어요. 다시 시도해 주세요.');
+      } finally {
+        requestVersion++; control.checked=patsEnabled; control.disabled=false; patSettingPending=false;
+        if (hadFocus && document.activeElement===document.body && $('settings-dialog').open) control.focus();
+      }
+    });
     for (const [key,id] of Object.entries(notificationControls)) $(id).addEventListener('change',async()=>{
       if (notificationPending.has(key)) return;
       const control=$(id), value=control.checked, previous=notificationSettings[key];
@@ -1251,7 +1377,7 @@
       }
       signature='';await refresh(true);toast(t('선택한 기록을 삭제했어요.'));
     }catch(e){showError(e);}});
-    refresh(true); setInterval(()=>refresh(),600);
+    refresh(true); setInterval(()=>refresh(),600); setInterval(refreshPats,100);
   }
   if (typeof QWebChannel === 'function' && window.qt?.webChannelTransport) {
     new QWebChannel(qt.webChannelTransport, channel=>connect(channel.objects.bridge));

@@ -67,6 +67,11 @@ def decode_event(raw: bytes) -> dict | None:
         raise InvalidMessage("invalid_envelope")
     if type(envelope.get("Channel")) is not int:
         raise InvalidMessage("invalid_channel")
+    if envelope["Channel"] == 8:
+        target = envelope.get("Message")
+        if not isinstance(target, str) or not re.fullmatch(r"[1-9][0-9]{0,19}", target) or int(target) > 2**64 - 1:
+            raise InvalidMessage("invalid_pat_target")
+        return {"type": "pat", "target": target}
     if envelope["Channel"] == 6:
         # SendEmote serializes the item definition ID as a decimal string.
         item = envelope.get("Message")

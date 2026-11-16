@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "assemblies": ["Assembly-CSharp.dll", "Heathen.Steamworks.dll"],
+  "features": {
+    "pats": {
+      "packets": ["Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer/LobbyMessage"],
+      "methods": [
+        "Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer|SendPat",
+        "Heathen.Steamworks|Heathen.SteamworksIntegration.LobbyChatMsg|ToString"
+      ],
+      "route": "Assembly-CSharp|BongoCat.Multiplayer.SteamMultiplayer|OnLobbyChatMsg",
+      "channel": 8
+    }
+  },
+  "supported": ["16aa68171ffd543a615a333e94692f36d7c266048951a1d8ada14c5f13fd8835"]
+}

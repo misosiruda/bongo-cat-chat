@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bongo-cat-chat"
-version = "0.1.0.dev33"
+version = "0.1.0.dev34"
 description = "Windows messenger for the existing Bongo Cat lobby"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -26,7 +26,7 @@ bongo-cat-chat = "bongo_chat.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-bongo_chat = ["ui/*", "feature-contract.json", "update-config.json"]
+bongo_chat = ["ui/*", "feature-contract.json", "pat-contract.json", "update-config.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

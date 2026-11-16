@@ -7,6 +7,7 @@
 [![Windows용 다운로드](docs/screenshots/download-ko.svg)](https://github.com/misosiruda/bongo-cat-chat/releases/latest)
 
 - **상자 자동 개봉** — 열고 싶은 상자와 대기 시간을 정하면 준비된 상자를 자동으로 열어요. [개봉 사용법](docs/auto-chest.md#사용-흐름)
+- **복복 알림** — 같은 로비에서 누가 누구를 복복하는지 상단 배너에서 확인해요. 연속 횟수도 함께 보여요. [표시 규칙](docs/pat-alerts.md)
 - **아이템 자동 합성** — 아이템 그룹과 최대 횟수를 정하면 중복 아이템을 한 번씩 합성해요. [합성 사용법](docs/item-auto-merge.md#ui와-사용-흐름)
 
 ## 채팅 화면

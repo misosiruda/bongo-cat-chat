@@ -1,5 +1,29 @@
 # Windows 개발판 검증 기록
 
+## 2026-11-16 · 이슈 #66 검수와 dev34 배포 준비
+
+구현 커밋 `0d4323f`를 이슈 요구사항과 다시 대조했다. 작업자가 복복을 `put_nowait`로 보내더라도 공용 큐를 먼저 채운 뒤에는 다음 채팅/연결 상태 전달이 실패할 수 있었다. 실제 Controller와 같은 2048개 제한 큐에 소비자 없이 연속 복복을 넣은 회귀 검사에서 수정 전 **1 failed, 5 passed**를 확인했다. 복복 전달을 큐의 절반 미만에서만 허용해 일반 채팅·상태·결과용 여유를 남기도록 수정했다. 과부하 때 복복 일부가 누락될 수 있음을 사용 안내에도 명시했다.
+
+수정 후 `python -m pytest -q tests/test_pat_worker.py tests/test_worker.py tests/test_pats.py tests/test_callback.py tests/test_reactions.py --tb=short`은 **115 passed / 1.93초**였다. 정상 수신 시 원래 수신 시각 유지와 일반 채팅 전달, 미지원 계약·복복 전달 실패·실제 제한 큐의 폭주를 확인했다. 버전을 `0.1.0.dev34`로 올리고 한국어·영어 설치/업데이트/복복 사용 안내를 준비했다. 원격 PR 및 병합 커밋의 필수 CI와 서명·게시 검증은 각 실행에서 별도로 확인한다.
+
+dev34 최종 소스에서 위 5개 파일과 `test_pat_desktop.py`, `test_reaction_desktop.py`, `test_environment.py`, `test_localization.py`, `test_updates.py`, `test_release_requests.py`, `test_distribution.py`를 함께 실행해 **266 passed / 36.07초**를 확인했다. Qt offscreen/disable-gpu 조건과 `artifacts/issue66-review/affected.xml`에 결과를 남겼다. 수신 큐·실제 Qt·반응·호환성·번역·버전·업데이트/배포 소비자까지 검사했으며 기존 실행과 겹치므로 합산하지 않는다. 원격 전체 검사·패키징을 생략하는 근거로 쓰지 않는다.
+
+추가 UI 검수에서 `+N쌍` 요약이 처음 나타나면 맨 아래에 붙어 있던 대화가 22px 떨어지는 문제를 Qt 회귀 검사로 재현했다. 이전 숨김 배열 대신 현재 요약 DOM의 실제 표시 상태와 다음 표시 상태를 비교해, 요약 등장/제거의 높이 변경도 스크롤 보존 범위에 포함했다. 중간 메시지 앵커뿐 아니라 맨 아래 상태 유지도 회귀 검사에 추가했다.
+
+수정 후 `test_pat_desktop.py`, `test_scroll_desktop.py`, `test_reaction_desktop.py`는 **29 passed / 38.20초**였고 헤드리스 Edge 4종 화면 검사도 모두 통과했다. 결과는 `artifacts/issue66-review/scroll-final.xml`과 `screenshots/`에 있다. PR 최초 Ready 자동 Code Review의 같은 지적도 이 수정으로 처리했다. Security 추가 실행이나 별도 수동 CI는 요청하지 않았다.
+
+## 2026-11-16 · 이슈 #66 로비 복복 슬림 배너
+
+비교 기준은 `11c0c827ecb9ae52ff1abb842ff3175b649707e1`이다. 기존 작업 폴더의 무인 복구 관련 미커밋 변경을 보존하기 위해 별도 `codex/issue66-pat-alerts` 브랜치/작업 폴더에서 구현했다. [이슈 #66](https://github.com/misosiruda/bongo-cat-chat/issues/66)의 최대 3행 슬림 배너, 방향별 연속 횟수, 1초 무입력 뒤 1초 페이드, 페이드 중 ×1 재시작, 활성 초과 쌍 요약, 독립 설정을 반영했다. [사용·수신·개인정보와 검증 한계](pat-alerts.md)를 함께 기록했다.
+
+- **전체 회귀:** 공통 수신·Controller·화면·설정 경로가 바뀌어 `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`, NSIS 3.13의 `BONGO_TEST_NSIS_PATH` 조건에서 `python -m pytest -q --tb=short --junitxml=artifacts/pat-alerts/pytest.xml`을 실행했다. **1208 passed, 19 subtests passed / 344.45초**, 실패·생략 0개였다. 모의 게임/자동화, 기존 채팅·반응·입퇴장·알림, 호환성, 설치·업데이트 소비자 검사를 포함한다.
+- **최종 집중 검사:** 전체 실행 이후 복복 표시 지원 가드·빈 화면 처리와 숨겨진 쌍의 승격/재시작·작업자 혼잡 회귀를 보완했다. `python -m pytest -q tests/test_pats.py tests/test_pat_worker.py tests/test_pat_desktop.py tests/test_reaction_desktop.py tests/test_environment.py tests/test_localization.py --tb=short --junitxml=artifacts/pat-alerts/final-focused.xml`은 **115 passed / 29.98초**, 실패·생략 0개였다. 변경이 복복 표시 가드와 검사 보강에 한정돼 전체 suite를 다시 실행하지 않았다. 전체 실행과 겹치므로 합산하지 않는다. Qt SharedImageManager 진단은 있었으나 테스트 실패는 없었고 제품 GPU 설정은 변경하지 않았다.
+- **실제 UI 코드 화면:** `python tests/browser_pat_check.py`로 헤드리스 Edge의 1240 × 840 및 400 × 500, 밝은/어두운 테마 4종 모두 통과했다. 3행 제한·초과 3쌍 요약·만료·이름 말줄임/숫자 영역·가로 넘침·읽던 메시지 상대 위치·입력 초안을 확인했다. 합성 이벤트와 임시 DB를 사용했고 실제 로비에는 접속하지 않았다. 스크린샷 4장은 `artifacts/pat-alerts/slim-*.png`에 있다.
+- **게임 메타데이터의 읽기 전용 확인:** 이번 작업 폴더의 `FeatureProbe.exe`로 설치된 게임의 `pat-contract.json` 지문을 계산했다. 지원 지문 `16aa68171ffd543a615a333e94692f36d7c266048951a1d8ada14c5f13fd8835`와 일치하고 `verify_pat_compatibility=True`를 확인했다. 결과는 `artifacts/pat-alerts/compatibility.json`이다. 게임 실행 코드 호출이나 게임 파일 변경은 없다. 미지원/누락/잘못된 복복 계약은 기존 채팅 허용을 유지하면서 복복만 끄는 합성 검사도 통과했다.
+- **정적 검사:** Python `compileall`, `node --check src/bongo_chat/ui/app.js`, `git diff --check`를 통과했다. 패키지 데이터와 PyInstaller 입력에 새 계약 파일을 포함하고 기존 배포 묶음 검사에도 소스 일치 항목을 추가했다.
+
+구현 전 사용자가 확인한 7회 클릭/7건 수신과 239건 수신 관찰은 이슈의 기존 실게임 증거다. 이번 제품 구현의 다른 참가자 → 나/제3자 간 실제 입력 인수, 서로 다른 PC·순정 설치, 장시간 실행으로 확대하지 않는다. 실제 게임 조작·송신·아이템 소비, 실행 중 앱/게임 재시작·설치 교체, 설치 파일 빌드·공개 릴리스·원격 CI는 수행하지 않았다.
+
 ## 2026-11-13 · dev33 상자 개봉 응답 지연
 
 dev32에서 내 상자 실패 응답이 기록된 뒤에도 자동 개봉이 중단된 사례를 조사했다. 모의 게임에서 응답을 31초 보류하자 dev32의 실행이 종료됐다. dev33은 기존 요청을 유지하고 응답 처리 후 다음 상자를 자동으로 연다.

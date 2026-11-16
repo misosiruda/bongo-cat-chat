@@ -9,6 +9,7 @@ from uuid import uuid4
 from .protocol import encode, is_meow_message
 from .profiles import steam_profile_uri
 from .presence import PresenceTracker
+from .pats import PatTracker, PAT_TTL
 from .reactions import MAX_REACTIONS, REACTION_TTL, png
 
 
@@ -46,6 +47,10 @@ class ChatService:
         self.receipts = OrderedDict()
         self.revision = 0
         self.presence = PresenceTracker()
+        self.pats = PatTracker()
+        self.pats_enabled = False
+        self.pats_enabled_since = self.clock()
+        self.pats_valid_since = self.clock()
         self.reactions = deque(maxlen=MAX_REACTIONS)
         self.reaction_receipts = deque(maxlen=256)
         self.reactions_enabled = False
@@ -62,6 +67,27 @@ class ChatService:
             self.load_reaction_setting()
         except (sqlite3.Error, OSError):
             self.storage_error = True
+        try:
+            self.load_pat_setting()
+        except (sqlite3.Error, OSError):
+            self.storage_error = True
+
+    def apply_pat_setting(self, value):
+        if self.pats_enabled != value:
+            self.pats.clear()
+            self.pats_enabled_since = self.clock()
+        self.pats_enabled = value
+
+    def load_pat_setting(self):
+        value = self.store.setting('pats_enabled', default=True)
+        self.apply_pat_setting(value if type(value) is bool else False)
+
+    def set_pats_enabled(self, value):
+        if type(value) is not bool:
+            raise ValueError('invalid_setting')
+        self.store.setting('pats_enabled', value)
+        self.apply_pat_setting(value)
+        self.revision += 1
 
     def apply_reaction_setting(self, value):
         if self.reactions_enabled != value:
@@ -111,6 +137,7 @@ class ChatService:
                 self.store.rename_session(self.session, self.state['account'], self.state['lobby'], self.state['name'])
         self.load_notifications()
         self.load_reaction_setting()
+        self.load_pat_setting()
         self.load_peer_settings()
         self.storage_error = False
 
@@ -156,6 +183,7 @@ class ChatService:
             self.blocked.pop(steam_id, None)
         self.block_changed_at[(account, steam_id)] = self.clock()
         self.reactions = deque((e for e in self.reactions if e['sender'] != steam_id), maxlen=MAX_REACTIONS)
+        self.pats.prune(self.clock(), self.allowed())
         self.revision += 1
 
     def after_block_change(self, event):
@@ -195,6 +223,10 @@ class ChatService:
             state["name"] = "" if boundary else old.get("name", "")
         if boundary or not self.fresh():
             self.presence.reset()
+        if (boundary or not self.fresh() or not old.get('connected') or not old.get('lobby_verified')
+                or not state.get('connected') or not state.get('lobby_verified')):
+            self.pats.clear()
+            self.pats_valid_since = state.get('observed', self.clock())
         if boundary:
             self.reactions.clear()
             self.end("connection_changed")
@@ -208,6 +240,7 @@ class ChatService:
             except (sqlite3.Error, OSError):
                 self.storage_error = True
         self.updated = self.clock()
+        self.pats.prune(self.updated, self.allowed())
         if state.get("account") and state.get("lobby") and state.get("generation") and not self.session:
             self.session = str(uuid4())
             self.write(self.store.session, self.session, state["account"], state["lobby"], state.get("name") or "")
@@ -354,6 +387,34 @@ class ChatService:
                 and (sender == self.state.get("account") or sender in self.allowed())
                 and 0 <= self.clock() - event["observed"] < REACTION_TTL)
 
+    def receive_pat(self, event):
+        now, allowed = self.clock(), self.allowed()
+        observed = event.get('observed')
+        sender, target = event.get('sender'), event.get('target')
+        if (not self.pats_enabled or not self.state.get('pats_supported', False) or event.get('context') != self.context()
+                or not isinstance(event.get('id'), str) or not event['id']
+                or type(observed) not in (int, float) or not 0 <= now - observed < PAT_TTL
+                or observed < max(self.pats_enabled_since, self.pats_valid_since) or sender == target
+                or sender not in allowed or target not in allowed
+                or any(observed < self.block_changed_at.get((self.state.get('account'), uid), float('-inf'))
+                       for uid in (sender, target))):
+            return
+        self.pats.add(event, now, allowed)
+
+    def pat_view(self, lobby):
+        allowed = self.allowed()
+        if not self.pats_enabled or not self.verified() or not self.state.get('pats_supported', False):
+            self.pats.clear()
+        result = self.pats.snapshot(self.clock(), allowed)
+        if lobby != self.state.get('lobby'):
+            result = dict(rows=[], hidden_active_ms=[])
+        for row in result['rows']:
+            for field in ('sender', 'target'):
+                uid = row[field]
+                row[field + '_name'] = (self.nicknames or {}).get(uid) or self.state.get('profiles', {}).get(uid, {}).get('name', '')
+        return dict(result, context=self.context(), enabled=self.pats_enabled,
+                    connected=self.verified())
+
     def receive_reaction(self, event):
         if (not self.reaction_allowed(event) or event["id"] in self.reaction_receipts
                 or not png(event.get("avatar")) or event.get("kind") not in {"meow", "emote"}
@@ -432,6 +493,8 @@ class ChatService:
                 "theme": theme, "collapsed": collapsed,
                 "notifications": dict(self.notifications),
                 "reactions_enabled": self.reactions_enabled,
+                "pats_enabled": self.pats_enabled,
+                "pats_supported": self.state.get('pats_supported', False),
                 "lobby": lobby, "has_more": page['has_more'], "has_newer": page['has_newer'],
                 "latest_seq": page['latest_seq'], "unseen": page['unseen'], "unseen_seq": page['unseen_seq'],
                 "volatile_peer_ids": [r['id'] for r in visible_volatile if not r['own'] and r.get('kind', 'chat') == 'chat']}

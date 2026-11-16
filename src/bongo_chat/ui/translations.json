@@ -481,5 +481,15 @@
   "게임 기본 파일 System.Numerics.dll이 없어 연결을 중단했습니다. 진행 중인 작업 결과를 확인하고 게임을 종료한 뒤 Steam → Bongo Cat → 속성 → 설치된 파일 → 게임 파일 무결성 확인을 실행해 주세요. 복구 후 게임과 앱을 다시 열어 연결해 주세요.": "The required game file System.Numerics.dll is missing, so connection was stopped. Check any pending results and close the game, then use Steam → Bongo Cat → Properties → Installed Files → Verify integrity of game files. After repair, reopen the game and app to connect.",
   "게임 기본 파일 System.Numerics.dll을 읽지 못해 연결을 중단했습니다. 게임 폴더의 읽기 권한을 확인해 주세요. 권한이 정상인데 반복되면 앱을 닫기 전에 버그 제보로 진단을 전달해 주세요.": "The required game file System.Numerics.dll could not be read, so connection was stopped. Check read access to the game folder. If access is available and the error repeats, report the bug before closing the app.",
   "게임 기본 파일 System.Numerics.dll이 지원하는 파일과 다릅니다. 앱이 최신 버전인지 확인해 주세요. 진행 중인 작업 결과를 확인하고 게임을 종료한 뒤 Steam → Bongo Cat → 속성 → 설치된 파일 → 게임 파일 무결성 확인을 실행해 주세요. 복구 후에도 반복되면 버그 제보로 알려 주세요.": "The required game file System.Numerics.dll differs from the supported file. Check that the app is up to date. Check any pending results and close the game, then use Steam → Bongo Cat → Properties → Installed Files → Verify integrity of game files. If the error remains after repair, report the bug.",
-  "게임 연결에 필요한 구성 요소를 불러오지 못했습니다. 앱을 닫기 전에 버그 제보로 진단을 전달해 주세요. 진행 중인 작업 결과를 확인하고 게임을 종료한 뒤 Steam → Bongo Cat → 속성 → 설치된 파일 → 게임 파일 무결성 확인을 실행해 주세요. 복구 후 게임과 앱을 다시 열고, 계속되면 게임 재설치를 시도해 주세요.": "A component required for the game connection could not be loaded. Report the bug before closing the app. Check any pending results and close the game, then use Steam → Bongo Cat → Properties → Installed Files → Verify integrity of game files. Reopen the game and app after repair. If the issue persists, try reinstalling the game."
+  "게임 연결에 필요한 구성 요소를 불러오지 못했습니다. 앱을 닫기 전에 버그 제보로 진단을 전달해 주세요. 진행 중인 작업 결과를 확인하고 게임을 종료한 뒤 Steam → Bongo Cat → 속성 → 설치된 파일 → 게임 파일 무결성 확인을 실행해 주세요. 복구 후 게임과 앱을 다시 열고, 계속되면 게임 재설치를 시도해 주세요.": "A component required for the game connection could not be loaded. Report the bug before closing the app. Check any pending results and close the game, then use Steam → Bongo Cat → Properties → Installed Files → Verify integrity of game files. Reopen the game and app after repair. If the issue persists, try reinstalling the game.",
+  "로비 복복 알림": "Lobby pat alerts",
+  "복복 알림 표시": "Show pat alerts",
+  "같은 로비에서 누가 누구를 복복하는지 최대 3줄로 표시해요. 1초 동안 새 입력이 없으면 1초 동안 사라지며, 기록에는 저장하지 않아요.": "Show who is patting whom in the current lobby, in up to three rows. After one second without input, alerts fade over one second. Pats are not saved in history.",
+  "현재 게임 버전의 복복 알림을 확인하지 못했어요. 앱 업데이트 후 다시 확인해 주세요.": "Pat alerts are not yet verified for this game version. Check again after an app update.",
+  "+{count}쌍도 복복 중": "+{count} more pairs patting",
+  "{sender}가 {target}를 복복복 하고 있습니다.": "{sender} is patting {target}.",
+  "{sender} → {target}, 복복 {count}번": "{sender} → {target}, {count} pats",
+  "복복 알림 설정을 저장하고 있어요.": "Saving pat alert preference…",
+  "복복 알림 설정을 저장했어요.": "Pat alert preference saved.",
+  "복복 알림 설정을 저장하지 못해 이전 값으로 되돌렸어요. 다시 시도해 주세요.": "Could not save the pat alert preference. The previous value was restored. Please try again."
 }

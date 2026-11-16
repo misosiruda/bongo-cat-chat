@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QDialog, QVBoxLayout, Q
 
 from .service import ChatService, NOTIFICATION_KEYS
 from .store import Store
-from .worker import run_worker, unavailable
+from .worker import run_worker, unavailable, EVENT_QUEUE_CAPACITY
 from . import __version__
 from .exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY
 from .updates import UpdateManager
@@ -143,7 +143,7 @@ class Controller(QObject):
                                       and os.environ.get(RESTART_CAPABILITY) == '1')
         self.context = mp.get_context("spawn")
         self.commands = self.context.Queue(maxsize=64)
-        self.events = self.context.Queue(maxsize=2048)
+        self.events = self.context.Queue(maxsize=EVENT_QUEUE_CAPACITY)
         self.stop = self.context.Event()
         self.last_prune = time.monotonic()
         self.known_accounts = set()
@@ -193,6 +193,8 @@ class Controller(QObject):
                         self.notifications.incoming(incoming)
                 elif event.get("type") == "reaction":
                     self.service.receive_reaction(event)
+                elif event.get("type") == "pat":
+                    self.service.receive_pat(event)
                 elif event.get("type") == "result":
                     self.service.result(event["id"], event["status"])
             if self.worker and not self.worker.is_alive() and self.service.state.get("notice") != "worker_stopped":
@@ -230,6 +232,11 @@ class Controller(QObject):
     def dispatch(self, args):
         action = args["action"]
         account = self.service.state.get("account", "")
+        if action == 'pat_view':
+            result = self.service.pat_view(args.get('lobby'))
+            if self.closed or self.restarting or args.get('context') != self.service.context():
+                result.update(rows=[], hidden_active_ms=[], connected=False)
+            return result
         if action == 'bug_report_prepare':
             if self.closed or self.restarting:
                 return {'error': 'report_unavailable'}
@@ -378,6 +385,9 @@ class Controller(QObject):
                 return {"ok": True}
             if key == 'reactions_enabled':
                 self.service.set_reactions_enabled(value)
+                return {"ok": True}
+            elif key == 'pats_enabled':
+                self.service.set_pats_enabled(value)
                 return {"ok": True}
             if key in NOTIFICATION_KEYS:
                 self.service.set_notification(key, value)
