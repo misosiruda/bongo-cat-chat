@@ -121,6 +121,7 @@ class AutoMerge:
         self.stop_requested = self.closed = self.unresolved = False
         self.revision = 0
         self.recovering_since = None
+        self.wait_for_late_ack = False
         self.previous_receipt_attempt = ''
 
     @property
@@ -194,18 +195,24 @@ class AutoMerge:
         self.tick()
         return True
 
-    def start(self, limit):
+    def start(self, limit, *, completed=0, expected=None):
         if type(limit) is not int or not 1 <= limit <= MAX_SAFE_COUNT:
             raise ValueError('invalid_merge_limit')
         if self.active or self.unresolved or self.closed:
             return False
         value = self.observation = self.observe()  # Never trust the last UI reply.
+        if expected and (value.target, value.category, value.favorites_allowed, value.events_excluded) != (
+                expected.target, expected.category, expected.favorites_allowed, expected.events_excluded):
+            return False
+        if type(completed) is not int or not 0 <= completed < limit:
+            return False
         reason = self.preparation_reason(value)
         if reason:
             self.finish('blocked', reason)
             return False
         self.baseline = value
-        self.completed = self.pending_count = self.batch_confirmed = 0
+        self.completed = completed
+        self.pending_count = self.batch_confirmed = 0
         self.pending_attempt = self.selection_attempt = self.selected_fingerprint = ''
         self.limit, self.stop_requested = limit, False
         self.state, self.reason = 'preparing', 'ready'
@@ -214,7 +221,7 @@ class AutoMerge:
             self.run_attempt = uuid4().hex
             self.state, self.deadline = 'arming', self.clock() + self.SELECTION_TIMEOUT
             try:
-                begin(value, limit, self.run_attempt)
+                begin(value, limit - completed, self.run_attempt)
             except Exception:
                 self.finish('failed', 'input_failed')
                 return False
@@ -304,9 +311,12 @@ class AutoMerge:
             return
         if self.state == 'arming':
             if value.run_attempt == self.run_attempt:
-                self.state = 'preparing'
+                self.state, self.reason = 'preparing', 'ready'
             elif self.clock() >= self.deadline:
-                self.finish('failed', 'input_failed')
+                if self.wait_for_late_ack and not value.run_attempt:
+                    self.reason = 'connection_recovering'
+                else:
+                    self.finish('failed', 'input_failed')
         elif self.state == 'preparing':
             if value.selected_units or value.exchanges or value.selection:
                 self.finish('failed', 'existing_selection')
@@ -326,9 +336,10 @@ class AutoMerge:
                 except Exception:
                     self.finish('failed', 'input_failed')  # No Merge was requested.
         elif self.state == 'selecting':
-            if self.clock() >= self.deadline:
+            if self.clock() >= self.deadline and not self.wait_for_late_ack:
                 self.finish('failed', 'selection_timeout')
             elif value.selection_attempt == self.selection_attempt:
+                self.reason = 'ready'
                 if not value.selected_units and not value.exchanges and not value.selection and value.can_select is False:
                     self.finish('completed', 'no_duplicates')
                 elif (value.selection and value.exchanges > 0
@@ -340,6 +351,10 @@ class AutoMerge:
                         self.state = 'merging'  # One fresh tick before consuming.
             elif value.selected_units or value.exchanges or value.selection:
                 self.finish('failed', 'selection_unverified')
+            elif self.clock() >= self.deadline:
+                # Only selection was requested. Observe the same ID until it
+                # arrives or the launcher takes over; never submit it twice.
+                self.reason = 'connection_recovering'
         elif self.state == 'merging':
             if (value.selection_attempt != self.selection_attempt
                     or (value.selection, value.selected_units, value.exchanges) != self.selected_fingerprint):

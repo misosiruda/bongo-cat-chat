@@ -14,7 +14,9 @@ import zipfile
 
 import psutil
 
-from .exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY, UPDATE_DIAGNOSTIC_FAILED
+from .exit_codes import (PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY, UPDATE_DIAGNOSTIC_FAILED,
+                         RECOVERY_TOKEN, RECOVERY_RETURN, RESTART_FOR_RECOVERY)
+from .game_recovery import handoff_path, read_recovery_record, restart_game, valid_plan
 from .install_metadata import sync_installed_version
 from .updates import (ARCHIVE, MARKER, UpdateError, atomic_bytes, atomic_json, child,
                       config, extract_archive, installation, load_json, no_links,
@@ -170,15 +172,37 @@ def run_app(root, data, offline=False, read_only=False, smoke_report=None, conne
     try:
         # An environment capability is ignored by old apps, including rollback
         # slots. A new CLI argument would make their argument parser fail.
-        code = subprocess.call(command, cwd=root,
-                               env={**os.environ, RESTART_CAPABILITY: '1' if restart_supported else '0'}, **process_options())
+        env = {**os.environ, RESTART_CAPABILITY: '1' if restart_supported else '0'}
+        env.pop(RECOVERY_RETURN, None)
+        env.pop(RECOVERY_TOKEN, None)
+        live = restart_supported and not any((offline, read_only, smoke_report, connection_report, update_smoke_dir))
+        while True:
+            if live:
+                token = env[RECOVERY_TOKEN] = uuid4().hex
+            started = time.monotonic()
+            code = subprocess.call(command, cwd=root, env=env, **process_options())
+            if code != RESTART_FOR_RECOVERY or not live:
+                break
+            # The token is new for each child, so interrupted handoffs are
+            # never replayed at a later manual launch.
+            env[RECOVERY_RETURN] = '{}'
+            try:
+                path = handoff_path(data, token)
+                try:
+                    plan = read_recovery_record(path)
+                finally:
+                    path.unlink(missing_ok=True)
+                if valid_plan(plan):
+                    env[RECOVERY_RETURN] = json.dumps(restart_game(plan))
+            except (ValueError, OSError, KeyError, TypeError, RuntimeError, psutil.Error):
+                pass  # Always restore Chat, suppress ordinary startup automation on failure.
     except OSError:
         if not marker.get('previous'):
             raise
         # The candidate may disappear or become inaccessible after its probe,
         # for example when an antivirus quarantines the executable.
         code = 1
-    if code not in (0, PROFILE_IN_USE, RESTART_FOR_UPDATE, UPDATE_DIAGNOSTIC_FAILED) and time.monotonic() - started < 45 and marker.get('previous'):
+    if code not in (0, PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_FOR_RECOVERY, UPDATE_DIAGNOSTIC_FAILED) and time.monotonic() - started < 45 and marker.get('previous'):
         slot = child(root, 'versions', marker['active'])
         recorded = load_json(child(slot, VERSION_MARKER).read_bytes())
         atomic_json(child(root, '.updates', 'attempted.json'), {'sha256': recorded.get('sha256'), 'version': marker['active']})

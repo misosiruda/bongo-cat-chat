@@ -74,6 +74,21 @@ def test_chat_teardown_destroys_page_before_profile(tmp_path):
     assert destroyed == ['page', 'profile']
 
 
+def test_unattended_recovery_setting_in_renderer(qt_chat):
+    app, controller, page = qt_chat
+    element = "document.querySelector('#unattended-recovery')"
+    assert js(app, page, element + ".disabled && !" + element + ".checked")
+    assert 'Setup.exe' in js(app, page, "document.querySelector('#recovery-unavailable').textContent")
+    assert not js(app, page, "document.querySelector('#recovery-unavailable').hidden")
+    controller.recovery.supported = True  # The offscreen fixture has no real launcher.
+    wait_until(app, lambda: js(app, page, "!" + element + ".disabled"))
+    assert js(app, page, "document.querySelector('#recovery-unavailable').hidden")
+    js(app, page, element + ".click()")
+    wait_until(app, lambda: controller.store.setting('unattended_recovery') is True)
+    js(app, page, element + ".click()")
+    wait_until(app, lambda: controller.store.setting('unattended_recovery') is False)
+
+
 @pytest.mark.parametrize('diagnostic', [False, True])
 def test_busy_profile_returns_operational_exit_without_opening_history(tmp_path, monkeypatch, diagnostic):
     app = QApplication.instance() or QApplication([])

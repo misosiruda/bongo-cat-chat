@@ -86,6 +86,7 @@ class LiveConnection:
         else:
             notice = "read_only" if self.read_only else ""
         state = {"type": "state", "account": account, "lobby": lobby if valid else "",
+                 "game_pid": self.game.pid, "game_created": self.game.created,
                  "generation": self.generation, "connected": valid, "lobby_verified": verified,
                  "pats_supported": getattr(self, 'pats_supported', False),
                  "members": sorted(members) if verified else [],

@@ -106,7 +106,16 @@ class MergeConnection:
             adapter = self.adapter
         return adapter.chest_snapshot() if adapter else None
 
-    def chest_start(self, preferences, replace_legacy=False):
+    def recovery_identity(self):
+        with self.lock:
+            if not self.adapter or self.state != 'connected':
+                return None
+            config = self.adapter.channel.config
+            return (config['pid'], config['process_start_ticks'], config['epoch'])
+
+    def chest_start(self, preferences, replace_legacy=False, *, remote_keys=None):
+        if remote_keys is not None:
+            return self._call('chest_start', preferences, False, remote_keys=remote_keys)
         return self._call('chest_start', preferences, replace_legacy)
 
     def chest_stop(self):

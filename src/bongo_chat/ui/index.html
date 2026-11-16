@@ -89,6 +89,7 @@
 
       <div class="connection-notice" id="connection-notice" role="status" hidden></div>
       <div class="connection-notice update-notice" id="update-notice" role="status" hidden></div>
+      <div class="connection-notice" id="recovery-notice" role="status" hidden><span id="recovery-status"></span> <button type="button" id="cancel-recovery" hidden>복구 대기 취소</button></div>
       <div class="search-status" id="search-status" hidden><span id="search-summary" role="status"></span><button id="clear-search" type="button">검색 지우기 <svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
       <div class="message-region">
       <div id="reaction-layer" class="reaction-layer" aria-hidden="true"></div>
@@ -224,6 +225,11 @@
         <p class="settings-note" id="notification-save-status" role="status"></p>
       </fieldset>
       <section class="update-panel" aria-labelledby="update-title"><h3 id="update-title">앱 업데이트 <span id="app-version"></span></h3><label><input type="checkbox" id="allow-update-checks"> GitHub 업데이트 확인 및 다운로드 허용</label><p class="settings-note">허용하면 새 버전을 내려받고 30초 안내 후 자동으로 재시작해 적용합니다. 입력·전송 중에는 기다리며 초안을 저장합니다. 끄면 자동·수동 확인과 자동 재시작이 중지됩니다. 이미 준비된 업데이트는 다음 실행에 적용될 수 있습니다.</p><p id="update-status" class="settings-note" role="status">업데이트 상태를 확인하고 있어요.</p><button id="check-updates" class="page-button" type="button">업데이트 확인</button></section>
+      <section aria-labelledby="recovery-title"><h3 id="recovery-title">무인 복구</h3>
+        <label><input type="checkbox" id="unattended-recovery"> 자동화 연결이 끊기면 게임과 Chat 재시작</label>
+        <p class="settings-note">합성·개봉 중 연결 장애가 2분간 계속되면 두 앱을 종료하고 마지막 로비 자동 참여를 켜요. 원래 계정과 로비를 확인한 뒤 중단된 작업을 이어가요. 처리 결과를 기다리는 동안에는 재시작을 보류해요.</p>
+        <p class="settings-note" id="recovery-unavailable" hidden>무인 복구는 최신 설치 파일로 설치한 Chat 실행기에서 사용할 수 있어요. 이전 버전에서 자동 업데이트했다면 최신 Setup.exe를 같은 폴더에 설치해 주세요.</p>
+      </section>
       <section aria-labelledby="support-title"><h3 id="support-title">문제 해결</h3><p class="settings-note">오류 진단을 자동으로 모아 제보할 수 있어요. 파일을 직접 찾을 필요가 없어요.</p><button class="page-button" data-report="app" type="button">버그 제보</button></section>
       <section aria-label="개인정보 및 오픈소스 안내"><button class="page-button" data-legal="privacy" type="button">개인정보 안내</button><button class="page-button" data-legal="licenses" type="button">오픈소스 라이선스</button><button class="page-button" data-legal="chromium" type="button">Chromium 고지</button><button class="page-button" data-legal="sources" type="button">대응 소스와 교체 방법</button></section>
       <p class="settings-note">받은 대화와 초안을 이 기기에 30일 보관합니다. 게임에서 숨긴 고양이의 채팅도 저장하며, 앱에서 차단한 상대의 새 대화는 저장하지 않습니다. 기록을 삭제해도 차단 목록은 유지됩니다.</p><button id="delete-room" class="page-button">선택한 로비 기록 삭제</button><button id="delete-all" class="page-button">현재 계정 기록 전체 삭제</button><p id="delete-confirm" hidden>삭제한 기록은 되돌릴 수 없습니다. <button id="confirm-delete" class="page-button">기록 삭제 확인</button></p><p class="settings-footnote">테마·사이드바·반응 효과·알림 설정은 이 기기에 저장돼요.</p>

@@ -19,7 +19,8 @@ from .service import ChatService, NOTIFICATION_KEYS
 from .store import Store
 from .worker import run_worker, unavailable, EVENT_QUEUE_CAPACITY
 from . import __version__
-from .exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY
+from .exit_codes import PROFILE_IN_USE, RESTART_FOR_UPDATE, RESTART_CAPABILITY, RESTART_FOR_RECOVERY
+from .game_recovery import GameRecovery, PREF as RECOVERY_PREFERENCE
 from .updates import UpdateManager
 from .privacy import update_checks_allowed, set_update_checks_allowed
 from .notifications import Notifications
@@ -104,6 +105,7 @@ class Page(QWebEnginePage):
 
 class Controller(QObject):
     restart_requested = Signal()
+    recovery_requested = Signal()
     language_changed = Signal(str)
 
     def __init__(self, data, offline=False, read_only=False, parent=None, install_root=None, update_smoke=False,
@@ -141,6 +143,9 @@ class Controller(QObject):
         self.opening_profile = False
         self.restart_supported = bool(install_root and (not offline or update_smoke)
                                       and os.environ.get(RESTART_CAPABILITY) == '1')
+        self.recovery = GameRecovery(data, self.store, bool(install_root and self.merge_connection and not update_smoke))
+        if self.recovery.returned:
+            self.chests.cancel_startup()
         self.context = mp.get_context("spawn")
         self.commands = self.context.Queue(maxsize=64)
         self.events = self.context.Queue(maxsize=EVENT_QUEUE_CAPACITY)
@@ -167,6 +172,7 @@ class Controller(QObject):
 
     def poll(self):
         if not self.closed and not self.restarting:
+            self.merger.wait_for_late_ack = self.recovery.supported and self.recovery.enabled
             self.merger.tick()
         try:
             if not self.closed and not self.restarting:
@@ -206,6 +212,8 @@ class Controller(QObject):
             if not self.closed and not self.restarting:
                 self.chests.tick_startup(self.service.connected(),
                                          self.merger.blocks_restart or self.service.storage_error)
+                if not self.service.storage_error:
+                    self.recovery.tick(self.service, self.merger, self.chests, self.merge_connection)
         except (sqlite3.Error, OSError):
             self.service.storage_error = True
 
@@ -285,6 +293,8 @@ class Controller(QObject):
                 result['auto_merge']['can_start'] = False
                 result['auto_merge']['can_change_group'] = False
             result['auto_chest'] = self.chests.snapshot()
+            result['auto_chest'].pop('owned_run', None)
+            result['recovery'] = self.recovery.view()
             result['auto_chest']['connection'] = self.merge_connection.connection_snapshot() if self.merge_connection else None
             if self.merger.blocks_restart:
                 result['auto_chest']['can_start'] = False
@@ -298,6 +308,12 @@ class Controller(QObject):
             if args.get('language') != self.language:
                 result['translations'] = ENGLISH if self.language == 'en' else {}
             return result
+        if action == 'cancel_recovery':
+            self.recovery.cancel()
+            return {'ok': True}
+        if action in {'merge_connect', 'chest_connect', 'chest_start', 'chest_stop', 'chest_save',
+                      'merge_start', 'merge_stop', 'merge_group'} and self.recovery.resume:
+            self.recovery.cancel()
         if action in {'merge_connect', 'chest_connect'}:
             self.chests.cancel_startup()
             ok = bool(self.merge_connection and not self.closed and not self.restarting
@@ -375,6 +391,9 @@ class Controller(QObject):
             self.store.draft(owner, args["lobby"], args["text"])
         elif action == "setting":
             key, value = args["key"], args["value"]
+            if key == RECOVERY_PREFERENCE:
+                self.recovery.set_enabled(value)
+                return {'ok': True}
             if key == 'language':
                 if value not in LANGUAGES:
                     raise ValueError('invalid_setting')
@@ -411,6 +430,17 @@ class Controller(QObject):
                 self.commands.put_nowait({"type": "refresh"})
         elif action == 'check_updates':
             self.updates.request()
+        elif action == 'restart_recovery':
+            if (self.closed or self.restarting or self.service.storage_error or self.service.volatile
+                    or any(item.get('status', 'pending') == 'pending' for item in self.service.pending)):
+                return {'ok': False}
+            self.recovery.tick(self.service, self.merger, self.chests, self.merge_connection)
+            if not self.recovery.handoff():
+                return {'ok': False}
+            self.restarting = True
+            self.notifications.close()
+            QTimer.singleShot(0, self.recovery_requested.emit)
+            return {'ok': True}
         elif action == 'restart_update':
             if self.chests.blocks_restart:
                 return {'ok': False, 'reason': 'auto_chest'}
@@ -456,6 +486,7 @@ class Controller(QObject):
 
     def can_restart(self):
         return (self.restart_supported and not self.closed and self.updates.enabled
+                and self.recovery.resume is None
                 and self.bug_report.current is None
                 and not self.merger.blocks_restart
                 and not self.chests.blocks_restart
@@ -554,6 +585,7 @@ def run(data, offline=False, read_only=False, smoke_report=None, connection_repo
     if smoke_report or connection_report:
         controller.restart_supported = False
     controller.restart_requested.connect(lambda: app.exit(RESTART_FOR_UPDATE))
+    controller.recovery_requested.connect(lambda: app.exit(RESTART_FOR_RECOVERY))
     app.aboutToQuit.connect(controller.close)
     view.show()
     if update_smoke_dir:

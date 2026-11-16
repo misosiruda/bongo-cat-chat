@@ -32,6 +32,8 @@ Chest types, delays and **Start chest opening when app launches** are stored in 
 
 The session folder also stores chest run/request identifiers, aggregate counts and result states in `chest-ledger.json`. Chest UI/IPC adds no remote Steam IDs, lobby IDs or raw item IDs. Identifiers needed to check current lobby membership, hidden cats and readiness remain in game memory. Losing the app connection stops new requests; it cannot cancel a request already accepted by the game or retries performed by the original game.
 
+Chest request records also keep hashes derived from the lobby, recipient and chest type to avoid asking for the same chest twice. When unattended recovery is enabled, Chat passes hashes of the original account and lobby, game process details and interrupted task settings to its launcher in a one-time file in the Chat data directory. The launcher deletes the file after reading it. Later launches ignore any file left after an interruption. Once the game exits, the launcher enables Auto-join Last Lobby in the current Windows user's game preferences. The game keeps its saved lobby code.
+
 ## Steam ID chat blocks
 
 Hiding a cat in the game does not prevent chat receipt or storage. The app stores the current account ID, blocked Steam ID and any display name known when blocking in its local database. Blocks do not expire, persist across lobbies and restarts, and are not synchronized to other PCs or Steam. A manually entered ID can have no stored name. Unblocking in Settings or the participant list deletes the block entry. History deletion, retention cleanup and uninstalling do not remove blocks.

@@ -213,6 +213,22 @@ def test_malformed_receipt_during_recovery_is_unknown_without_crashing(session):
     assert runner.state == 'unknown' and runner.completed == 0
 
 
+def test_unattended_selection_ack_can_recover_while_chat_and_observations_are_healthy(session):
+    runner, game, now = session
+    runner.wait_for_late_ack = True
+    assert runner.start(1)
+    runner.tick()
+    now[0] += 10
+    runner.tick()
+    assert runner.active and runner.reason == 'connection_recovering'
+    assert [op for op, _ in game.calls] == ['select']
+    game.selected()
+    runner.tick()
+    assert runner.state == 'merging' and runner.reason == 'ready'
+    runner.tick()
+    assert [op for op, _ in game.calls] == ['select', 'merge']
+
+
 def test_selection_timeout_and_stale_preflight(session):
     runner, game, now = session
     runner.start(10); runner.tick()

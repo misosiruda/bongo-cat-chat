@@ -59,14 +59,14 @@ namespace BongoCatChat.MergeBridge
         static Stopwatch NewClock() { var clock = new Stopwatch(); clock.Start(); return clock; }
         static long StartTicks() { long c, e, k, u; if (!GetProcessTimes(GetCurrentProcess(), out c, out e, out k, out u)) throw new InvalidOperationException("process_unverified"); return c + 504911232000000000L; }
 
-        static JObject ReadJson(string path)
+        internal static JObject ReadJson(string path, int maximumBytes = 4096)
         {
             using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
             {
-                var bytes = new byte[4097];
+                var bytes = new byte[maximumBytes + 1];
                 int count = 0, read;
                 while (count < bytes.Length && (read = stream.Read(bytes, count, bytes.Length - count)) > 0) count += read;
-                if (count > 4096) throw new InvalidOperationException("oversized_request");
+                if (count > maximumBytes) throw new InvalidOperationException("oversized_request");
                 using (var reader = new JsonTextReader(new StringReader(Encoding.UTF8.GetString(bytes, 0, count).TrimStart('\uFEFF'))))
                     return JObject.Load(reader, null);
             }
@@ -562,11 +562,13 @@ namespace BongoCatChat.MergeBridge
         static string reason = "disconnected", directory, attempt = "";
         static BongoCat.Multiplayer.OpenChestForMember[] buttons = new BongoCat.Multiplayer.OpenChestForMember[0];
         static double nextScan;
+        static readonly HashSet<string> RemoteRequests = new HashSet<string>();
         [DllImport("user32.dll")] static extern short GetAsyncKeyState(int key);
         static bool Down(int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; }
         sealed class Gate
         {
             internal bool Ready, Attempted;
+            internal string RemoteKey;
             internal double ReadyAt;
             internal void Observe(bool ready, double now)
             {
@@ -680,6 +682,20 @@ namespace BongoCatChat.MergeBridge
             if (AnyBusy()) throw new InvalidOperationException("chest_busy");
             RequireLegacyStopped((bool?)request["replace_legacy"] == true);
             directory = folder;
+            if ((bool?)request["recovered_run"] == true)
+            {
+                var saved = Bridge.ReadJson(Path.Combine(folder, "recovery-chests.json"), 40000);
+                var keys = saved["remote_keys"] as JArray;
+                if ((string)saved["attempt"] != id || keys == null || keys.Count > 512)
+                    throw new InvalidOperationException("invalid_chest_settings");
+                foreach (var key in keys)
+                {
+                    string hash = (string)key;
+                    if (hash == null || hash.Length != 64 || !hash.All(Uri.IsHexDigit))
+                        throw new InvalidOperationException("invalid_chest_settings");
+                    RemoteRequests.Add(hash);
+                }
+            }
             own = nextOwn; others = nextOthers; minDelay = lo; maxDelay = hi;
             // Durable evidence is written before arming, and before every consuming request.
             WriteLedger("armed", id);
@@ -701,6 +717,7 @@ namespace BongoCatChat.MergeBridge
         {
             var value = Bridge.Object("state", state, "attempt", id, "attempted", attempted,
                 "own_confirmed", confirmed, "failed", failed, "remote_requested", remoteRequested);
+            value["remote_keys"] = new JArray(RemoteRequests);
             string target = Path.Combine(directory, "chest-ledger.json");
             File.WriteAllText(target + ".tmp", value.ToString(Formatting.None));
             if (!MoveFileEx(target + ".tmp", target, 9)) throw new IOException("chest_ledger_failed");
@@ -713,8 +730,17 @@ namespace BongoCatChat.MergeBridge
             if (!Gates.TryGetValue(key, out gate))
             {
                 if (Gates.Count >= 512) throw new InvalidOperationException("chest_capacity");
-                gate = new Gate(); Gates.Add(key, gate);
+                gate = new Gate();
+                if (key.StartsWith("remote:", StringComparison.Ordinal))
+                {
+                    using (var hash = SHA256.Create())
+                        gate.RemoteKey = BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(key))).Replace("-", "");
+                    gate.Attempted = RemoteRequests.Contains(gate.RemoteKey);
+                }
+                Gates.Add(key, gate);
             }
+            if (!ready && gate.RemoteKey != null && RemoteRequests.Remove(gate.RemoteKey))
+                WriteLedger("remote_cycle_ended", attempt);
             gate.Observe(ready, now); return gate;
         }
         static void Own(Shop shop, string key, List<Candidate> candidates, double now)
@@ -784,6 +810,11 @@ namespace BongoCatChat.MergeBridge
                 var pool = priority.Count > 0 ? priority : candidates;
                 var selected = pool[Random.Next(pool.Count)];
                 selected.Gate.Attempted = true; nextAction = now + Delay();
+                if (selected.Gate.RemoteKey != null)
+                {
+                    RemoteRequests.Add(selected.Gate.RemoteKey);
+                    if (RemoteRequests.Count > 512) throw new InvalidOperationException("chest_capacity");
+                }
                 attempt = Guid.NewGuid().ToString("N"); attempted++;
                 WriteLedger("requested", attempt);
                 if (selected.Button != null)
