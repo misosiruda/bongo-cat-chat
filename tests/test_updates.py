@@ -330,6 +330,56 @@ def test_restart_exit_keeps_current_version_and_staged_package(installed, signin
     assert (installed / '.updates/pending' / ARCHIVE).exists()
 
 
+@pytest.mark.parametrize('failure', [False, True])
+def test_unattended_restart_returns_to_same_slot_once(installed, monkeypatch, failure):
+    from bongo_chat.exit_codes import RECOVERY_TOKEN, RECOVERY_RETURN, RESTART_FOR_RECOVERY
+    from bongo_chat.game_recovery import handoff_path
+    data = installed.parent / 'profile'
+    plan = dict(mode='merge', pid=42, ticks=123, epoch='1'*32, account='2'*64, lobby='3'*64,
+                created=1., completed=2, limit=5, favorites=False, events=True, group='emotes')
+    recovered = dict(plan, new_pid=54, new_created=2.)
+    launches, restarts = [], []
+    def child_run(command, *, env, **kwargs):
+        launches.append(env[RECOVERY_TOKEN])
+        if len(launches) == 1:
+            assert RECOVERY_RETURN not in env
+            atomic_json(handoff_path(data, launches[0]), plan)
+            return RESTART_FOR_RECOVERY
+        assert json.loads(env[RECOVERY_RETURN]) == ({} if failure else recovered)
+        assert not handoff_path(data, launches[0]).exists()
+        return 0
+    def restart(received):
+        restarts.append(received)
+        if failure:
+            raise OSError('fixture')
+        return recovered
+    monkeypatch.setattr(bootstrap.subprocess, 'call', child_run)
+    monkeypatch.setattr(bootstrap, 'restart_game', restart)
+    assert bootstrap.run_app(installed, data) == 0
+    assert len(set(launches)) == 2 and restarts == [plan]
+
+
+@pytest.mark.parametrize('record', [b'{', b'[' * 2000 + b']' * 2000, b' ' * 65537],
+                         ids=['truncated', 'deeply-nested', 'oversized'])
+def test_corrupt_handoff_reopens_chat_without_restarting_game(installed, monkeypatch, record):
+    from bongo_chat.exit_codes import RECOVERY_TOKEN, RECOVERY_RETURN, RESTART_FOR_RECOVERY
+    from bongo_chat.game_recovery import handoff_path
+    data = installed.parent / 'profile'
+    data.mkdir()
+    launches = []
+    def child_run(command, *, env, **kwargs):
+        launches.append(env[RECOVERY_TOKEN])
+        if len(launches) == 1:
+            handoff_path(data, launches[0]).write_bytes(record)
+            return RESTART_FOR_RECOVERY
+        assert len(launches) == 2 and env[RECOVERY_RETURN] == '{}'
+        return 0
+    monkeypatch.setattr(bootstrap.subprocess, 'call', child_run)
+    monkeypatch.setattr(bootstrap, 'restart_game', lambda plan: pytest.fail('invalid handoff restarted game'))
+    assert bootstrap.run_app(installed, data) == 0
+    assert len(set(launches)) == 2 and not handoff_path(data, launches[0]).exists()
+
+
 @pytest.mark.parametrize('probe_fails', [False, True])
 def test_automatic_restart_handoff_applies_or_keeps_old_app(installed, signing, monkeypatch, probe_fails):
     data = installed.parent / '기록 폴더'

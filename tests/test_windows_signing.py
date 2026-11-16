@@ -77,7 +77,7 @@ def test_signing_policy_must_be_explicit(tmp_path, arguments):
 def test_unsigned_mode_has_an_explicit_warning(tmp_path):
     result = ps(tmp_path, 'Get-CodeSigningSettings -AllowUnsigned')
     assert result.returncode == 0
-    assert b'UNSIGNED DEVELOPMENT BUILD' in result.stdout
+    assert b'UNSIGNED WINDOWS BUILD' in result.stdout
 
 
 @pytest.mark.parametrize(('script', 'arguments'), [

@@ -80,7 +80,7 @@ def main():
         page.on('console',lambda message:errors.append(message.text) if message.type=='error' else None)
         page.expose_function('fixtureRequest',request);page.goto(url)
         expect(page.locator('html')).to_have_attribute('lang','en')
-        assert page.url==url and 'Development build' in page.title()
+        assert page.url==url and page.title() == 'Bongo Cat Chat'
         expect(page.locator('.message-bubble')).to_have_count(48)
         assert not page.locator('nextjs-portal, vite-error-overlay').count()
         page.locator('#message-input').fill('Draft stays unchanged: 설정')

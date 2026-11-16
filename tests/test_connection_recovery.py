@@ -1,5 +1,6 @@
 """Fault injection against the real file channel; synthetic game only."""
 import time
+import json
 
 import pytest
 
@@ -22,10 +23,22 @@ def bridge(tmp_path):
     server.close()
 
 
+def test_recovery_starts_new_chest_run_with_old_remote_gates(bridge, tmp_path):
+    server, channel, adapter = bridge
+    server.state['chest']['legacy_detected'] = False
+    adapter.chest_start(DEFAULTS, remote_keys=['F'*64])
+    until(lambda: adapter.chest_snapshot().get('owned_run'))
+    saved = json.loads((tmp_path/'recovery-chests.json').read_bytes())
+    starts = [r for r in server.requests if r['op'] == 'chest_start']
+    assert len(starts) == 1 and starts[0]['recovered_run'] is True
+    assert saved == dict(attempt=starts[0]['operation_id'], remote_keys=['F'*64])
+
+
 def test_inventory_refresh_keeps_heartbeats_and_recovers_without_another_start(bridge):
     server, channel, adapter = bridge
     adapter.chest_start(DEFAULTS, True)
     until(lambda: adapter.chest_owns_lease and not adapter.busy)
+    until(lambda: adapter.chest_snapshot().get('owned_run') == adapter.chest_run_attempt)
     before = len([r for r in server.requests if r['op'] == 'chest_heartbeat'])
     server.state.update(ready=False, reason='inventory_refreshing')
     server.state['chest']['reason'] = 'inventory_refreshing'

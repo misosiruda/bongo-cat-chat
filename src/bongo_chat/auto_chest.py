@@ -174,14 +174,17 @@ class AutoChest:
         if not self.start():
             self.startup_status = 'failed'
 
-    def start(self, replace_legacy=False):
+    def start(self, replace_legacy=False, *, remote_keys=None):
         self.cancel_startup()
         if type(replace_legacy) is not bool:
             raise ValueError('invalid_chest_settings')
         if not self.snapshot()['can_start']:
             return False
         try:
-            self.connection.chest_start(dict(self.preferences), replace_legacy)
+            if remote_keys is not None:
+                self.connection.chest_start(dict(self.preferences), False, remote_keys=remote_keys)
+            else:
+                self.connection.chest_start(dict(self.preferences), replace_legacy)
         except Exception:
             return False
         return True

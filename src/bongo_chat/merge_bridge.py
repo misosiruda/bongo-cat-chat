@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from .auto_merge import InputRefused, Observation, Receipt, GROUP_BY_CATEGORY
 from .environment import running_game
+from .updates import atomic_json
 
 
 class CommandRefused(RuntimeError):
@@ -150,7 +151,7 @@ class BridgeChannel:
         replace_observation(temp,self.session/'heartbeat.json')
 
     def request(self, op, *, attempt=None, expected=None, group=None, limit=None,
-                chest_settings=None, replace_legacy=False, chest_run_attempt=None):
+                chest_settings=None, replace_legacy=False, chest_run_attempt=None, remote_keys=None):
         if op not in {'begin','group','select','merge','stop','snapshot','shutdown',
                       'chest_start','chest_stop','chest_heartbeat'}:
             raise InputRefused
@@ -209,6 +210,9 @@ class BridgeChannel:
             if type(replace_legacy) is not bool:
                 raise InputRefused
             request.update(chest_settings=settings(chest_settings), replace_legacy=replace_legacy)
+            if remote_keys is not None:
+                atomic_json(self.session/'recovery-chests.json', dict(attempt=attempt, remote_keys=remote_keys))
+                request['recovered_run'] = True
         if op == 'group':
             if group not in ('cosmetics','emotes'):raise InputRefused
             request['group'] = group
@@ -369,6 +373,7 @@ class BridgeAdapter:
                             if isinstance(chest, dict) and raw.get('command_sequence', 0) >= self.chest_sequence:
                                 from .auto_chest import observation as chest_observation
                                 self.chest = chest_observation(chest, value.captured_at)
+                                self.chest['run_attempt'] = chest.get('run_attempt', '')
                                 if self.chest_command_error:
                                     self.chest['reason'] = self.chest_command_error
                                 self.chest_requested = self.chest['armed']
@@ -469,13 +474,17 @@ class BridgeAdapter:
         with self.lock:
             if self.chest is None:return None
             value = dict(self.chest, supported=self.chest['supported'] and not self.fault)
+            reported_run = value.pop('run_attempt', '')
+            if (self.chest_owns_lease and not self.chest_stop_pending
+                    and reported_run == self.chest_run_attempt):
+                value['owned_run'] = self.chest_run_attempt
             if (self.busy and self.chest_run_attempt and not self.chest_stop_pending
                     and not value['armed'] and not value['unknown'] and not self.chest_command_error):
                 value.update(armed=True, reason='connection_recovering')
             return value
 
-    def chest_start(self, preferences, replace_legacy=False):
-        self._submit('chest_start', chest_settings=preferences, replace_legacy=replace_legacy)
+    def chest_start(self, preferences, replace_legacy=False, *, remote_keys=None):
+        self._submit('chest_start', chest_settings=preferences, replace_legacy=replace_legacy, remote_keys=remote_keys)
 
     def chest_stop(self):
         with self.lock:

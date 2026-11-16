@@ -1,4 +1,6 @@
-# 아이템 자동 합성 — 내부 함수 연결 개발판
+# 아이템 자동 합성 — 내부 함수 연결
+
+현재 안내는 공개 dev34의 기능을 유지하는 1.0.0 후보에 적용한다. 채팅·상자 자동 열기·아이템 자동 합성을 정식 기능으로 포함한다. 아래 날짜별 구현·소비 시험 기록은 과거 근거로 보존한다. [1.0.0 준비와 검증](release-1.0.0-validation.md)은 실제 게임 소비 시험·공개 게시와 구분한다.
 
 dev26부터 상자·합성·인벤토리 공통 기능 계약으로 연결 호환성을 검사한다. 보호 옵션·원본 합성·콜백과 의존 코드를 검사하며, 소비·미확인 결과 보호는 유지한다. [검사 범위와 소비 없는 검증](automation-feature-compatibility.md)을 참고한다.
 
@@ -30,6 +32,8 @@ dev26부터 상자·합성·인벤토리 공통 기능 계약으로 연결 호�
 3. Select **Start auto merge**. Each exchange uses ten duplicate items, keeps one of each type, and follows the game’s favorite and event-item settings. The app waits for each result before starting the next exchange.
 
 Choose **Stop** to prevent another exchange. An exchange the game has already accepted can still finish. If the app asks you to check a result, check your inventory in the game.
+
+1.0.0은 **설정 → 무인 복구**(기본 OFF)를 제공한다. 실행 중 합성의 일시 장애가 2분간 계속되면 게임과 Chat을 정상 재시작하고 원래 계정·로비·그룹·보호 설정을 재검증한 뒤 남은 횟수만 이어간다. 결과 미확인·직접 중지에는 재개하지 않는다. 기존 사용자도 자동 업데이트 적용 후 사용할 수 있으며 Setup.exe 재설치는 필요하지 않다. [설치 조건과 복구 동작](auto-chest.md#무인-복구)을 참고한다.
 
 ## 연결과 보호
 

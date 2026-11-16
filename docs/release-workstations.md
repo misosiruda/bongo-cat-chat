@@ -1,6 +1,6 @@
 # 두 Windows PC에서 번갈아 배포하기
 
-2026-10-16: 두 PC에서 배포를 요청하고 승인·서명은 [별도 릴리스 저장소](https://github.com/misosiruda/bongo-cat-chat-release)에서 수행하는 경로를 도입한다. 최종 Release는 기존 `misosiruda/bongo-cat-chat`에 게시하므로 이미 설치된 앱의 저장소·공개키·manifest 형식을 바꾸지 않는다. Windows Authenticode/SignPath는 별개이며 현재 경로는 명시적으로 확인한 미서명 개발판이다.
+2026-10-16: 두 PC에서 배포를 요청하고 승인·서명은 [별도 릴리스 저장소](https://github.com/misosiruda/bongo-cat-chat-release)에서 수행하는 경로를 도입한다. 최종 Release는 기존 `misosiruda/bongo-cat-chat`에 게시하므로 이미 설치된 앱의 저장소·공개키·manifest 형식을 바꾸지 않는다. Windows Authenticode/SignPath는 별개이며 현재 경로는 명시적으로 확인한 Windows Authenticode 미서명 빌드이다.
 
 ## PC에서 할 일
 
@@ -15,6 +15,8 @@
 브라우저의 [Request release candidate](https://github.com/misosiruda/bongo-cat-chat-release/actions/workflows/release.yml)에서도 같은 요청을 할 수 있다. 요청 시 main을 선택한다. 새 버전은 소스 버전과 일치하고 최신 공개 버전보다 높아야 한다.
 
 ## 승인과 게시
+
+1.0.0 준비에서는 게시 도구의 정식 제목과 미서명 안내를 분리했다. 앱 게시 워크플로는 릴리스 도구 `e4eb9897a7b13180a653ce49c844e35893947309`를 고정한다. [릴리스 도구 PR #3](https://github.com/misosiruda/bongo-cat-chat-release/pull/3)의 검토·병합을 먼저 마쳐야 한다. [준비 상태와 검증](release-1.0.0-validation.md)을 확인한 뒤 기존 승인 절차를 따른다. `docs/releases/1.0.0.md`의 안내는 게시 시 초안 문구를 제거하고 승인 근거와 함께 실제 Release 본문에 반영한다.
 
 키 없는 Windows 실행기에서 테스트·빌드·오프라인 화면 검사를 수행한다. 별도 작업이 생성된 ZIP·설치 파일·대응 소스의 SHA-256을 계산한다. 소스 diff, 실행 결과와 파일 해시를 확인한 뒤 `release-signing`을 직접 승인한다. 앱 코드나 후보 EXE는 서명 작업에서 실행하지 않는다.
 

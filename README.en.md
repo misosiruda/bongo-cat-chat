@@ -10,6 +10,8 @@
 - **Pat alerts** — See who is patting whom in your lobby, with consecutive counts in slim banners above the chat. [Display rules](docs/pat-alerts.md)
 - **Automatic item merging** — Choose an item group and a limit to merge duplicates one exchange at a time. [Item merging guide](docs/item-auto-merge.md#merging-items)
 
+- **Unattended recovery** — Opt in to restart the game and Chat after a prolonged connection problem and resume work in the original lobby. OFF by default; available to existing users through automatic updates. [Requirements and safeguards](docs/auto-chest.md#무인-복구)
+
 ## Chat windows
 
 The default window (1240 × 840) shows the lobby list beside the conversation and message box. All three sizes show the same sample conversation and fictional cat profiles in the app UI.
@@ -26,6 +28,6 @@ The default window (1240 × 840) shows the lobby list beside the conversation an
 2. Sign in to Steam, open **Bongo Cat**, and join a lobby in the game.
 3. Open **Bongo Cat Chat** from the Start menu and check the lobby name. Press **Enter** to send a message or **Shift + Enter** to start a new line.
 
-[Installation and updates](docs/releases/0.1.0.dev33.md#english) · [Release notes](https://github.com/misosiruda/bongo-cat-chat/releases) · [Report a problem](https://github.com/misosiruda/bongo-cat-chat/issues)
+[1.0.0 installation and update guide](docs/releases/1.0.0.md#english) · [Release notes](https://github.com/misosiruda/bongo-cat-chat/releases) · [Report a problem](https://github.com/misosiruda/bongo-cat-chat/issues)
 
 Bongo Cat Chat is an unofficial app by an independent developer. [Privacy policy](docs/privacy-policy.en.md) · [License](LICENSE)

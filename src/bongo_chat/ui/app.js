@@ -338,7 +338,7 @@
   }
   function showError(error) {
     const text = ({connection_changed:t('연결 대상이 변경되어 전송하지 않았어요. 초안은 원래 방에 남겨 두었습니다.'),
-      development_limit_50:t('개발판에서는 50 UTF-16 단위 이내로 보내 주세요.'),
+      development_limit_50:t('50 UTF-16 단위 이내로 보내 주세요.'),
       storage_failed_before_send:t('기록을 저장하지 못해 전송하지 않았어요.'),
       storage_failed:t('저장에 실패했어요. 작성한 내용은 이 창에서 확인해 주세요.'),
       legal_unavailable:t('안내 파일을 열지 못했어요. 앱 파일을 복구하거나 다시 설치해 주세요.'),
@@ -620,6 +620,20 @@
     $('update-status').textContent = text;
   }
   async function maybeRestart() {
+    if (model?.recovery?.status === 'due') {
+      if (restarting || refreshing || composing || sending || switching || nicknamePending || model.storage_error
+          || $('nickname-dialog').open || $('bug-report-dialog').open || Date.now() - lastEdit < 5000) return;
+      restarting = true; document.body.inert = true; updateSend(); clearTimeout(draftTimer);
+      let accepted = false;
+      try {
+        await saveDraft();
+        accepted = (await rpc('restart_recovery')).ok === true;
+      } catch (error) { showError(error); }
+      finally {
+        if (!accepted) {restarting = false; document.body.inert = false; updateSend();}
+      }
+      return;
+    }
     if (!restartPlan || restarting || refreshing || composing || sending || switching || $('bug-report-dialog').open || $('nickname-dialog').open || nicknamePending || model?.storage_error || mergeState?.active || mergeState?.unresolved || chestState?.armed || chestState?.pending || chestState?.unknown) return;
     if (Date.now() < Math.max(restartPlan.deadline,lastEdit+5000,restartPlan.retryAt)) return;
     restarting = true; document.body.inert = true; updateSend(); clearTimeout(draftTimer);
@@ -1041,6 +1055,22 @@
     // Refresh translations using the newest merge state, never a delayed view.
     renderMerge(data.auto_merge && data.auto_merge.revision >= mergeRevision ? data.auto_merge : mergeState, true);
     renderChest(data.auto_chest);
+    const recovery = data.recovery || {};
+    $('unattended-recovery').checked = recovery.enabled === true;
+    $('unattended-recovery').disabled = !recovery.supported;
+    $('recovery-unavailable').hidden = !!recovery.supported;
+    const recoveryText = {
+      watching:t('자동화 연결이 돌아오기를 기다리고 있어요.'),
+      due:t('작업 상태를 저장하고 게임과 Chat을 재시작해요.'),
+      waiting_room:t('무인 복구 중이에요. 원래 로비에 다시 연결되기를 기다려요.'),
+      waiting_feature:t('원래 로비에 연결됐어요. 자동화가 준비되기를 기다려요.'),
+      changed:t('계정·로비 또는 설정이 달라 자동화 재개를 중지했어요.'),
+      blocked:t('작업 결과나 보호 설정을 확인한 뒤 자동화를 직접 시작해 주세요.'),
+      failed:t('무인 복구를 완료하지 못했어요. 게임과 마지막 로비 설정을 확인해 주세요.')
+    }[recovery.status];
+    $('recovery-notice').hidden = !recoveryText;
+    $('recovery-status').textContent = recoveryText || '';
+    $('cancel-recovery').hidden = !recovery.can_cancel;
     document.documentElement.dataset.notice=data.notice || '';
     model = data;
     if (!reactionSettingPending) {
@@ -1095,7 +1125,7 @@
         || t('아직 대응 버전이 없습니다. 앱 업데이트를 주기적으로 확인합니다.');
       notice = t('{build}의 호환성을 확인하지 못해 연동을 중단했어요. {progress}', {build,progress});
     }
-    $('connection-notice').textContent = notice || (!data.blocks_ready ? t('차단 목록을 확인할 수 없어 상대 대화를 보류합니다. 연결 상태 새로고침 후 다시 확인해 주세요.') : t('개발판 · 게임의 고양이 숨김과 채팅 차단은 별개입니다. 받지 못한 대화는 복원하지 않습니다.'));
+    $('connection-notice').textContent = notice || (!data.blocks_ready ? t('차단 목록을 확인할 수 없어 상대 대화를 보류합니다. 연결 상태 새로고침 후 다시 확인해 주세요.') : t('게임의 고양이 숨김과 채팅 차단은 별개입니다. 받지 못한 대화는 복원하지 않습니다.'));
     $('connection-notice').hidden = false;
     $('storage-label').textContent = data.storage_error ? t('저장 실패 · 일부 기록 미보관') : t('이 기기에 30일 보관');
     document.querySelector('.account-copy strong').textContent = data.profiles[data.context.account]?.name || t('계정 확인 중');
@@ -1199,6 +1229,10 @@
   }
   function connect(value) {
     bridge=value;
+    $('unattended-recovery').addEventListener('change', event => rpc('setting', {
+      key:'unattended_recovery', value:event.target.checked
+    }).then(() => refresh(true)).catch(error => {showError(error); refresh(true);}));
+    $('cancel-recovery').addEventListener('click', () => rpc('cancel_recovery').then(() => refresh(true)).catch(showError));
     document.querySelectorAll('[data-report]').forEach(button => button.addEventListener('click', () => openReport(button.dataset.report)));
     $('bug-report-open').addEventListener('click', () => reportAction('bug_report_open'));
     $('bug-report-copy').addEventListener('click', () => reportAction('bug_report_copy'));

@@ -97,6 +97,27 @@ static class ChestFixture {
         remote.Active.Member.Ready = false; Step(); remote.Active.Member.Ready = true; Step(); Step();
         Check(remote.Requests == 2,"remote reset requires real false observation");
         ChestRuntime.Stop("user_stopped");
+        var previousReady = new OpenChestForMember("synthetic-peer");
+        var newReady = new OpenChestForMember("fresh-player");
+        UnityEngine.Resources.Buttons = new[] {previousReady, newReady};
+        MultiplayerLobbyReferences.GameplayInstances[previousReady.User] = new LobbyMemberInstance();
+        MultiplayerLobbyReferences.GameplayInstances[newReady.User] = new LobbyMemberInstance();
+        previousReady.Active.Member.Ready = newReady.Active.Member.Ready = true;
+        var keys = JObject.Parse(File.ReadAllText(Path.Combine(folder, "chest-ledger.json")))["remote_keys"];
+        Check(((JArray)keys).Count == 1,"only the requested remote gate is saved");
+        ((IDictionary)typeof(ChestRuntime).GetField("Gates", F).GetValue(null)).Clear();
+        ((System.Collections.Generic.HashSet<string>)typeof(ChestRuntime).GetField("RemoteRequests", F).GetValue(null)).Clear();
+        File.WriteAllText(Path.Combine(folder, "recovery-chests.json"),
+            Bridge.Object("attempt","recovered","remote_keys",keys).ToString());
+        var recovered = Config(false,true);
+        recovered["recovered_run"] = true;
+        ChestRuntime.Start(folder,recovered,"recovered");
+        Step(4); Step(); Check(previousReady.Requests == 0 && newReady.Requests == 1,
+            "return skips only previously requested chests and opens a new one");
+        previousReady.Active.Member.Ready = false; Step();
+        previousReady.Active.Member.Ready = true; Step(); Step();
+        Check(previousReady.Requests == 1,"fresh ready cycle after recovery is eligible");
+        ChestRuntime.Stop("user_stopped");
         // An existing legacy dispatcher is stopped only by explicit takeover, while idle.
         Set("legacy",typeof(Legacy));
         Reject(delegate { ChestRuntime.Start(folder,Config(),"no-consent"); },"legacy requires explicit takeover");

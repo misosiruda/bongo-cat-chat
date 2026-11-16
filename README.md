@@ -10,6 +10,8 @@
 - **복복 알림** — 같은 로비에서 누가 누구를 복복하는지 상단 배너에서 확인해요. 연속 횟수도 함께 보여요. [표시 규칙](docs/pat-alerts.md)
 - **아이템 자동 합성** — 아이템 그룹과 최대 횟수를 정하면 중복 아이템을 한 번씩 합성해요. [합성 사용법](docs/item-auto-merge.md#ui와-사용-흐름)
 
+- **무인 복구** — 선택해서 켜면 장기 연결 장애 때 게임과 Chat을 재시작하고 원래 로비의 작업을 이어가요. 기본 OFF이며 기존 사용자도 자동 업데이트로 사용할 수 있어요. [사용 조건과 보호](docs/auto-chest.md#무인-복구)
+
 ## 채팅 화면
 
 기본 창(1240 × 840)에서는 왼쪽에 로비 목록을, 오른쪽에 대화와 입력창을 함께 볼 수 있어요. 아래 세 화면은 앱 UI에 같은 예시 대화와 가상의 고양이 프로필을 표시한 모습이에요.
@@ -26,6 +28,6 @@
 2. Steam에 로그인하고 **Bongo Cat**을 켠 뒤 게임 안에서 로비에 참여해요.
 3. 시작 메뉴에서 **Bongo Cat Chat**을 열고 로비 이름을 확인해요. **Enter**로 보내고 **Shift + Enter**로 줄을 바꿔요.
 
-[설치·업데이트 안내](docs/installation.md) · [릴리스 노트](https://github.com/misosiruda/bongo-cat-chat/releases) · [문제 제보](https://github.com/misosiruda/bongo-cat-chat/issues)
+[1.0.0 전환 안내](docs/releases/1.0.0.md) · [설치·업데이트 안내](docs/installation.md) · [릴리스 노트](https://github.com/misosiruda/bongo-cat-chat/releases) · [문제 제보](https://github.com/misosiruda/bongo-cat-chat/issues)
 
 Bongo Cat Chat은 독립 개발자가 만든 비공식 앱이에요. [개인정보 안내](docs/privacy-policy.md) · [라이선스](LICENSE)

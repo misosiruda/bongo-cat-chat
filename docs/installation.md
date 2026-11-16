@@ -2,7 +2,7 @@
 
 일반 이용자는 설치 파일 하나로 설치한다. Python, Git, 명령어 입력이나 관리자 권한은 필요하지 않다. Windows 10/11 64비트(x64), Steam 및 Bongo Cat을 준비한다.
 
-[최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받는다. `Source code` ZIP과 `bongo-cat-chat-windows-x64.zip`은 일반 설치 파일이 아니다. 후자는 앱 업데이트용이다. [dev34 설치·첫 실행 안내](releases/0.1.0.dev34.md)에 설치 파일 직접 링크와 한국어·영어 단계별 안내가 있다.
+[최신 릴리스](https://github.com/misosiruda/bongo-cat-chat/releases/latest)에서 `BongoCatChat-<버전>-windows-x64-Setup.exe`를 받는다. `Source code` ZIP과 `bongo-cat-chat-windows-x64.zip`은 일반 설치 파일이 아니다. 후자는 앱 업데이트용이다. [1.0.0 설치·첫 실행 안내 초안](releases/1.0.0.md)에 설치 파일 직접 링크와 한국어·영어 단계별 안내가 있다.
 
 ## 설치와 시작
 
@@ -38,10 +38,16 @@ dev17은 게임의 고양이 숨김과 채팅 차단을 분리한다. 게임에�
 
 설치 중 개인정보 안내와 GitHub 업데이트 통신 선택을 제공한다. 재설치 때 기존 선택을 유지하며 앱 설정에서 변경할 수 있다. 앱 설정에서 개인정보·오픈소스 고지·대응 소스를 열람할 수 있다. [Privacy policy](privacy-policy.md) · [Code signing policy](code-signing-policy.md) · [대응 소스](licensing/SOURCES.md).
 
+## 무인 복구 설치 조건
+
+1.0.0의 **설정 → 무인 복구**는 기본 OFF다. 사용자가 켜면 장기 장애 때 게임과 Chat을 정상 종료하고, 마지막 로비 자동 참여를 켠 뒤 원래 계정·로비·작업 조건을 확인해 자동화를 이어간다. 결과 미확인이나 사용자 중지에는 재개하지 않는다. [동작과 보호 조건](auto-chest.md#무인-복구)을 확인한다.
+
+기존 사용자는 **자동 업데이트를 적용한 첫 실행부터** 무인 복구를 사용할 수 있다. Setup.exe 재설치는 필요하지 않으며 기록·설정을 유지한다. 업데이트는 실행기 파일도 바꾸고, 첫 실행을 아직 이전 도우미가 관리하는 경우 앱이 현재 버전의 복구 제어를 제공한다. 진행 중인 결과를 확인하고 게임도 한 번 직접 재실행해 새 연결 모듈을 적용한다.
+
 ## 제거와 기록
 
 Windows **설정 → 앱 → 설치된 앱 → Bongo Cat Chat → 제거**를 사용한다. Windows 10에서는 **앱 및 기능**에서 찾는다.
 
 제거해도 대화 기록과 설정은 남는다. 대화 기록까지 지우려면 제거 전에 앱 설정에서 선택한 로비 또는 현재 계정의 기록을 삭제한다. 대화·초안·입퇴장 안내의 기본 보관 기간은 30일이며 앱 실행 중 정리한다. 차단 목록은 기록 삭제나 30일 정리로 지워지지 않고 직접 해제해야 한다. 앱을 꺼 둔 동안의 채팅을 복원하지 않는다.
 
-개발자의 빌드·검사 절차는 [Windows 개발판](windows-app.md), 실제 시험 범위는 [설치 검증 기록](installer-validation.md)에 구분한다.
+개발자의 빌드·검사 절차는 [Windows 앱](windows-app.md), 실제 시험 범위는 [설치 검증 기록](installer-validation.md)에 구분한다.
