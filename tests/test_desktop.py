@@ -44,6 +44,36 @@ def seed_history(service, messages):
         received(service, text)
 
 
+def close_chat(app, controller, view):
+    """Release the page before its non-default profile and drain native deletion."""
+    view.close()
+    page = view.page()
+    page.webChannel().deregisterObject(controller)
+    page.setWebChannel(None)
+    controller.close()
+    # Qt requires a non-default profile to outlive every page using it. The
+    # profile is an earlier child of view, so deleting only view reverses that
+    # order and can leave Chromium work referring to an already freed profile.
+    page.deleteLater()
+    app.sendPostedEvents(page, QEvent.Type.DeferredDelete)
+    view.deleteLater()
+    app.sendPostedEvents(view, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+def test_chat_teardown_destroys_page_before_profile(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    controller = Controller(tmp_path, offline=True)
+    view = window(controller)
+    page = view.page()
+    destroyed = []
+    page.destroyed.connect(lambda: destroyed.append('page'))
+    page.profile().destroyed.connect(lambda: destroyed.append('profile'))
+    view.show()
+    close_chat(app, controller, view)
+    assert destroyed == ['page', 'profile']
+
+
 @pytest.mark.parametrize('diagnostic', [False, True])
 def test_busy_profile_returns_operational_exit_without_opening_history(tmp_path, monkeypatch, diagnostic):
     app = QApplication.instance() or QApplication([])
@@ -93,7 +123,8 @@ def test_actual_qt_bridge_history_theme_hide_ime(tmp_path):
         assert js(app,page,"document.body.textContent.includes('한글 <script>')") is False
         assert not page.console_errors, page.console_errors
     finally:
-        heartbeat.stop();view.close();controller.close();view.deleteLater();app.processEvents()
+        heartbeat.stop()
+        close_chat(app, controller, view)
 
 
 @pytest.fixture
@@ -136,15 +167,7 @@ def qt_chat(tmp_path):
         assert not page.console_errors, page.console_errors
     finally:
         heartbeat.stop()
-        view.close()
-        # Stop WebChannel callbacks before releasing the registered controller.
-        # processEvents alone does not drain deferred widget deletion between
-        # fixtures, leaving old channels alive when Python collects controllers.
-        page.webChannel().deregisterObject(controller)
-        controller.close()
-        view.deleteLater()
-        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        app.processEvents()
+        close_chat(app, controller, view)
 
 
 @pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"], ids=["lf", "crlf", "cr"])
