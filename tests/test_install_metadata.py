@@ -48,6 +48,26 @@ def test_active_version_only_and_other_values_preserved(registered):
     assert displayed(key) == '0.1.0.dev34'
 
 
+def test_owned_registration_accepts_windows_path_casing(registered):
+    import winreg
+    root, key = registered
+    # Windows may launch the same installation using different drive/path case.
+    winreg.SetValueEx(key, 'InstallLocation', 0, winreg.REG_SZ, str(root).upper())
+    winreg.SetValueEx(key, 'UninstallString', 0, winreg.REG_SZ, f'"{str(root / "Uninstall.exe").upper()}"')
+    assert metadata.sync_installed_version(root, '1.0.0')
+    assert displayed(key) == '1.0.0'
+
+
+@pytest.mark.parametrize('uninstall', ['Uninstall.exe', '"Uninstall.exe"',
+                                      '"{root}\\Uninstall.exe" /S', '"{root}\\Uninstall.exe" extra"'])
+def test_ambiguous_uninstall_commands_do_not_establish_ownership(registered, uninstall):
+    import winreg
+    root, key = registered
+    winreg.SetValueEx(key, 'UninstallString', 0, winreg.REG_SZ, uninstall.format(root=root))
+    assert not metadata.sync_installed_version(root)
+    assert displayed(key) == '0.1.0.dev34'
+
+
 @pytest.mark.parametrize('field,value', [('InstallLocation', 'C:\\other'), ('InstallLocation', 'relative'),
                                        ('UninstallString', '"C:\\other\\Uninstall.exe"')])
 def test_foreign_or_malformed_registration_is_untouched(registered, field, value):

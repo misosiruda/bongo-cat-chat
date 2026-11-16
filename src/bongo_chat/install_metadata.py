@@ -38,7 +38,12 @@ def sync_installed_version(root, expected_version=None):
                     if no_links(location) != root:
                         continue
                     uninstall, kind = winreg.QueryValueEx(key, 'UninstallString')
-                    if kind != winreg.REG_SZ or uninstall != f'"{child(root, "Uninstall.exe")}"':
+                    if (kind != winreg.REG_SZ or not isinstance(uninstall, str)
+                            or len(uninstall) < 3 or uninstall[0] != '"' or uninstall[-1] != '"'
+                            or '"' in uninstall[1:-1]):
+                        continue
+                    uninstaller = Path(uninstall[1:-1])
+                    if not uninstaller.is_absolute() or no_links(uninstaller) != child(root, 'Uninstall.exe'):
                         continue
                     winreg.SetValueEx(key, 'DisplayVersion', 0, winreg.REG_SZ, active)
                     return True
