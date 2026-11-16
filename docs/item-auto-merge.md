@@ -33,7 +33,7 @@ dev26부터 상자·합성·인벤토리 공통 기능 계약으로 연결 호�
 
 Choose **Stop** to prevent another exchange. An exchange the game has already accepted can still finish. If the app asks you to check a result, check your inventory in the game.
 
-1.0.0은 **설정 → 무인 복구**(기본 OFF)를 제공한다. 실행 중 합성의 일시 장애가 2분간 계속되면 게임과 Chat을 정상 재시작하고 원래 계정·로비·그룹·보호 설정을 재검증한 뒤 남은 횟수만 이어간다. 결과 미확인·직접 중지에는 재개하지 않는다. 이전 개발판의 자동 업데이트만으로는 실행기가 갱신되지 않으므로 최신 Setup.exe를 같은 폴더에 설치해야 한다. [설치 조건과 복구 동작](auto-chest.md#무인-복구)을 참고한다.
+1.0.0은 **설정 → 무인 복구**(기본 OFF)를 제공한다. 실행 중 합성의 일시 장애가 2분간 계속되면 게임과 Chat을 정상 재시작하고 원래 계정·로비·그룹·보호 설정을 재검증한 뒤 남은 횟수만 이어간다. 결과 미확인·직접 중지에는 재개하지 않는다. 기존 사용자도 자동 업데이트 적용 후 사용할 수 있으며 Setup.exe 재설치는 필요하지 않다. [설치 조건과 복구 동작](auto-chest.md#무인-복구)을 참고한다.
 
 ## 연결과 보호
 

@@ -27,7 +27,6 @@ def main():
         if (not args.offline or not args.install_root or args.smoke_report or args.connection_report
                 or not any(value == '--data-dir' or value.startswith('--data-dir=') for value in sys.argv[1:])):
             parser.error('--update-smoke-dir requires an installed offline app and explicit --data-dir')
-    from .desktop import run
     install_root = None
     if args.install_root:
         from . import __version__
@@ -38,6 +37,10 @@ def main():
         import sys
         if marker['active'] != __version__ or no_links(sys.executable) != expected or args.data_dir.resolve().is_relative_to(install_root):
             parser.error('invalid installation or data directory')
+    from .launcher_compat import needs_session_host, run_session_host
+    if needs_session_host(install_root, args):
+        return run_session_host(install_root, args.data_dir.resolve())
+    from .desktop import run
     from . import __version__
     from .install_metadata import run_with_install_metadata
     return run_with_install_metadata(install_root, __version__, lambda: run(

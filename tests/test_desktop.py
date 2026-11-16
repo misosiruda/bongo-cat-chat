@@ -78,7 +78,7 @@ def test_unattended_recovery_setting_in_renderer(qt_chat):
     app, controller, page = qt_chat
     element = "document.querySelector('#unattended-recovery')"
     assert js(app, page, element + ".disabled && !" + element + ".checked")
-    assert 'Setup.exe' in js(app, page, "document.querySelector('#recovery-unavailable').textContent")
+    assert '시작 메뉴' in js(app, page, "document.querySelector('#recovery-unavailable').textContent")
     assert not js(app, page, "document.querySelector('#recovery-unavailable').hidden")
     controller.recovery.supported = True  # The offscreen fixture has no real launcher.
     wait_until(app, lambda: js(app, page, "!" + element + ".disabled"))

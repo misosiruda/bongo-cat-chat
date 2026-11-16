@@ -133,6 +133,17 @@ def test_new_launcher_restores_registration_on_rollback(registered, monkeypatch)
     assert installation(root)['active'] == displayed(key) == '0.1.0.dev34'
 
 
+@pytest.mark.parametrize('code', [0, 1])
+def test_legacy_session_host_defers_registration_until_child_result(registered, monkeypatch, code):
+    root, key = registered
+    def launch(*args, **kwargs):
+        assert displayed(key) == '0.1.0.dev34'
+        return code
+    monkeypatch.setattr(bootstrap.subprocess, 'call', launch)
+    assert bootstrap.run_app(root, root.parent / 'data', legacy_host=True) == code
+    assert displayed(key) == ('1.0.0' if code == 0 else '0.1.0.dev34')
+
+
 def test_source_runs_never_register(monkeypatch):
     monkeypatch.setattr(metadata, 'sync_installed_version', lambda *args: pytest.fail('source run touched registry'))
     assert metadata.run_with_install_metadata(None, '1.0.0', lambda: 0) == 0

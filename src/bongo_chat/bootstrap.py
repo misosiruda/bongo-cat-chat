@@ -154,9 +154,10 @@ def clean_cache(root):
                     pass  # A bootloader may still be finishing its own cleanup.
 
 
-def run_app(root, data, offline=False, read_only=False, smoke_report=None, connection_report=None, update_smoke_dir=None, restart_supported=True):
+def run_app(root, data, offline=False, read_only=False, smoke_report=None, connection_report=None, update_smoke_dir=None, restart_supported=True, *, legacy_host=False):
     marker = installation(root)
-    sync_installed_version(root)
+    if not legacy_host:
+        sync_installed_version(root)
     command = [str(child(root, 'versions', marker['active'], APP)), '--install-root', str(root), '--data-dir', str(data)]
     if offline:
         command.append('--offline')

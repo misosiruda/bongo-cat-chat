@@ -10,7 +10,7 @@
 - **Pat alerts** — See who is patting whom in your lobby, with consecutive counts in slim banners above the chat. [Display rules](docs/pat-alerts.md)
 - **Automatic item merging** — Choose an item group and a limit to merge duplicates one exchange at a time. [Item merging guide](docs/item-auto-merge.md#merging-items)
 
-- **Unattended recovery** — Opt in to restart the game and Chat after a prolonged connection problem and resume work in the original lobby. OFF by default; requires the latest Setup.exe launcher. [Requirements and safeguards](docs/auto-chest.md#무인-복구)
+- **Unattended recovery** — Opt in to restart the game and Chat after a prolonged connection problem and resume work in the original lobby. OFF by default; available to existing users through automatic updates. [Requirements and safeguards](docs/auto-chest.md#무인-복구)
 
 ## Chat windows
 
