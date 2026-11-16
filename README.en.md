@@ -28,6 +28,6 @@ The default window (1240 × 840) shows the lobby list beside the conversation an
 2. Sign in to Steam, open **Bongo Cat**, and join a lobby in the game.
 3. Open **Bongo Cat Chat** from the Start menu and check the lobby name. Press **Enter** to send a message or **Shift + Enter** to start a new line.
 
-[1.0.0 installation and update draft](docs/releases/1.0.0.md#english) · [Release notes](https://github.com/misosiruda/bongo-cat-chat/releases) · [Report a problem](https://github.com/misosiruda/bongo-cat-chat/issues)
+[1.0.0 installation and update guide](docs/releases/1.0.0.md#english) · [Release notes](https://github.com/misosiruda/bongo-cat-chat/releases) · [Report a problem](https://github.com/misosiruda/bongo-cat-chat/issues)
 
 Bongo Cat Chat is an unofficial app by an independent developer. [Privacy policy](docs/privacy-policy.en.md) · [License](LICENSE)
