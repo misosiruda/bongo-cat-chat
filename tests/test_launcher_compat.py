@@ -6,7 +6,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from bongo_chat import __main__ as entry, bootstrap, launcher_compat as compat
+from bongo_chat import __version__, __main__ as entry, bootstrap, launcher_compat as compat
 from bongo_chat.exit_codes import RECOVERY_RETURN, RECOVERY_TOKEN, RESTART_CAPABILITY
 from bongo_chat.game_recovery import GameRecovery, handoff_path
 from bongo_chat.updates import atomic_json, installation
@@ -22,7 +22,7 @@ def args(**overrides):
 @pytest.fixture
 def old_parent(installed, monkeypatch):
     monkeypatch.setattr(sys, 'frozen', True, raising=False)
-    monkeypatch.setattr(sys, 'executable', str(installed / 'versions/1.0.0/BongoCatChatApp/BongoCatChatApp.exe'))
+    monkeypatch.setattr(sys, 'executable', str(installed / 'versions' / __version__ / 'BongoCatChatApp/BongoCatChatApp.exe'))
     monkeypatch.delenv(RECOVERY_TOKEN, raising=False)
     monkeypatch.delenv(RECOVERY_RETURN, raising=False)
     monkeypatch.setenv(RESTART_CAPABILITY, '1')
@@ -67,7 +67,7 @@ def test_dev34_signed_update_first_session_without_setup(installed, signing, mon
     legacy.__package__ = 'bongo_chat'
     source = Path(__file__).with_name('fixtures').joinpath('dev34_bootstrap.py').read_text(encoding='utf-8-sig')
     exec(compile(source, '<dev34 bootstrap>', 'exec'), legacy.__dict__)
-    assets = package(signing, release_version='1.0.0')
+    assets = package(signing, release_version=__version__)
     pending(installed, assets)
     legacy.apply_pending(installed, signing[1], probe=lambda *a: None)
     # The old updater already replaces the launcher on disk, before opening UI.
@@ -115,6 +115,6 @@ def test_dev34_signed_update_first_session_without_setup(installed, signing, mon
         assert children[0][RECOVERY_TOKEN] != children[1][RECOVERY_TOKEN]
     else:
         assert not restarts
-    assert installation(installed)['active'] == ('0.1.0' if child_exit in (1, 'launch_error') else '1.0.0')
+    assert installation(installed)['active'] == ('0.1.0' if child_exit in (1, 'launch_error') else __version__)
     assert history.read_bytes() == b'unchanged history and preferences'
     assert (installed / 'unrelated.txt').read_text() == 'preserve'
