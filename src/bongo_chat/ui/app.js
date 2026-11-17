@@ -1130,6 +1130,9 @@
     $('message-input').placeholder = selected === data.context.lobby ? t('메시지 입력') : t('이 로비에 남겨 둘 초안');
     $('search-status').hidden=!query; $('search-summary').textContent=t('현재 페이지 {count}개 결과', {count:data.messages.length});
     // The history control changes the content height; settle it before restoring the anchor.
+    // Search pagination must remain clickable above the persistent search overlay.
+    const olderParent = query ? $('search-status') : $('message-scroll');
+    if ($('older').parentElement !== olderParent) olderParent.prepend($('older'));
     $('older').hidden=!data.has_more;
     renderMessages(data,position); renderReactions(data); updateSend();
   }

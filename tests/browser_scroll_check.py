@@ -138,6 +138,28 @@ def main():
                 wait_bottom(f)
                 f.page.screenshot(path=str(args.output/f"scroll-bottom-{viewport['width']}.png"))
                 passed(f"manual_bottom_and_fixed_navigation_{viewport['width']}")
+          for viewport in [{'width':1280,'height':800},{'width':400,'height':500}]:
+            with fixture(browser,url,205,viewport) as f:
+                geometry = "(el)=>JSON.stringify([el.clientHeight,el.getBoundingClientRect().top])"
+                before = f.page.locator('#message-scroll').evaluate(geometry)
+                f.page.locator('#mobile-menu' if viewport['width'] == 400 else '#header-search').click()
+                f.page.locator('#message-search').fill('스크롤 검증')
+                expect(f.page.locator('#search-status')).to_be_visible()
+                if viewport['width'] == 400:
+                    f.page.locator('#drawer-backdrop').click(position={'x':390,'y':400})
+                expect(f.page.locator('#search-status #older')).to_be_visible()
+                f.page.locator('#older').click()
+                expect(f.page.locator('.message')).to_have_count(100)
+                expect(f.page.locator('#message-fixture-105')).to_be_visible()
+                f.page.locator('#older').click()
+                expect(f.page.locator('.message')).to_have_count(5)
+                expect(f.page.locator('#older')).to_be_hidden()
+                assert f.page.locator('#message-scroll').evaluate(geometry) == before
+                f.page.locator('#clear-search').click()
+                expect(f.page.locator('#search-status')).to_be_hidden()
+                assert f.page.locator('#message-scroll > #older').count() == 1
+                assert f.page.locator('#message-scroll').evaluate(geometry) == before
+                passed(f"search_overlay_pagination_{viewport['width']}")
           with fixture(browser,url,300) as f:
             f.page.locator('#message-input').fill('가상 초안')
             f.middle(); anchor=f.snapshot()
