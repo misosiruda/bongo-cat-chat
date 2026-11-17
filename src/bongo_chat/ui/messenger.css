@@ -107,10 +107,12 @@ h1 { font-size: calc(var(--u) * 32); font-weight: 700; line-height: 1.3; letter-
 .action-divider { height: 29px; width: 1px; background: var(--line); margin: 0 1px; }
 .mobile-menu { display: none; }
 .connection-notice { padding: 12px 28px; font-size: 14px; color: var(--muted); background: var(--sidebar); border-bottom: 1px solid var(--line); }
-.search-status { padding: 11px calc(var(--u) * 38); display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); }
+.search-status { background: var(--sidebar); padding: 11px calc(var(--u) * 38); display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); }
 .search-status button { color: var(--accent-ink); background: transparent; display: flex; align-items: center; gap: 5px; padding: 4px; }
 .search-status svg { height: 16px; width: 16px; }
 .message-region { position: relative; display: flex; flex: 1; min-height: 0; min-width: 0; }
+.message-overlays { position: absolute; inset: 0 0 auto; z-index: 3; display: flex; flex-direction: column; max-height: 100%; overflow-y: auto; pointer-events: none; }
+.message-overlays > * { flex-shrink: 0; pointer-events: auto; }
 .pat-zone { flex: none; min-width: 0; padding: 12px 20px 0; }
 #pat-list { display: flex; flex-direction: column; gap: 6px; }
 .pat-row { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 43px; padding: 8px 12px; background: var(--pat-bg); border: 1px solid var(--pat-line); border-radius: 9px; }

@@ -89,6 +89,69 @@ def test_unattended_recovery_setting_in_renderer(qt_chat):
     wait_until(app, lambda: controller.store.setting('unattended_recovery') is False)
 
 
+@pytest.mark.parametrize('size', [(400, 500), (536, 1000), (1240, 840)])
+@pytest.mark.parametrize('at_bottom', [False, True])
+def test_recovery_notice_does_not_move_chat_and_cancel_remains_available(qt_chat, size, at_bottom):
+    app, controller, page = qt_chat
+    page.parent().resize(*size)
+    seed_history(controller.service, [f'스크롤 검증 {i}' for i in range(35)])
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message').length") == 36)
+    measure = """JSON.stringify((()=>{
+      const scroll=document.querySelector('#message-scroll'), rect=scroll.getBoundingClientRect();
+      return [scroll.scrollTop, scroll.scrollHeight, scroll.clientHeight, rect.top];
+    })())"""
+    position = "document.querySelector('#message-scroll').scrollHeight" if at_bottom else '300'
+    js(app, page, f"document.querySelector('#message-scroll').scrollTop={position}")
+    baseline = js(app, page, measure)
+    for status in ('watching', 'idle', 'watching', 'idle'):
+        controller.recovery.status = status
+        expected = 'true' if status == 'idle' else 'false'
+        wait_until(app, lambda: js(app, page, f"document.querySelector('#recovery-notice').hidden === {expected}"))
+        assert js(app, page, measure) == baseline
+
+    controller.recovery.status = 'waiting_room'
+    controller.recovery.resume = {}
+    js(app, page, "document.querySelector('#settings-button').click()")
+    wait_until(app, lambda: js(app, page, "!document.querySelector('#cancel-recovery').hidden"))
+    assert js(app, page, "document.querySelector('#settings-dialog').contains(document.querySelector('#recovery-notice'))")
+    js(app, page, "document.querySelector('#cancel-recovery').click()")
+    wait_until(app, lambda: controller.recovery.resume is None and controller.recovery.status == 'idle')
+
+
+@pytest.mark.parametrize('size', [(400, 500), (536, 1000), (1240, 840)])
+def test_chat_status_overlays_preserve_scroll_geometry(qt_chat, size):
+    app, controller, page = qt_chat
+    page.parent().resize(*size)
+    seed_history(controller.service, [f'겹침 표시 검증 {i}' for i in range(35)])
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message').length") == 36)
+    assert js(app, page, "document.querySelector('#connection-notice').hidden && !document.querySelector('#connection-notice').textContent")
+    assert js(app, page, "document.querySelector('#settings-dialog').contains(document.querySelector('#connection-notice'))")
+    assert js(app, page, """(()=>{
+      const scroll=document.querySelector('#message-scroll');
+      const banners=['merge-run-bar','update-notice','search-status'].map(id=>document.getElementById(id));
+      const saved=banners.map(el=>el.hidden);
+      const stop=document.querySelector('#merge-run-stop'), stopHidden=stop.hidden;
+      stop.hidden=false;
+      const geometry=()=>JSON.stringify([scroll.scrollTop,scroll.scrollHeight,scroll.clientHeight,scroll.getBoundingClientRect().top]);
+      try {
+        for(const top of [300,scroll.scrollHeight]) {
+          scroll.scrollTop=top;
+          const before=geometry();
+          for(const visible of [true,false,true,false]) {
+            banners.forEach(el=>el.hidden=!visible);
+            if(geometry()!==before) return 'geometry: '+before+' -> '+geometry();
+            if(visible) {
+              const rect=stop.getBoundingClientRect();
+              const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+              if(hit!==stop) return 'hit: '+hit?.outerHTML;
+            }
+          }
+        }
+        return 'ok';
+      } finally { banners.forEach((el,i)=>el.hidden=saved[i]); stop.hidden=stopHidden; }
+    })()""") == 'ok'
+
+
 @pytest.mark.parametrize('diagnostic', [False, True])
 def test_busy_profile_returns_operational_exit_without_opening_history(tmp_path, monkeypatch, diagnostic):
     app = QApplication.instance() or QApplication([])
