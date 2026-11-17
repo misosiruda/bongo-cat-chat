@@ -96,18 +96,11 @@
   const patRows = new Map(), expiredPats = new Set();
   let patHidden = [];
 
-  function patLayout(change) {
-    const height = $('pat-zone').offsetHeight, position = capturePosition();
-    change();
-    if (height !== $('pat-zone').offsetHeight) restorePosition(position);
-  }
   function clearPats() {
     cancelAnimationFrame(patFrame); patFrame = 0;
     if (!patRows.size && !patHidden.length && $('pat-zone').hidden) return;
-    patLayout(() => {
-      patRows.clear(); patHidden = []; $('pat-list').replaceChildren();
-      $('pat-overflow').hidden = true; $('pat-zone').hidden = true;
-    });
+    patRows.clear(); patHidden = []; $('pat-list').replaceChildren();
+    $('pat-overflow').hidden = true; $('pat-zone').hidden = true;
   }
   function patsVisible() {
     return patsEnabled && !patSettingPending && !restarting && !switching && !document.hidden && !query
@@ -117,65 +110,58 @@
     patFrame = 0;
     if (!patsVisible()) {clearPats(); return;}
     const now = performance.now();
-    const changesHeight = [...patRows.values()].some(row => row.until <= now)
-      || $('pat-overflow').hidden === patHidden.some(until => until > now);
-    const update = () => {
-      for (const [key, row] of patRows) {
-        const remaining = row.until - now;
-        if (remaining <= 0) {
-          expiredPats.add(row.id);
-          if (expiredPats.size > 256) expiredPats.delete(expiredPats.values().next().value);
-          row.el.remove(); patRows.delete(key);
-        } else {
-          // Absolute deadlines avoid stale animation callbacks deleting a revived row.
-          row.el.style.opacity = String(Math.min(1, remaining / 1000));
-          row.el.classList.toggle('is-fading', remaining <= 1000);
-        }
+    for (const [key, row] of patRows) {
+      const remaining = row.until - now;
+      if (remaining <= 0) {
+        expiredPats.add(row.id);
+        if (expiredPats.size > 256) expiredPats.delete(expiredPats.values().next().value);
+        row.el.remove(); patRows.delete(key);
+      } else {
+        // Absolute deadlines avoid stale animation callbacks deleting a revived row.
+        row.el.style.opacity = String(Math.min(1, remaining / 1000));
+        row.el.classList.toggle('is-fading', remaining <= 1000);
       }
-      patHidden = patHidden.filter(until => until > now);
-      $('pat-overflow').hidden = !patHidden.length;
-      $('pat-overflow').textContent = t('+{count}쌍도 복복 중', {count:patHidden.length});
-      $('pat-zone').hidden = !patRows.size && !patHidden.length;
-    };
-    if (changesHeight) patLayout(update); else update();
+    }
+    patHidden = patHidden.filter(until => until > now);
+    $('pat-overflow').hidden = !patHidden.length;
+    $('pat-overflow').textContent = t('+{count}쌍도 복복 중', {count:patHidden.length});
+    $('pat-zone').hidden = !patRows.size && !patHidden.length;
     if (patRows.size || patHidden.length) patFrame = requestAnimationFrame(tickPats);
   }
   function renderPats(data, requestedAt) {
     const now = performance.now(), keep = new Set();
-    patLayout(() => {
-      for (const item of (data.rows || []).slice(0, 3)) {
-        const key = JSON.stringify([item.sender, item.target]), until = requestedAt + item.expires_in_ms;
-        if (until <= now || expiredPats.has(item.id)) continue;
-        keep.add(key);
-        let row = patRows.get(key);
-        if (!row) {
-          const el = node('div', 'pat-row'); el.setAttribute('role', 'listitem');
-          el.dataset.sender = item.sender; el.dataset.target = item.target;
-          const heart = node('span', 'pat-heart', '♥'); heart.setAttribute('aria-hidden', 'true');
-          const copy = node('span', 'pat-copy'), count = node('span', 'pat-count');
-          el.append(heart, copy, count); row = {el, copy, count}; patRows.set(key, row);
-        }
-        row.until = row.id === item.id ? Math.min(row.until, until) : until;
-        row.id = item.id;
-        const sender = item.sender_name || t('이름 확인 중'), target = item.target_name || t('이름 확인 중');
-        const sentence = t('{sender}가 {target}를 복복복 하고 있습니다.');
-        // Insert names as text nodes; names can contain HTML or translation tokens.
-        row.copy.replaceChildren(...sentence.split(/(\{sender\}|\{target\})/).map(part =>
-          part === '{sender}' || part === '{target}' ? node('strong', '', part === '{sender}' ? sender : target) : document.createTextNode(part)));
-        row.copy.title = row.copy.textContent;
-        row.count.textContent = `×${item.count}`;
-        row.el.setAttribute('aria-label', t('{sender} → {target}, 복복 {count}번', {sender,target,count:item.count}));
+    for (const item of (data.rows || []).slice(0, 3)) {
+      const key = JSON.stringify([item.sender, item.target]), until = requestedAt + item.expires_in_ms;
+      if (until <= now || expiredPats.has(item.id)) continue;
+      keep.add(key);
+      let row = patRows.get(key);
+      if (!row) {
+        const el = node('div', 'pat-row'); el.setAttribute('role', 'listitem');
+        el.dataset.sender = item.sender; el.dataset.target = item.target;
+        const heart = node('span', 'pat-heart', '♥'); heart.setAttribute('aria-hidden', 'true');
+        const copy = node('span', 'pat-copy'), count = node('span', 'pat-count');
+        el.append(heart, copy, count); row = {el, copy, count}; patRows.set(key, row);
       }
-      for (const [key, row] of patRows) if (!keep.has(key)) {row.el.remove(); patRows.delete(key);}
-      // Preserve each DOM node even when another slot is replaced or removed.
-      const ordered = (data.rows || []).map(item => patRows.get(JSON.stringify([item.sender,item.target]))).filter(Boolean);
-      ordered.forEach((row, index) => {
-        const current = $('pat-list').children[index];
-        if (current !== row.el) $('pat-list').insertBefore(row.el, current || null);
-      });
-      patHidden = (data.hidden_active_ms || []).map(ms => requestedAt + ms).filter(until => until > now);
-      $('pat-zone').hidden = !patRows.size && !patHidden.length;
+      row.until = row.id === item.id ? Math.min(row.until, until) : until;
+      row.id = item.id;
+      const sender = item.sender_name || t('이름 확인 중'), target = item.target_name || t('이름 확인 중');
+      const sentence = t('{sender}가 {target}를 복복복 하고 있습니다.');
+      // Insert names as text nodes; names can contain HTML or translation tokens.
+      row.copy.replaceChildren(...sentence.split(/(\{sender\}|\{target\})/).map(part =>
+        part === '{sender}' || part === '{target}' ? node('strong', '', part === '{sender}' ? sender : target) : document.createTextNode(part)));
+      row.copy.title = row.copy.textContent;
+      row.count.textContent = `×${item.count}`;
+      row.el.setAttribute('aria-label', t('{sender} → {target}, 복복 {count}번', {sender,target,count:item.count}));
+    }
+    for (const [key, row] of patRows) if (!keep.has(key)) {row.el.remove(); patRows.delete(key);}
+    // Preserve each DOM node even when another slot is replaced or removed.
+    const ordered = (data.rows || []).map(item => patRows.get(JSON.stringify([item.sender,item.target]))).filter(Boolean);
+    ordered.forEach((row, index) => {
+      const current = $('pat-list').children[index];
+      if (current !== row.el) $('pat-list').insertBefore(row.el, current || null);
     });
+    patHidden = (data.hidden_active_ms || []).map(ms => requestedAt + ms).filter(until => until > now);
+    $('pat-zone').hidden = !patRows.size && !patHidden.length;
     cancelAnimationFrame(patFrame); tickPats();
   }
   async function refreshPats() {
@@ -1125,8 +1111,9 @@
         || t('아직 대응 버전이 없습니다. 앱 업데이트를 주기적으로 확인합니다.');
       notice = t('{build}의 호환성을 확인하지 못해 연동을 중단했어요. {progress}', {build,progress});
     }
-    $('connection-notice').textContent = notice || (!data.blocks_ready ? t('차단 목록을 확인할 수 없어 상대 대화를 보류합니다. 연결 상태 새로고침 후 다시 확인해 주세요.') : t('게임의 고양이 숨김과 채팅 차단은 별개입니다. 받지 못한 대화는 복원하지 않습니다.'));
-    $('connection-notice').hidden = false;
+    const connectionNotice = notice || (!data.blocks_ready ? t('차단 목록을 확인할 수 없어 상대 대화를 보류합니다. 연결 상태 새로고침 후 다시 확인해 주세요.') : '');
+    $('connection-notice').textContent = connectionNotice;
+    $('connection-notice').hidden = !connectionNotice;
     $('storage-label').textContent = data.storage_error ? t('저장 실패 · 일부 기록 미보관') : t('이 기기에 30일 보관');
     document.querySelector('.account-copy strong').textContent = data.profiles[data.context.account]?.name || t('계정 확인 중');
     $('account-status').textContent = connected ? (data.lobby_verified ? t('Bongo Cat 연결됨') : t('Steam 연결됨 · 로비 확인 중')) : t('연결 확인 중');
@@ -1143,6 +1130,9 @@
     $('message-input').placeholder = selected === data.context.lobby ? t('메시지 입력') : t('이 로비에 남겨 둘 초안');
     $('search-status').hidden=!query; $('search-summary').textContent=t('현재 페이지 {count}개 결과', {count:data.messages.length});
     // The history control changes the content height; settle it before restoring the anchor.
+    // Search pagination must remain clickable above the persistent search overlay.
+    const olderParent = query ? $('search-status') : $('message-scroll');
+    if ($('older').parentElement !== olderParent) olderParent.prepend($('older'));
     $('older').hidden=!data.has_more;
     renderMessages(data,position); renderReactions(data); updateSend();
   }

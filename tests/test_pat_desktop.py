@@ -169,3 +169,24 @@ def test_overflow_summary_preserves_bottom_pin(qt_chat):
     assert gap <= 1
     wait_until(app, lambda: row_count(app, page) == 0)
     assert js(app, page, "(() => {const el=document.querySelector('#message-scroll');return el.scrollHeight-el.scrollTop-el.clientHeight})()") <= 1
+
+
+@pytest.mark.parametrize('size', [(400, 500), (536, 1000), (1240, 840)])
+@pytest.mark.parametrize('at_bottom', [False, True])
+def test_pat_overlay_keeps_viewport_geometry(qt_chat, size, at_bottom):
+    app, controller, page = qt_chat
+    page.parent().resize(*size)
+    wait_until(app, lambda: js(app, page, f'innerWidth === {size[0]} && innerHeight === {size[1]}'))
+    service = connect(app, controller, page)
+    seed_history(service, [f'겹침 검증 {i}' for i in range(45)])
+    wait_until(app, lambda: js(app, page, "document.querySelectorAll('.message-bubble').length") > 40)
+    top = "el.scrollHeight" if at_bottom else "300"
+    js(app, page, f"(()=>{{const el=document.querySelector('#message-scroll');el.scrollTop={top}}})()")
+    measure = "JSON.stringify((()=>{const el=document.querySelector('#message-scroll');return [el.scrollTop,el.scrollHeight,el.clientHeight,el.getBoundingClientRect().top]})())"
+    baseline = js(app, page, measure)
+    for target in ('fixture-peer', 'fixture-third', 'fixture-fourth', 'fixture-fifth'):
+        incoming(service, target)
+    wait_until(app, lambda: js(app, page, "!document.querySelector('#pat-overflow').hidden"))
+    assert js(app, page, measure) == baseline
+    wait_until(app, lambda: row_count(app, page) == 0)
+    assert js(app, page, measure) == baseline
