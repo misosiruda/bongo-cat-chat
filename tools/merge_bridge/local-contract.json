@@ -245,6 +245,67 @@
           "56b777433abcd863be74cce99c6d14e7aa5691a4feeae4303c8450a6da14a9e8"
         ]
       }
+    },
+    {
+      "features": {
+        "chest": "c06543a2e0082093f194914f62782097362b1d4490a5044aa4f5ab04218c722f",
+        "inventory": "3e92049fb30e98469d0d0f363afdf767830936e71d26938ab527fe405e288c90",
+        "merge": "9c0fad2920ede71ffbb95a1b21359c61adec1d43a2c05448ddc5310a4514ad10"
+      },
+      "files": {
+        "BongoCat.exe": [
+          "a5547e984690f6da278b9f6566c7e07a45fb664f7b8ea326f14b249e9ca01ad6"
+        ],
+        "MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll": [
+          "e1b05864961ea0a17d7eed0b5e6176cff254bf56cba89ff4beaafe00f629d1e9"
+        ],
+        "BongoCat_Data/Plugins/x86_64/steam_api64.dll": [
+          "e082bf5c9f881c822b1540a76b74f9d15e18019a73ebd206a559595badcb7f65"
+        ],
+        "BongoCat_Data/Managed/Assembly-CSharp-firstpass.dll": [
+          "b42450d3cfea9399ed98a2960679f7d21a648c211d35a92a18c6921a6fdf19dd"
+        ],
+        "BongoCat_Data/Managed/com.rlabrecque.steamworks.net.dll": [
+          "fbcc85ef09622d4eb454b1b9c30a3426bba23b4c6f2f9b7187f4378ca4fa07fd"
+        ],
+        "BongoCat_Data/Managed/DOTween.dll": [
+          "60f5ba532dd9ee494af2a6fc9e5df598ce225ebfeb02db3f005f6e7a8048a909"
+        ],
+        "BongoCat_Data/Managed/Heathen.Steamworks.dll": [
+          "a893f401bd083129d56ab44e9974bf83593666bd35598783f2f0df0fb06a0bea"
+        ],
+        "BongoCat_Data/Managed/Helper.Runtime.dll": [
+          "010b402336ee0bd50d60bd2ae71bc79827c88ca14b6a6a3e1e07a6f9ad5bf179"
+        ],
+        "BongoCat_Data/Managed/mscorlib.dll": [
+          "10c7cda5415d2ae8b300d59e33fcc8690e8303bfc86656b4bab2a2017a6bcc60"
+        ],
+        "BongoCat_Data/Managed/Newtonsoft.Json.dll": [
+          "7fcecbaed4ef1c867081026a967707117b82aa65f24007d262f423086d9987f2"
+        ],
+        "BongoCat_Data/Managed/System.dll": [
+          "c5f9727d1ef88d5c381feb824a2fa45a1f7ce8069568130742ec8253e028c4b9"
+        ],
+        "BongoCat_Data/Managed/System.Numerics.dll": [
+          "d59c65c3e029b0af41e4d2bec1f96830fc2db4da95c893a6506179e6179fa7c5"
+        ],
+        "BongoCat_Data/Managed/Unity.Localization.dll": [
+          "3070f9defd393b8f3f9425a5f0ab9e7539ee3d39d62fd383700e3f773caafc65"
+        ],
+        "BongoCat_Data/Managed/Unity.TextMeshPro.dll": [
+          "f79f673e912f6cbe073abed041c3c50c3257fddb494f88fa429ac8f3953ef0c7"
+        ],
+        "BongoCat_Data/Managed/UnityEngine.CoreModule.dll": [
+          "e5e0949b535277367447e3486f8cda859c18a46201b006fff975c5b40628757b"
+        ],
+        "BongoCat_Data/Managed/UnityEngine.UI.dll": [
+          "58a4c89e0c9e4db639ff774bb543cc28ffb49ed725ac060e7ea7973589bb6a19"
+        ],
+        "BongoCat_Data/Managed/BongoAutoChest.dll": [
+          null,
+          "56b777433abcd863be74cce99c6d14e7aa5691a4feeae4303c8450a6da14a9e8"
+        ]
+      }
     }
   ]
 }

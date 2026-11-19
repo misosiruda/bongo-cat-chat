@@ -49,6 +49,9 @@ namespace BongoCatChat.MergeBridge
         static JObject lastReceipt;
         static FieldInfo slotsField, busyField, countField, categoryField, recipesField, handlesField;
         static MethodInfo duplicatesMethod;
+        // Older supported Unity builds can strip the named IsInvoking overload.
+        static readonly MethodInfo inventoryIsInvoking = typeof(CatInventory).GetMethod("IsInvoking", new[] { typeof(string) });
+        static readonly object[] refreshMethod = { "Refresh" };
         [DllImport("kernel32.dll")] static extern uint GetCurrentProcessId();
         [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
         [DllImport("kernel32.dll")] static extern bool GetProcessTimes(IntPtr process, out long created, out long exited, out long kernel, out long user);
@@ -236,8 +239,10 @@ namespace BongoCatChat.MergeBridge
         {
             RequireAccount();
             var x = ItemExchange.Instance;
-            if (x == null || CatInventory.Instance == null) throw new GameNotReady("game_unavailable");
-            if (!CatInventory.Instance.IsInitialized || CatInventory.Instance.FetchingItems)
+            var inventory = CatInventory.Instance;
+            if (x == null || inventory == null) throw new GameNotReady("game_unavailable");
+            if (!inventory.IsInitialized || inventory.FetchingItems ||
+                (inventoryIsInvoking != null && (bool)inventoryIsInvoking.Invoke(inventory, refreshMethod)))
                 throw new GameNotReady("inventory_refreshing");
             return x;
         }
