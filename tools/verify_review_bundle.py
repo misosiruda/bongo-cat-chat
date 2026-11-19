@@ -13,6 +13,10 @@ from PyInstaller.archive.readers import CArchiveReader
 
 from audit_distribution import ROOT, inspect_bundle
 
+# CI installs the locked dependencies and runs this script from the checkout.
+sys.path.insert(0, str(ROOT / 'src'))
+from bongo_chat.merge_bridge import read_json
+
 
 def verify_winrt(app):
     """Import bundled projections in an isolated interpreter, without OS delivery.
@@ -48,7 +52,10 @@ assert toast.tag == 'verification'
 
 
 def verify_merge_assets(merge_assets):
-    contract = json.loads((merge_assets / 'contract.json').read_text(encoding='utf-8-sig'))
+    try:
+        contract = read_json(merge_assets / 'contract.json')
+    except ValueError as exc:
+        raise ValueError('Packaged merge contract is unreadable by the app') from exc
     expected = json.loads((ROOT / 'tools/merge_bridge/local-contract.json').read_text(encoding='utf-8'))
     if any(contract.get(key) != expected[key] for key in ('schema', 'profiles', 'probe')):
         raise ValueError('Packaged merge contract differs from this checkout')
