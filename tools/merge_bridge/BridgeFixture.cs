@@ -76,6 +76,8 @@ namespace BongoCat {
     public class CatInventory {
         public static CatInventory Instance = new CatInventory();
         public bool IsInitialized = true, FetchingItems;
+        public bool RefreshScheduled;
+        public bool IsInvoking(string name) { return name == "Refresh" && RefreshScheduled; }
         public List<SteamItemRuntime> Items = new List<SteamItemRuntime>();
     }
     public class ItemExchange {
@@ -123,15 +125,19 @@ class Fixture {
     static JObject Json(string path) { using(var r = new JsonTextReader(new StringReader(File.ReadAllText(path)))) return JObject.Load(r,null); }
     static JObject Snap() { return (JObject)Call("Snapshot"); }
     static void Check(bool ok) { checks++; if (!ok) throw new Exception("check_"+checks); }
-    internal static JObject Request(string op, string extra = "", string id = null, long age = 0, string expectedGroup = null, bool? expectedFavorites = null, bool refreshing = false) {
+    internal static JObject Request(string op, string extra = "", string id = null, long age = 0, string expectedGroup = null, bool? expectedFavorites = null, bool refreshing = false, bool refreshScheduled = false) {
         id = id ?? Guid.NewGuid().ToString("N");
         var observed=Snap();
         if (interactive) extra += ",\"sequence\":"+(++sequence)+",\"run_attempt\":\""+(string)observed["run_attempt"]+"\"";
         extra += ",\"expected_group\":\""+(expectedGroup ?? (string)observed["group"])+"\",\"favorites_allowed\":"+((expectedFavorites ?? (bool)observed["favorites_allowed"])?"true":"false")+",\"events_excluded\":"+((bool)observed["events_excluded"]?"true":"false");
         File.WriteAllText(Path.Combine(folder,"request.json"), "{\"id\":\""+id+"\",\"epoch\":\""+epoch+"\",\"token\":\""+token+"\",\"op\":\""+op+"\",\"issued_utc_ms\":"+(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()-age)+extra+"}");
         BongoCat.CatInventory.Instance.FetchingItems = refreshing;
+        BongoCat.CatInventory.Instance.RefreshScheduled = refreshScheduled;
         try { Call("Handle"); return Json(Path.Combine(folder,"response.json")); }
-        finally { BongoCat.CatInventory.Instance.FetchingItems = false; }
+        finally {
+            BongoCat.CatInventory.Instance.FetchingItems = false;
+            BongoCat.CatInventory.Instance.RefreshScheduled = false;
+        }
     }
     static string Material() { var s=Snap(); return ",\"count\":1,\"selection\":\""+(string)s["selection"]+"\",\"selection_attempt\":\""+(string)s["selection_attempt"]+"\""; }
     internal static void Pulse(string run, long sequence, long age = 0, bool refreshing = false) {
@@ -255,6 +261,15 @@ class Fixture {
         Check(!(bool)refreshing["ready"] && (string)refreshing["reason"]=="inventory_refreshing");
         Check((bool)refreshing["chest"]["armed"] && (string)refreshing["chest"]["reason"]=="inventory_refreshing");
         BongoCat.CatInventory.Instance.FetchingItems=false;
+        // A nonempty expired result can clear FetchingItems before the game's scheduled retry.
+        BongoCat.CatInventory.Instance.RefreshScheduled=true;
+        typeof(Bridge).GetField("nextSnapshot",flags).SetValue(null,0L);
+        typeof(Bridge).GetField("nextPoll",flags).SetValue(null,0L); Call("Tick");
+        var scheduled = Json(Path.Combine(folder,"snapshot.json"));
+        Check(!(bool)scheduled["ready"] && (string)scheduled["reason"]=="inventory_refreshing");
+        Check((bool)scheduled["chest"]["armed"] && (string)scheduled["chest"]["reason"]=="inventory_refreshing");
+        BongoCat.CatInventory.Instance.RefreshScheduled=false;
+        Check((bool)Request("select",refreshScheduled:true)["deferred"] && x.Selections==0);
         int duplicateReads=x.DuplicateReads;
         Check(Snap()["available_exchanges"].Type==JTokenType.Null && x.DuplicateReads==duplicateReads);
         var deferred = Request("select", refreshing:true);
