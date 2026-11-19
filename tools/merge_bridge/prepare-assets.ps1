@@ -22,5 +22,5 @@ $contract.probe | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path
     cecil_sha256=(Get-FileHash -LiteralPath $cecil).Hash.ToLowerInvariant()
     probe_sha256=(Get-FileHash -LiteralPath (Join-Path $output 'FeatureProbe.exe')).Hash.ToLowerInvariant()
     spec_sha256=(Get-FileHash -LiteralPath (Join-Path $output 'feature-spec.json')).Hash.ToLowerInvariant()
-} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $output 'contract.json') -Encoding utf8
+} | ConvertTo-Json -Depth 12 -Compress | Set-Content -LiteralPath (Join-Path $output 'contract.json') -Encoding utf8
 Write-Output 'Merge source assets prepared without game binaries.'

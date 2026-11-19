@@ -211,7 +211,7 @@ def test_source_fallback_rejects_corruption_and_cleans_temporary_files(tmp_path,
     assert not list(tmp_path.iterdir())
 
 
-@pytest.mark.parametrize('change', [None, 'old_schema', 'missing_files', 'missing_variant', 'source', 'payload'])
+@pytest.mark.parametrize('change', [None, 'oversized', 'old_schema', 'missing_files', 'missing_variant', 'source', 'payload'])
 def test_packaged_merge_contract_matches_source_and_rejects_drift(tmp_path, monkeypatch, change):
     monkeypatch.syspath_prepend(str(ROOT / 'tools'))
     module = tool('verify_review_bundle')
@@ -229,7 +229,10 @@ def test_packaged_merge_contract_matches_source_and_rejects_drift(tmp_path, monk
         (tmp_path / 'Bridge.cs').write_bytes(b'changed source')
         contract['source_sha256'] = hashlib.sha256(b'changed source').hexdigest()
     if change == 'payload':(tmp_path / 'MergePrepare.exe').write_bytes(b'changed payload')
-    (tmp_path / 'contract.json').write_text(json.dumps(contract))
+    encoded = json.dumps(contract)
+    if change == 'oversized':
+        encoded = encoded.ljust(16385)
+    (tmp_path / 'contract.json').write_text(encoded)
     if change is None:
         module.verify_merge_assets(tmp_path)
     else:

@@ -388,10 +388,12 @@ def test_native_and_dependency_change_is_refused(assets):
     with pytest.raises(RuntimeError,match='unsupported_game_files'):validate_assets(game,folder)
 
 
-@pytest.mark.parametrize('profile_index', [0, 1])
+@pytest.mark.parametrize('profile_index', range(len(json.loads(
+    (ROOT / 'tools/merge_bridge/local-contract.json').read_text(encoding='utf-8')
+)['profiles'])))
 def test_reviewed_automation_profiles_keep_exact_feature_and_dependency_binding(assets, monkeypatch, profile_index):
     game, folder, contract = assets
-    # Exercise both supported feature sets through the product validator with
+    # Exercise each supported feature set through the product validator with
     # synthetic files; no installed game or process is needed.
     profile = contract['profiles'][profile_index]
     profile['files'] = json.loads(json.dumps(contract['profiles'][0]['files']))
